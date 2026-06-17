@@ -1,0 +1,14 @@
+name: delphi-analysis
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - numpy
+  - awkward
+  - matplotlib
+  - pandas
+  - uproot
+  - uproot-browser
+  - hist
+  - ipykernel
+  - mplhep
