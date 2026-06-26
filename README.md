@@ -11,20 +11,37 @@ source setup.sh
 
 ## Workflow
 
-The scripts use `SAMPLE_SET = "100kTest"` by default. Edit the few constants at the top of each script when switching samples or files.
+The scripts use `SAMPLE_SET = "100kTest"` by default. Edit the constants near the top of
+each script when switching sample sets or output locations.
 
 ```bash
-./scripts/merge_nanoaod.py
-./scripts/hadd_nanoaod.py
-./scripts/plot_variables.py
+./scripts/filter-chunks.py
+./scripts/hadd-chunks.py
+./scripts/summary-branches.py
+./scripts/plot-branches-all.py
+./scripts/plot-branches-compare.py
+./scripts/plot-gen-compare.py
+./scripts/plot-gen-reco-track-match.py
+./scripts/plot-gen-reco-track-diff.py
+./scripts/plot-gen-check.py
 ```
 
 The output layout is:
 
 ```text
-output/merged/<sample-set>/<sample>/job_<N>.root
-output/hadd/<sample-set>/<sample>.root
-plots/<sample-set>/
+output/chunks_raw/<sample-set>/<generated-sample>/final_root/job_<n>/<nanoaod-file>.root
+output/chunks/<sample-set>/<generated-sample>/final_root/job_<n>/<nanoaod-file>.root
+output/dataset/<sample-set>/<sample>/<nanoaod-file>.root
+data/check/<sample-set>/
+data/branch/<sample>.json
+plots/<sample-set>/<plot-name>/
 ```
 
-`plot_variables.py` takes explicitly labelled input files through `INPUT_SAMPLES`, so plot legends and summaries do not depend on file names.
+`filter-chunks.py` keeps events with `nGenPart > 0`, removes duplicate
+`(run, event, nGenPart)` keys per job, and writes a per-job summary to
+`data/check/<sample-set>/event-filter.csv`. `hadd-chunks.py` then combines the filtered
+chunks into `output/dataset/<sample-set>/` without ROOT `hadd`.
+
+The branch JSON files store per-sample Events branch stats by source file. `plot-branches-all.py`
+and `plot-branches-compare.py` use those stats to skip branches with no filled entries.
+Plotting scripts write diagnostic text or CSV files under `data/check/<sample-set>/<plot-name>/`.
