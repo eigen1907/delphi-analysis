@@ -1,5 +1,8 @@
-output/
-plots/
+*DS_Store
+
+output/*
+plots/*
+data/check/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
