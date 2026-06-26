@@ -1,0 +1,3941 @@
+{
+  "sample": "Zee",
+  "trees": {
+    "Events": {
+      "branches": {
+        "BeamSpot_errorFlag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "BeamSpot_sigmaX": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "BeamSpot_sigmaY": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "BeamSpot_sigmaZ": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "BeamSpot_x": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "BeamSpot_y": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "BeamSpot_z": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Btag_probAllIP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Btag_probNegIP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Btag_probPosIP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Btag_thrustVector": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Btag_thrustVector.fCoordinates": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Btag_thrustVector.fCoordinates.fX": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Btag_thrustVector.fCoordinates.fY": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Btag_thrustVector.fCoordinates.fZ": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Dedx_error": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Dedx_gapWires": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Dedx_nrVDHits": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Dedx_nrWires": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Dedx_value": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Dedx_valueVD": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Dedx_width": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Elid_gammaConversion": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Elid_partIdx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Elid_px": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Elid_py": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Elid_pz": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Elid_tag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Event_DSTType": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Event_chargedMult": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Event_chargedMultT4": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Event_cmEnergy": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Event_date": {
+          "source": [
+            "nanoaod",
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Event_evtNumber": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Event_fillNumber": {
+          "source": [
+            "nanoaod",
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Event_hadronTagT4": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Event_magField": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Event_neutralMult": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Event_runNumber": {
+          "source": [
+            "nanoaod",
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Event_shortDstVersion": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Event_time": {
+          "source": [
+            "nanoaod",
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Event_totalChargedEnergy": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Event_totalEMEnergy": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Event_totalHadronicEnergy": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "GenPart_firstChildIdx": {
+          "source": [
+            "nanoaod",
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "GenPart_lastChildIdx": {
+          "source": [
+            "nanoaod",
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "GenPart_mass": {
+          "source": [
+            "nanoaod",
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "GenPart_parentIdx": {
+          "source": [
+            "nanoaod",
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "GenPart_pdgId": {
+          "source": [
+            "nanoaod",
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "GenPart_simIdx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "GenPart_status": {
+          "source": [
+            "nanoaod",
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "GenPart_tau": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "GenPart_vector": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "GenPart_vector.fCoordinates": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "GenPart_vector.fCoordinates.fT": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "GenPart_vector.fCoordinates.fX": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "GenPart_vector.fCoordinates.fY": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "GenPart_vector.fCoordinates.fZ": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "GenPart_vertex": {
+          "source": [
+            "nanoaod",
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "GenPart_vertex.fCoordinates": {
+          "source": [
+            "nanoaod",
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "GenPart_vertex.fCoordinates.fT": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "GenPart_vertex.fCoordinates.fX": {
+          "source": [
+            "nanoaod",
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "GenPart_vertex.fCoordinates.fY": {
+          "source": [
+            "nanoaod",
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "GenPart_vertex.fCoordinates.fZ": {
+          "source": [
+            "nanoaod",
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Haid_kaonCombined": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haid_kaonDedx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haid_kaonRich": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haid_pionRich": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haid_protonCombined": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haid_protonDedx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haid_protonRich": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haid_richQuality": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haid_sign": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haidc_electronTag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haidc_heavyTag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haidc_kaonTag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haidc_pionTag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haidc_protonTag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haidc_selectionFlag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haide_electronTag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haide_heavyTag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haide_kaonTag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haide_pionTag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haide_protonTag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haide_selectionFlag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haidn_heavyTag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haidn_heavyTrackSelection": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haidn_kaonTag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haidn_kaonTrackSelection": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haidn_pionTag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haidn_pionTrackSelection": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haidn_protonTag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haidn_protonTrackSelection": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haidr_electronTag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haidr_heavyTag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haidr_kaonTag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haidr_pionTag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haidr_protonTag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Haidr_selectionFlag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Muid_hitPattern": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Muid_looseChi2": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Muid_partIdx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Muid_tag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_charge": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_decayVtxIdx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_fourMomentum": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_fourMomentum.fCoordinates": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_fourMomentum.fCoordinates.fT": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_fourMomentum.fCoordinates.fX": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_fourMomentum.fCoordinates.fY": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_fourMomentum.fCoordinates.fZ": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_hacNumAssociatedShowers": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_hacNumTowers": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_hacParticleCode": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_hacShowerEnergy": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_hacShowerPhi": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_hacShowerTheta": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_hacTotalShowerEnergy": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_hacTowerHitPattern": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_hemisphereIdx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_hpcLayerHitPattern": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_hpcNumAssociatedShowers": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_hpcNumLayers": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_hpcParticleCode": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_hpcShowerEnergy": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_hpcShowerPhi": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_hpcShowerTheta": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_hpcTotalShowerEnergy": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_jetIdx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_lock": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_massId": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_originVtxIdx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_pdgId": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_simIdx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_sticChargedTag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_sticNumTowers": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_sticShowerEnergy": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_sticShowerPhi": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_sticShowerTheta": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_sticSiliconVertexPos": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_vtxCode": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Part_vtxIdx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "PhotonConv_firstDaughterIdx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "PhotonConv_fourMomentum": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "PhotonConv_fourMomentum.fCoordinates": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "PhotonConv_fourMomentum.fCoordinates.fT": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "PhotonConv_fourMomentum.fCoordinates.fX": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "PhotonConv_fourMomentum.fCoordinates.fY": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "PhotonConv_fourMomentum.fCoordinates.fZ": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "PhotonConv_pairType": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "PhotonConv_secondDaughterIdx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "PhotonConv_simPhotonIdx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "PhotonConv_trackLength": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "PhotonConv_vertex": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "PhotonConv_vertex.fCoordinates": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "PhotonConv_vertex.fCoordinates.fX": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "PhotonConv_vertex.fCoordinates.fY": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "PhotonConv_vertex.fCoordinates.fZ": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_emEnergy": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_fourMomentum": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_fourMomentum.fCoordinates": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_fourMomentum.fCoordinates.fT": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_fourMomentum.fCoordinates.fX": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_fourMomentum.fCoordinates.fY": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_fourMomentum.fCoordinates.fZ": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_hadEnergy": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_hpcEnergyWeightedDepth": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_hpcLayerHitPattern": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_hpcNumAssociatedShowers": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_hpcNumLayers": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_hpcParticleCode": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_hpcPhotFirstLayer": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_hpcPhotMaxConsecutiveLayers": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_hpcPhotNumClusters": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_hpcShowerEnergy": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_hpcTotalShowerEnergy": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_hpcTransverseFluctuation": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_isFEMC": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_isHPC": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_isSTIC": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_lock": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_partIdx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_pi0Chi2": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_pi0FittedMass": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_pi0GammaChi2": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_pi0NumConnectedMaxima": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_pi0NumExpectedMaxima": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_pi0RelE1stGaussian": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_sticChargedTag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_sticNumTowers": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Photon_sticShowerEnergy": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Rich_flagg": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Rich_flagl": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Rich_nepg": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Rich_nepl": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Rich_nphg": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Rich_nphl": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Rich_sigg": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Rich_sigl": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Rich_theg": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Rich_thel": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "SimPart_charge": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "SimPart_decayVtxIdx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "SimPart_fourMomentum": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "SimPart_fourMomentum.fCoordinates": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "SimPart_fourMomentum.fCoordinates.fT": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "SimPart_fourMomentum.fCoordinates.fX": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "SimPart_fourMomentum.fCoordinates.fY": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "SimPart_fourMomentum.fCoordinates.fZ": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "SimPart_genIdx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "SimPart_originVtxIdx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "SimPart_partIdx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "SimPart_pdgId": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "SimVtx_incomingIdx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "SimVtx_masscode": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "SimVtx_nOut": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "SimVtx_outgoingIdx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "SimVtx_position": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "SimVtx_position.fCoordinates": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "SimVtx_position.fCoordinates.fX": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "SimVtx_position.fCoordinates.fY": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "SimVtx_position.fCoordinates.fZ": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Trac_chi2NoVD": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Trac_chi2VD": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Trac_chi2VDHits": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Trac_decayVtxIdx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Trac_detectors": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Trac_errorResRPhiFirstPoint": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Trac_errorResZFirstPoint": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Trac_firstPointR": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Trac_firstPointZ": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Trac_impParRPhi": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Trac_impParToBeamSpotRPhi": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Trac_impParToVertexRPhi": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Trac_impParToVertexZ": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Trac_impParZ": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Trac_length": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Trac_ndfNoVD": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Trac_ndfVD": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Trac_originVtxIdx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Trac_partIdx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Trac_perigee": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Trac_perigee.fArray": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Trac_resRPhiFirstPoint": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Trac_resZFirstPoint": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Trac_vdHitsRPhi": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Trac_vdHitsZ": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Trac_weightMatrix": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Trac_weightMatrix.fRep": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Trac_weightMatrix.fRep.fArray": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Uter_coord1": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Uter_coord2": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Uter_coord3": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Uter_dataDescriptor": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Uter_detector": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Uter_elementLength": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Uter_invPOrPt": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Uter_phi": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Uter_theta": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0Hyp_impact3D": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0Hyp_impact3DErr": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0Hyp_impactXY": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0Hyp_impactXYErr": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0Hyp_impactZ": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0Hyp_impactZErr": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0Hyp_kind": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0Hyp_momentum": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0Hyp_momentum.fCoordinates": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0Hyp_momentum.fCoordinates.fX": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0Hyp_momentum.fCoordinates.fY": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0Hyp_momentum.fCoordinates.fZ": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0Hyp_probability": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0Hyp_slot": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0Hyp_v0Idx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0Hyp_vertex": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0Hyp_vertex.fCoordinates": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0Hyp_vertex.fCoordinates.fX": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0Hyp_vertex.fCoordinates.fY": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0Hyp_vertex.fCoordinates.fZ": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0_firstPartIdx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0_impactEps": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0_impactZ": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0_incomingIdx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0_mcIncomingIdx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0_momentum": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0_neutralPhi": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0_neutralTheta": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0_pMinus": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0_pMinus.fCoordinates": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0_pMinus.fCoordinates.fX": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0_pMinus.fCoordinates.fY": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0_pMinus.fCoordinates.fZ": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0_pPlus": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0_pPlus.fCoordinates": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0_pPlus.fCoordinates.fX": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0_pPlus.fCoordinates.fY": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0_pPlus.fCoordinates.fZ": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0_secondPartIdx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0_suggestedMass": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0_tagFlag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0_vertex": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0_vertex.fCoordinates": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0_vertex.fCoordinates.fX": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0_vertex.fCoordinates.fY": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0_vertex.fCoordinates.fZ": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0_vertexChi2Prob": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0_xyFlightAngle": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "V0_xyFlightDistanceOverError": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "VdHit_R": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "VdHit_RPhi": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "VdHit_localX": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "VdHit_module": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "VdHit_signalToNoise": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "VdHit_trackIdx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "VdUnHit_R": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "VdUnHit_RPhi": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "VdUnHit_localX": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "VdUnHit_module": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "VdUnHit_signalToNoise": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Vtx_chi2": {
+          "source": [
+            "nanoaod",
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Vtx_errorFlag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Vtx_errorMatrix": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Vtx_errorMatrix.fRep": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Vtx_errorMatrix.fRep.fArray": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Vtx_incomingIdx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Vtx_nOutgoing": {
+          "source": [
+            "nanoaod",
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Vtx_ndf": {
+          "source": [
+            "nanoaod",
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Vtx_outgoingIdx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Vtx_position": {
+          "source": [
+            "nanoaod",
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Vtx_position.fCoordinates": {
+          "source": [
+            "nanoaod",
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Vtx_position.fCoordinates.fX": {
+          "source": [
+            "nanoaod",
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Vtx_position.fCoordinates.fY": {
+          "source": [
+            "nanoaod",
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Vtx_position.fCoordinates.fZ": {
+          "source": [
+            "nanoaod",
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Vtx_status": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nGenPart": {
+          "source": [
+            "nanoaod",
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "nPart": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nPhoton": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nPhotonConv": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nSimPart": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nSimVtx": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nUter": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nV0": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nV0Hyp": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nVdHit": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nVdUnHit": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nVtx": {
+          "source": [
+            "nanoaod",
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "ElidRaw_gammaConvTag": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "ElidRaw_paIdx": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "ElidRaw_refitMomentum": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "ElidRaw_refitMomentum.fCoordinates": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "ElidRaw_refitMomentum.fCoordinates.fX": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "ElidRaw_refitMomentum.fCoordinates.fY": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "ElidRaw_refitMomentum.fCoordinates.fZ": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "ElidRaw_tag": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "EmLayer_emShowerIdx": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "EmLayer_energy": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "EmLayer_layer": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "EmShower_detector": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "EmShower_energy": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "EmShower_layerPattern": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "EmShower_nLayerEnergies": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "EmShower_nLayers": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "EmShower_paIdx": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "EmShower_position": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "EmShower_position.fCoordinates": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "EmShower_position.fCoordinates.fX": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "EmShower_position.fCoordinates.fY": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "EmShower_position.fCoordinates.fZ": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Event_bFieldGevCm": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Event_bFieldTesla": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Event_beamSpotErrorFlag": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Event_beamSpotSigmaX": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Event_beamSpotSigmaY": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Event_beamSpotSigmaZ": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Event_beamSpotX": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Event_beamSpotY": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Event_beamSpotZ": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Event_eventNumber": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Event_experimentNumber": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Event_fileSequenceNumber": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Event_isMC": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Event_simPVErrorFlag": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Event_simPVX": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Event_simPVY": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Event_simPVZ": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "GenPart_fourMomentum": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "GenPart_fourMomentum.fCoordinates": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "GenPart_fourMomentum.fCoordinates.fT": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "GenPart_fourMomentum.fCoordinates.fX": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "GenPart_fourMomentum.fCoordinates.fY": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "GenPart_fourMomentum.fCoordinates.fZ": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "GenPart_productionTime": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "GenPart_properLifetime": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HadHit_energy": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HadHit_hadShowerIdx": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HadHit_layer": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HadHit_nTowers": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HadShower_direction": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HadShower_direction.fCoordinates": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HadShower_direction.fCoordinates.fX": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HadShower_direction.fCoordinates.fY": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HadShower_direction.fCoordinates.fZ": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HadShower_energy": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HadShower_nHitRows": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HadShower_nHits": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HadShower_paIdx": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HaidRaw_flagGas": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HaidRaw_flagLiq": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HaidRaw_kaonCombined": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HaidRaw_kaonDedx": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HaidRaw_kaonRich": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HaidRaw_nepGas": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HaidRaw_nepLiq": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HaidRaw_nphGas": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HaidRaw_nphLiq": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HaidRaw_paIdx": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HaidRaw_pionRich": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HaidRaw_protonCombined": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HaidRaw_protonDedx": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HaidRaw_protonRich": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HaidRaw_richQuality": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HaidRaw_sigmaGas": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HaidRaw_sigmaLiq": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HaidRaw_thetaGas": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "HaidRaw_thetaLiq": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "MtpcRaw_dEdx65Max": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "MtpcRaw_dEdx65Sigma": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "MtpcRaw_dEdx80Integrated": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "MtpcRaw_dEdx80Max": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "MtpcRaw_dEdx80Sigma": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "MtpcRaw_packedPadsSectors": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "MtpcRaw_packedWiresHits": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "MtpcRaw_tracRawIdx": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "MtpcRaw_zFitChi2": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "MuidRaw_hitPattern": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "MuidRaw_looseChi2": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "MuidRaw_paIdx": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "MuidRaw_tag": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Stic_directionFromMain": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Stic_directionFromMain.fCoordinates": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Stic_directionFromMain.fCoordinates.fX": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Stic_directionFromMain.fCoordinates.fY": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Stic_directionFromMain.fCoordinates.fZ": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Stic_energyFromMain": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Stic_numHitTowers": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Stic_paIdx": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "TracRaw_charge": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "TracRaw_chi2NoVD": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "TracRaw_chi2VD": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "TracRaw_chi2VDHits": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "TracRaw_detectorsUsed": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "TracRaw_firstPointR": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "TracRaw_firstPointZ": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "TracRaw_impactRPhi": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "TracRaw_impactZ": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "TracRaw_invR": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "TracRaw_ndfNoVD": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "TracRaw_ndfVD": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "TracRaw_paIdx": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "TracRaw_phi": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "TracRaw_theta": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "TracRaw_trackLength": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "TracRaw_weightMatrix": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "TrackElement_coord1": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "TrackElement_coord2": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "TrackElement_coord3": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "TrackElement_covTail": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "TrackElement_covTailLength": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "TrackElement_dataDescriptor": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "TrackElement_invPOrPt": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "TrackElement_phi": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "TrackElement_subDetector": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "TrackElement_theta": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "TrackElement_tracRawIdx": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "VdAssocHit_R": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "VdAssocHit_RPhi": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "VdAssocHit_localX": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "VdAssocHit_module": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "VdAssocHit_signalToNoise": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "VdAssocHit_tracRawIdx": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "VdUnassocHit_R": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "VdUnassocHit_RPhi": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "VdUnassocHit_localX": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "VdUnassocHit_module": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "VdUnassocHit_signalToNoise": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Vtx_errXX": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Vtx_errXY": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Vtx_errXZ": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Vtx_errYY": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Vtx_errYZ": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Vtx_errZZ": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Vtx_massCode": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "Vtx_statusBits": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "nElidRaw": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "nEmLayer": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "nEmShower": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "nHadHit": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "nHadShower": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "nHaidRaw": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "nMtpcRaw": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "nMuidRaw": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "nStic": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "nTracRaw": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "nTrackElement": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "nVdAssocHit": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        },
+        "nVdUnassocHit": {
+          "source": [
+            "nanoaod_raw_sdst",
+            "nanoaod_raw_fadana"
+          ]
+        }
+      }
+    },
+    "t": {
+      "branches": {
+        "Aplanarity": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Aplanarity_linearized": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "C_linearized": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "D_linearized": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "EMF": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Energy": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "EventNo": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "HAC": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "HPC": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "LOCK": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Mvis": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "RunNo": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "SPhi": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "SPhi_linearized": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "STIC": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "STheta": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "STheta_linearized": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Sphericity": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Sphericity_linearized": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "TPhi": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "TPhiWithMissP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "TTheta": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "TThetaWithMissP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Thrust": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "ThrustWithMissP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "cW": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "charge": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "chi2ndf": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "chi2ndfVD": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "correspondenceIndex": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "d0": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "d2": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "dpp": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "eta": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "eta_wrtThrMissP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "highPurity": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "index": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "isMC": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "isOnres": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "mass": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "missChargedP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "missChargedPhi": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "missChargedPt": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "missChargedTheta": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "missP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "missPhi": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "missPt": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "missTheta": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nChargedHadrons": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nChargedHadronsHP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nChargedParticle": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nChargedParticleHP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nChargedParticleHPSmear": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nChargedParticleHPUnfold": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nParticle": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nParticleHP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "ntpc": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "particleWeight": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "passesBELLE": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "passesISR": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "passesNTrkMin": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "passesNTupleAfterCut": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "passesNeuNch": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "passesSTheta": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "passesTotalChgEnergyMin": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "passesWW": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "phi": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "phi_wrtThrMissP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "pid": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "pt": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "pt_wrtThrMissP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "pwflag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "px": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "py": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "pz": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "rap": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "rap_wrtThrMissP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "sPrime": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "source": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "subDir": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "theta": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "theta_wrtThrMissP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "weight": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "z0": {
+          "source": [
+            "nanoaod"
+          ]
+        }
+      }
+    },
+    "tgen": {
+      "branches": {
+        "Aplanarity": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Aplanarity_linearized": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "C_linearized": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "D_linearized": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Energy": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "EventNo": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Mvis": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "RunNo": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "SPhi": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "SPhi_linearized": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "STheta": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "STheta_linearized": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Sphericity": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Sphericity_linearized": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "TPhi": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "TPhiWithMissP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "TTheta": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "TThetaWithMissP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Thrust": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "ThrustWithMissP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "cW": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "charge": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "correspondenceIndex": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "d0": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "d2": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "eta": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "eta_wrtThrMissP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "highPurity": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "index": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "isMC": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "isOnres": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "mass": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "missChargedP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "missChargedPhi": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "missChargedPt": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "missChargedTheta": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "missP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "missPhi": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "missPt": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "missTheta": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nChargedHadrons": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nChargedHadronsHP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nChargedParticle": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nChargedParticleHP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nChargedParticleHPSmear": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nChargedParticleHPUnfold": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nParticle": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nParticleHP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "ntpc": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "particleWeight": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "passesBELLE": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "passesISR": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "passesNTrkMin": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "passesNTupleAfterCut": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "passesNeuNch": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "passesSTheta": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "passesTotalChgEnergyMin": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "passesWW": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "phi": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "phi_wrtThrMissP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "pid": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "pt": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "pt_wrtThrMissP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "pwflag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "px": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "py": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "pz": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "rap": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "rap_wrtThrMissP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "sPrime": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "source": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "subDir": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "theta": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "theta_wrtThrMissP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "weight": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "z0": {
+          "source": [
+            "nanoaod"
+          ]
+        }
+      }
+    },
+    "tgenBefore": {
+      "branches": {
+        "Aplanarity": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Aplanarity_linearized": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "C_linearized": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "D_linearized": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Energy": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "EventNo": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Mvis": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "RunNo": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "SPhi": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "SPhi_linearized": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "STheta": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "STheta_linearized": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Sphericity": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Sphericity_linearized": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "TPhi": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "TPhiWithMissP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "TTheta": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "TThetaWithMissP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "Thrust": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "ThrustWithMissP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "cW": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "charge": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "correspondenceIndex": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "d0": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "d2": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "eta": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "eta_wrtThrMissP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "highPurity": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "index": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "isMC": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "isOnres": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "mass": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "missChargedP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "missChargedPhi": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "missChargedPt": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "missChargedTheta": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "missP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "missPhi": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "missPt": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "missTheta": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nChargedHadrons": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nChargedHadronsHP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nChargedParticle": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nChargedParticleHP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nChargedParticleHPSmear": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nChargedParticleHPUnfold": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nParticle": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "nParticleHP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "ntpc": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "particleWeight": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "passesBELLE": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "passesISR": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "passesNTrkMin": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "passesNTupleAfterCut": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "passesNeuNch": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "passesSTheta": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "passesTotalChgEnergyMin": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "passesWW": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "phi": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "phi_wrtThrMissP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "pid": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "pt": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "pt_wrtThrMissP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "pwflag": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "px": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "py": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "pz": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "rap": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "rap_wrtThrMissP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "sPrime": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "source": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "subDir": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "theta": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "theta_wrtThrMissP": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "weight": {
+          "source": [
+            "nanoaod"
+          ]
+        },
+        "z0": {
+          "source": [
+            "nanoaod"
+          ]
+        }
+      }
+    }
+  }
+}
