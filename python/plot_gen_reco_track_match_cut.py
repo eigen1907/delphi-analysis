@@ -10,20 +10,21 @@ import uproot
 
 from plot_utils import (
     CHARGED_ABS_PDG,
-    EXPECTED_ABS_PDG,
     GEN_P4_BRANCHES,
     MATCH_ALPHA_CUTS,
     MATCH_AXES,
     MATCH_SOURCES,
-    SAMPLE_LABELS,
-    SAMPLE_STYLES,
     charge_from_pdg,
     divide,
     has_ancestor_pdg,
+    infer_expected_abs_pdg,
     is_track_fiducial,
     match_cut_dir,
     opening_angle,
     phi_0_2pi,
+    resolve_samples,
+    sample_grid,
+    sample_styles,
     set_hist_yaxis,
 )
 
@@ -69,12 +70,19 @@ def fill_2d(hist: np.ndarray, x_value: float, y_value: float, x_bins: np.ndarray
         hist[x_index, y_index] += 1
 
 
-def plot_scan(output_dir: Path, name: str, ylabel: str, values_by_sample: dict[str, np.ndarray]) -> None:
+def plot_scan(
+    output_dir: Path,
+    name: str,
+    ylabel: str,
+    values_by_sample: dict[str, np.ndarray],
+    samples: tuple[str, ...],
+    styles: dict[str, tuple[str, str]],
+) -> None:
     fig, ax = plt.subplots(figsize=(12, 10))
     ax.axhline(1.0, color="black", linestyle=":", linewidth=2, alpha=0.8)
 
-    for sample in SAMPLE_LABELS:
-        color, _ = SAMPLE_STYLES[sample]
+    for sample in samples:
+        color, _ = styles[sample]
         ax.plot(MATCH_ALPHA_CUTS, values_by_sample[sample], label=sample, color=color, linewidth=3, alpha=0.7)
 
     ax.set_xlim(MATCH_ALPHA_CUTS[0], MATCH_ALPHA_CUTS[-1])
@@ -88,13 +96,23 @@ def plot_scan(output_dir: Path, name: str, ylabel: str, values_by_sample: dict[s
     plt.close(fig)
 
 
-def plot_metric(output_dir: Path, name: str, xlabel: str, ylabel: str, bins: np.ndarray, numerator_by_sample: dict[str, np.ndarray], denominator_by_sample: dict[str, np.ndarray]) -> None:
+def plot_metric(
+    output_dir: Path,
+    name: str,
+    xlabel: str,
+    ylabel: str,
+    bins: np.ndarray,
+    numerator_by_sample: dict[str, np.ndarray],
+    denominator_by_sample: dict[str, np.ndarray],
+    samples: tuple[str, ...],
+    styles: dict[str, tuple[str, str]],
+) -> None:
     fig, ax = plt.subplots(figsize=(12, 10))
     centers = 0.5 * (bins[:-1] + bins[1:])
     ax.axhline(1.0, color="black", linestyle=":", linewidth=2, alpha=0.8)
 
-    for sample in SAMPLE_LABELS:
-        color, _ = SAMPLE_STYLES[sample]
+    for sample in samples:
+        color, _ = styles[sample]
         values = divide(numerator_by_sample[sample], denominator_by_sample[sample])
         ax.step(centers, values, where="mid", label=sample, color=color, linewidth=3, alpha=0.7)
         #ax.scatter(centers, values, color=color, s=25, alpha=0.7)
@@ -120,19 +138,19 @@ def plot_metric_2d(
     values_label: str,
     numerator_by_sample: dict[str, np.ndarray],
     denominator_by_sample: dict[str, np.ndarray],
+    samples: tuple[str, ...],
 ) -> None:
-    fig, axes = plt.subplots(2, 2, figsize=(16, 14), sharex=True, sharey=True)
+    fig, axes = sample_grid(samples)
     mesh = None
 
-    for ax, sample in zip(axes.ravel(), SAMPLE_LABELS, strict=True):
+    for ax, sample in zip(axes, samples, strict=True):
         values = divide(numerator_by_sample[sample], denominator_by_sample[sample])
         mesh = ax.pcolormesh(x_bins, y_bins, values.T, vmin=0.0, vmax=1.0, cmap="viridis")
         ax.text(0.94, 0.92, sample, transform=ax.transAxes, ha="right", fontsize=22)
         ax.grid(alpha=0.2)
 
-    for ax in axes[-1, :]:
+    for ax in axes:
         ax.set_xlabel(x_label)
-    for ax in axes[:, 0]:
         ax.set_ylabel(y_label)
 
     fig.subplots_adjust(right=0.86, hspace=0.08, wspace=0.08)
@@ -151,19 +169,21 @@ def plot_count(
     counts_by_sample: dict[str, np.ndarray],
     matched_by_sample: dict[str, np.ndarray],
     missed_by_sample: dict[str, np.ndarray],
+    samples: tuple[str, ...],
+    styles: dict[str, tuple[str, str]],
 ) -> None:
     fig, ax = plt.subplots(figsize=(12, 10))
     centers = 0.5 * (bins[:-1] + bins[1:])
     counts_list = []
 
     ax.plot([], [], color="none", label=f"{'Sample':<8} {'Object':<8} {'Matched':<8} {'Missed':<8}")
-    for sample in SAMPLE_LABELS:
+    for sample in samples:
         counts = counts_by_sample[sample]
         matched = int(np.sum(matched_by_sample[sample]))
         missed = int(np.sum(missed_by_sample[sample]))
         n_object = matched + missed
         counts_list.append(counts)
-        color, _ = SAMPLE_STYLES[sample]
+        color, _ = styles[sample]
         label = f"{sample:<8} {n_object:<8} {matched:<8} {missed:<8}"
         ax.step(centers, counts, where="mid", label=label, color=color, linewidth=3, alpha=0.7)
 
@@ -188,14 +208,15 @@ def plot_count_2d(
     counts_by_sample: dict[str, np.ndarray],
     matched_by_sample: dict[str, np.ndarray],
     missed_by_sample: dict[str, np.ndarray],
+    samples: tuple[str, ...],
 ) -> None:
     vmax = max(1.0, max((float(np.max(counts)) for counts in counts_by_sample.values() if counts.size), default=1.0))
     cmap = plt.get_cmap("viridis").copy()
     cmap.set_bad(color="white", alpha=0.0)
-    fig, axes = plt.subplots(2, 2, figsize=(16, 14), sharex=True, sharey=True)
+    fig, axes = sample_grid(samples)
     mesh = None
 
-    for ax, sample in zip(axes.ravel(), SAMPLE_LABELS, strict=True):
+    for ax, sample in zip(axes, samples, strict=True):
         counts = counts_by_sample[sample]
         matched = int(np.sum(matched_by_sample[sample]))
         missed = int(np.sum(missed_by_sample[sample]))
@@ -215,9 +236,8 @@ def plot_count_2d(
         )
         ax.grid(alpha=0.2)
 
-    for ax in axes[-1, :]:
+    for ax in axes:
         ax.set_xlabel(x_label)
-    for ax in axes[:, 0]:
         ax.set_ylabel(y_label)
 
     fig.subplots_adjust(right=0.86, hspace=0.08, wspace=0.08)
@@ -234,8 +254,11 @@ def plot_gen_reco_track_match_cut(
     alpha_cut: float = 0.05,
     fiducial_cos_max: float = 1.00,
     pt_min: float = 0.00,
+    samples: list[str] | tuple[str, ...] | None = None,
 ) -> None:
     mh.style.use(mh.styles.CMS)
+    samples = resolve_samples(input_root, samples)
+    styles = sample_styles(samples)
     output_root = output_root / "gen_reco_track_match_cut"
     scan_output = output_root / "alpha_scan"
     cut_output = output_root / match_cut_dir(alpha_cut, fiducial_cos_max, pt_min)
@@ -281,7 +304,7 @@ def plot_gen_reco_track_match_cut(
     source, file_name = MATCH_SOURCES[0]
     gen_px, gen_py, gen_pz = GEN_P4_BRANCHES[source]
 
-    for sample in SAMPLE_LABELS:
+    for sample in samples:
         tree = uproot.open(input_root / sample / file_name)["Events"]
         branches = [
             "GenPart_status",
@@ -297,6 +320,11 @@ def plot_gen_reco_track_match_cut(
             "TracRaw_charge",
         ]
         arrays = {branch: ak.to_list(tree[branch].array(library="ak")) for branch in branches}
+        expected_pdg = infer_expected_abs_pdg(
+            arrays["GenPart_status"],
+            arrays["GenPart_pdgId"],
+            arrays["GenPart_parentIdx"],
+        )
 
         n_gen = 0
         n_reco = 0
@@ -360,7 +388,7 @@ def plot_gen_reco_track_match_cut(
                     "theta": theta,
                     "phi": phi_0_2pi(float(np.arctan2(py, px))),
                     "charge": charge,
-                    "is_expected": abs(int(pdg_id)) == EXPECTED_ABS_PDG[sample] and not has_ancestor_pdg(pdgs, parents, idx, 22),
+                    "is_expected": expected_pdg is not None and abs(int(pdg_id)) == expected_pdg and not has_ancestor_pdg(pdgs, parents, idx, 22),
                 })
 
             reco_tracks = []
@@ -517,11 +545,21 @@ def plot_gen_reco_track_match_cut(
         "ancestor_not_gamma_status_1_expected_efficiency": GEN_AXIS_LABELS,
     }
     for metric, ylabel in labels.items():
-        plot_scan(scan_output, metric, ylabel, scan_values[metric])
+        plot_scan(scan_output, metric, ylabel, scan_values[metric], samples, styles)
         if metric == "ancestor_not_gamma_status_1_expected_pair_efficiency":
             continue
         for axis, bins, _ in MATCH_AXES:
-            plot_metric(cut_output, f"{metric}_vs_{axis}", axis_labels[metric][axis], ylabel, bins, metric_num[metric][axis], metric_den[metric][axis])
+            plot_metric(
+                cut_output,
+                f"{metric}_vs_{axis}",
+                axis_labels[metric][axis],
+                ylabel,
+                bins,
+                metric_num[metric][axis],
+                metric_den[metric][axis],
+                samples,
+                styles,
+            )
 
         for plane, x_axis, y_axis in (RECO_2D_AXES if metric == "fake_rate" else GEN_2D_AXES):
             plot_metric_2d(
@@ -534,6 +572,7 @@ def plot_gen_reco_track_match_cut(
                 ylabel,
                 metric_num_2d[metric][plane],
                 metric_den_2d[metric][plane],
+                samples,
             )
 
     for state, counts_by_axis, counts_2d in (
@@ -549,6 +588,8 @@ def plot_gen_reco_track_match_cut(
                 counts_by_axis[axis],
                 expected_matched_count[axis],
                 expected_missed_count[axis],
+                samples,
+                styles,
             )
         for plane, x_axis, y_axis in GEN_2D_AXES:
             plot_count_2d(
@@ -561,6 +602,7 @@ def plot_gen_reco_track_match_cut(
                 counts_2d[plane],
                 expected_matched_count_2d[plane],
                 expected_missed_count_2d[plane],
+                samples,
             )
 
     print(f"wrote {scan_output}")

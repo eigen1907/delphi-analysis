@@ -10,18 +10,18 @@ import uproot
 
 from plot_utils import (
     CHARGED_ABS_PDG,
-    EXPECTED_ABS_PDG,
     GEN_P4_BRANCHES,
     MATCH_SOURCES,
-    SAMPLE_LABELS,
-    SAMPLE_STYLES,
     add_delphi_label,
     charge_from_pdg,
     has_ancestor_pdg,
+    infer_expected_abs_pdg,
     is_track_fiducial,
     match_cut_dir,
     opening_angle,
     phi_0_2pi,
+    resolve_samples,
+    sample_styles,
     set_hist_yaxis,
     wrap_phi,
 )
@@ -46,14 +46,22 @@ EXPECTED_RESIDUAL_PLOTS = (
 )
 
 
-def plot_residual(output_dir: Path, name: str, xlabel: str, value_range: tuple[float, float], values_by_sample: dict[str, list[float]]) -> None:
+def plot_residual(
+    output_dir: Path,
+    name: str,
+    xlabel: str,
+    value_range: tuple[float, float],
+    values_by_sample: dict[str, list[float]],
+    samples: tuple[str, ...],
+    styles: dict[str, tuple[str, str]],
+) -> None:
     fig, ax = plt.subplots(figsize=(12, 10))
     bins = np.linspace(value_range[0], value_range[1], 101)
     counts_list = []
 
-    for sample in SAMPLE_LABELS:
+    for sample in samples:
         values = np.asarray(values_by_sample[sample], dtype=float)
-        color, hatch = SAMPLE_STYLES[sample]
+        color, hatch = styles[sample]
         underflow = int(np.count_nonzero(values < bins[0]))
         overflow = int(np.count_nonzero(values > bins[-1]))
         if len(values):
@@ -78,15 +86,22 @@ def plot_residual(output_dir: Path, name: str, xlabel: str, value_range: tuple[f
     plt.close(fig)
 
 
-def plot_event_count(output_dir: Path, name: str, xlabel: str, values_by_sample: dict[str, list[int]]) -> None:
+def plot_event_count(
+    output_dir: Path,
+    name: str,
+    xlabel: str,
+    values_by_sample: dict[str, list[int]],
+    samples: tuple[str, ...],
+    styles: dict[str, tuple[str, str]],
+) -> None:
     fig, ax = plt.subplots(figsize=(12, 10))
     hi = max([value for values in values_by_sample.values() for value in values], default=0)
     bins = np.arange(-0.5, hi + 1.5, 1.0)
     counts_list = []
 
-    for sample in SAMPLE_LABELS:
+    for sample in samples:
         values = np.asarray(values_by_sample[sample], dtype=int)
-        color, hatch = SAMPLE_STYLES[sample]
+        color, hatch = styles[sample]
         counts, _ = np.histogram(values, bins=bins)
         counts_list.append(counts)
         ax.hist(values, bins=bins, histtype="stepfilled", label=f"{sample:<8} N_event={len(values)}", facecolor="none", edgecolor=color, hatch=hatch, linewidth=0.0)
@@ -109,20 +124,23 @@ def plot_gen_reco_track_match_result(
     alpha_cut: float = 0.05,
     fiducial_cos_max: float = 1.00,
     pt_min: float = 0.00,
+    samples: list[str] | tuple[str, ...] | None = None,
 ) -> None:
     mh.style.use(mh.styles.CMS)
+    samples = resolve_samples(input_root, samples)
+    styles = sample_styles(samples)
     output_dir = output_root / "gen_reco_track_match_result" / match_cut_dir(alpha_cut, fiducial_cos_max, pt_min)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    residual_values = {name: {sample: [] for sample in SAMPLE_LABELS} for name, _, _ in RESIDUAL_PLOTS}
-    expected_residual_values = {name: {sample: [] for sample in SAMPLE_LABELS} for name, _, _ in EXPECTED_RESIDUAL_PLOTS}
-    n_matched_event = {sample: [] for sample in SAMPLE_LABELS}
-    n_matched_expected_event = {sample: [] for sample in SAMPLE_LABELS}
+    residual_values = {name: {sample: [] for sample in samples} for name, _, _ in RESIDUAL_PLOTS}
+    expected_residual_values = {name: {sample: [] for sample in samples} for name, _, _ in EXPECTED_RESIDUAL_PLOTS}
+    n_matched_event = {sample: [] for sample in samples}
+    n_matched_expected_event = {sample: [] for sample in samples}
 
     source, file_name = MATCH_SOURCES[0]
     gen_px, gen_py, gen_pz = GEN_P4_BRANCHES[source]
 
-    for sample in SAMPLE_LABELS:
+    for sample in samples:
         tree = uproot.open(input_root / sample / file_name)["Events"]
         branches = [
             "GenPart_status",
@@ -138,6 +156,11 @@ def plot_gen_reco_track_match_result(
             "TracRaw_charge",
         ]
         arrays = {branch: ak.to_list(tree[branch].array(library="ak")) for branch in branches}
+        expected_pdg = infer_expected_abs_pdg(
+            arrays["GenPart_status"],
+            arrays["GenPart_pdgId"],
+            arrays["GenPart_parentIdx"],
+        )
 
         for event_idx in range(tree.num_entries):
             gen_particles = []
@@ -168,7 +191,7 @@ def plot_gen_reco_track_match_result(
                     "theta": theta,
                     "phi": phi_0_2pi(float(np.arctan2(py, px))),
                     "charge": charge,
-                    "is_expected": abs(int(pdg_id)) == EXPECTED_ABS_PDG[sample] and not has_ancestor_pdg(pdgs, parents, idx, 22),
+                    "is_expected": expected_pdg is not None and abs(int(pdg_id)) == expected_pdg and not has_ancestor_pdg(pdgs, parents, idx, 22),
                 })
 
             reco_tracks = []
@@ -232,7 +255,7 @@ def plot_gen_reco_track_match_result(
     for plot_name, xlabel, value_range in RESIDUAL_PLOTS:
         if value_range is None:
             value_range = (0.0, alpha_cut)
-        plot_residual(output_dir, plot_name, xlabel, value_range, residual_values[plot_name])
+        plot_residual(output_dir, plot_name, xlabel, value_range, residual_values[plot_name], samples, styles)
     for plot_name, xlabel, value_range in EXPECTED_RESIDUAL_PLOTS:
         plot_residual(
             output_dir,
@@ -240,14 +263,18 @@ def plot_gen_reco_track_match_result(
             xlabel,
             value_range,
             expected_residual_values[plot_name],
+            samples,
+            styles,
         )
 
-    plot_event_count(output_dir, "n_matched_track", "Number of matched reco tracks per event", n_matched_event)
+    plot_event_count(output_dir, "n_matched_track", "Number of matched reco tracks per event", n_matched_event, samples, styles)
     plot_event_count(
         output_dir,
         "n_matched_ancestor_not_gamma_status_1_expected_track",
         "Number of matched ancestor_not_gamma_status_1_expected tracks per event",
         n_matched_expected_event,
+        samples,
+        styles,
     )
 
     print(f"wrote {output_dir}")

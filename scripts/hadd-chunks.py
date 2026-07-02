@@ -2,16 +2,17 @@
 from __future__ import annotations
 
 import os
+import argparse
+import shutil
+import subprocess
 from pathlib import Path
 
-import awkward as ak
 import uproot
 
 
 PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", Path(__file__).resolve().parents[1]))
-SAMPLE_SET = "100kTest"
-INPUT_ROOT = PROJECT_ROOT / "output" / "chunks" / SAMPLE_SET
-OUTPUT_ROOT = PROJECT_ROOT / "output" / "dataset" / SAMPLE_SET
+
+from plot_utils import add_samples_argument
 
 ROOT_FILES = (
     "nanoaod.root",
@@ -49,16 +50,26 @@ def object_names(paths: list[Path]) -> list[str]:
     return names
 
 
-def concat_tree(paths: list[Path], tree_name: str):
-    arrays = []
+def write_tree(paths: list[Path], tree_name: str, output_file) -> None:
+    output_tree = None
+
     for path in paths:
         with uproot.open(path) as root_file:
-            if tree_name in root_file:
-                arrays.append(root_file[tree_name].arrays(library="ak"))
+            if tree_name not in root_file:
+                continue
 
-    if len(arrays) == 1:
-        return arrays[0]
-    return ak.concatenate(arrays, axis=0)
+            tree = root_file[tree_name]
+            if tree.num_entries == 0:
+                batches = [tree.arrays(library="ak")]
+            else:
+                batches = tree.iterate(step_size="100 MB", library="ak")
+
+            for arrays in batches:
+                if output_tree is None:
+                    output_file[tree_name] = arrays
+                    output_tree = output_file[tree_name]
+                else:
+                    output_tree.extend(arrays)
 
 
 def sum_histograms(paths: list[Path], name: str):
@@ -73,9 +84,20 @@ def sum_histograms(paths: list[Path], name: str):
     return total
 
 
+def build_file_with_hadd(paths: list[Path], output_path: Path) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    hadd = shutil.which("hadd")
+    if hadd is None:
+        raise RuntimeError("ROOT hadd was not found in PATH")
+
+    subprocess.run(
+        [hadd, "-fk", "-v", "0", str(output_path), *(str(path) for path in paths)],
+        check=True,
+    )
+
+
 def build_file(paths: list[Path], output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
-
     with uproot.recreate(output_path) as output_file:
         for name in object_names(paths):
             first_is_tree = False
@@ -86,7 +108,7 @@ def build_file(paths: list[Path], output_path: Path) -> None:
                         break
 
             if first_is_tree:
-                output_file[name] = concat_tree(paths, name)
+                write_tree(paths, name, output_file)
                 continue
 
             hist = sum_histograms(paths, name)
@@ -102,8 +124,26 @@ def build_file(paths: list[Path], output_path: Path) -> None:
 
 
 def main() -> None:
-    for sample_dir in sorted(path for path in INPUT_ROOT.iterdir() if path.is_dir()):
+    parser = argparse.ArgumentParser()
+    add_samples_argument(parser)
+    parser.add_argument("-i", "--input", required=True, type=Path, help="input chunks root")
+    parser.add_argument("-o", "--output", required=True, type=Path, help="merged dataset output root")
+    parser.add_argument(
+        "--backend",
+        choices=("uproot", "hadd"),
+        default="uproot",
+        help="merge backend (default: uproot)",
+    )
+    args = parser.parse_args()
+
+    input_root = args.input
+    output_root = args.output
+    requested_samples = set(args.samples or ())
+
+    for sample_dir in sorted(path for path in input_root.iterdir() if path.is_dir()):
         sample = sample_name(sample_dir)
+        if requested_samples and sample not in requested_samples and sample_dir.name not in requested_samples:
+            continue
         job_dirs = sorted((sample_dir / "final_root").glob("job_*"), key=job_number)
 
         for file_name in ROOT_FILES:
@@ -111,8 +151,11 @@ def main() -> None:
             if not paths:
                 continue
 
-            output_path = OUTPUT_ROOT / sample / file_name
-            build_file(paths, output_path)
+            output_path = output_root / sample / file_name
+            if args.backend == "hadd":
+                build_file_with_hadd(paths, output_path)
+            else:
+                build_file(paths, output_path)
             print(f"{sample}/{file_name}: {len(paths)} chunks -> {output_path}")
 
 

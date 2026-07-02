@@ -8,16 +8,21 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", Path(__file__).resolve().parents[1]))
 
+from plot_utils import add_samples_argument, default_plot_root
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--input", type=Path, default=PROJECT_ROOT / "output" / "dataset" / "100kTest")
-    parser.add_argument("-o", "--output", type=Path, default=PROJECT_ROOT / "plots" / "100kTest")
+    add_samples_argument(parser)
+    parser.add_argument("-i", "--input", required=True, type=Path, help="input dataset root")
+    parser.add_argument("-o", "--output", type=Path, help="plot output root (default: plots/<input directory>)")
     args = parser.parse_args()
 
     from plot_gen_check import plot_gen_check
 
-    plot_gen_check(args.input, args.output)
+    input_root = args.input
+    output_root = args.output or default_plot_root(PROJECT_ROOT, input_root)
+    plot_gen_check(input_root, output_root, args.samples)
 
 
 if __name__ == "__main__":

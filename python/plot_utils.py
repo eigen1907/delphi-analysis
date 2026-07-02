@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import json
+import argparse
 import math
 import re
+from collections import Counter
 from pathlib import Path
 
 import awkward as ak
@@ -11,20 +12,13 @@ import numpy as np
 
 NUMERIC_WORDS = ("bool", "float", "double", "int", "short", "long")
 INTEGER_WORDS = ("bool", "char", "int", "short", "long")
-SAMPLE_LABELS = ("ZKK", "Zpipi", "Zee", "Zmumu")
-SAMPLE_STYLES = {
-    "ZKK": ("C0", "*"),
-    "Zpipi": ("C1", "."),
-    "Zee": ("C2", "/"),
-    "Zmumu": ("C3", "\\"),
-}
+SAMPLE_STYLE_CYCLE = (
+    ("C0", "/"),
+    ("C1", "\\"),
+    ("C2", "x"),
+    ("C3", "."),
+)
 CHARGED_ABS_PDG = {11, 13, 211, 321, 2212}
-EXPECTED_ABS_PDG = {
-    "ZKK": 321,
-    "Zpipi": 211,
-    "Zee": 11,
-    "Zmumu": 13,
-}
 MATCH_SOURCES = (
     ("nanoaod_raw_sdst", "nanoaod_raw_sdst.root"),
 )
@@ -72,12 +66,112 @@ COMPARE_FILE_GROUPS = (
 )
 
 
+def add_samples_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--samples",
+        nargs="+",
+        help="sample directories to process (default: all directories under the input root)",
+    )
+
+
+def default_plot_root(project_root: Path, input_root: Path) -> Path:
+    return project_root / "plots" / input_root.expanduser().resolve().name
+
+
+def default_check_root(project_root: Path, input_root: Path) -> Path:
+    return project_root / "data" / "check" / input_root.expanduser().resolve().name
+
+
 def clean_name(name: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", name).strip("._") or "branch"
 
 
-def load_branch_summary(branch_root: Path, sample: str) -> dict:
-    return json.loads((branch_root / f"{sample}.json").read_text())
+def discover_samples(input_root: Path) -> tuple[str, ...]:
+    return tuple(path.name for path in sorted(input_root.iterdir()) if path.is_dir())
+
+
+def resolve_samples(input_root: Path, samples: tuple[str, ...] | list[str] | None = None) -> tuple[str, ...]:
+    if samples:
+        return tuple(samples)
+    discovered = discover_samples(input_root)
+    if not discovered:
+        raise ValueError(f"No sample directories found under {input_root}")
+    return discovered
+
+
+def sample_styles(samples: tuple[str, ...] | list[str]) -> dict[str, tuple[str, str]]:
+    return {
+        sample: SAMPLE_STYLE_CYCLE[index % len(SAMPLE_STYLE_CYCLE)]
+        for index, sample in enumerate(samples)
+    }
+
+
+def infer_expected_abs_pdg(status_events, pdg_events, parent_events) -> int | None:
+    if hasattr(status_events, "layout"):
+        status_events = ak.to_list(status_events)
+    if hasattr(pdg_events, "layout"):
+        pdg_events = ak.to_list(pdg_events)
+    if hasattr(parent_events, "layout"):
+        parent_events = ak.to_list(parent_events)
+
+    counts = Counter()
+    for statuses, pdgs, parents in zip(status_events, pdg_events, parent_events, strict=True):
+        for idx, (status, pdg) in enumerate(zip(statuses, pdgs, strict=True)):
+            abs_pdg = abs(int(pdg))
+            if int(status) != 1 or abs_pdg not in CHARGED_ABS_PDG:
+                continue
+            if has_ancestor_pdg(pdgs, parents, idx, 22):
+                continue
+            counts[abs_pdg] += 1
+
+    if not counts:
+        return None
+    return counts.most_common(1)[0][0]
+
+
+def sample_grid(samples: tuple[str, ...] | list[str], subplot_width: float = 8.0, subplot_height: float = 7.0):
+    import matplotlib.pyplot as plt
+
+    n_samples = max(len(samples), 1)
+    ncols = 2 if n_samples > 1 else 1
+    nrows = math.ceil(n_samples / ncols)
+    fig, axes = plt.subplots(
+        nrows,
+        ncols,
+        figsize=(subplot_width * ncols, subplot_height * nrows),
+        sharex=True,
+        sharey=True,
+        squeeze=False,
+    )
+    flat_axes = list(axes.ravel())
+    for ax in flat_axes[len(samples) :]:
+        ax.set_visible(False)
+    return fig, flat_axes[: len(samples)]
+
+
+def build_branch_summary(sample_dir: Path, sample: str) -> dict:
+    import uproot
+
+    summary = {"sample": sample, "trees": {}}
+
+    for source, file_names in FILE_GROUPS:
+        try:
+            path = resolve_file(sample_dir, file_names)
+        except FileNotFoundError:
+            continue
+
+        with uproot.open(path) as root_file:
+            for tree_name in TREE_NAMES_BY_SOURCE.get(source, ("Events",)):
+                if tree_name not in root_file:
+                    continue
+
+                tree = root_file[tree_name]
+                tree_summary = summary["trees"].setdefault(tree_name, {"branches": {}})
+                for branch in sorted(tree.typenames()):
+                    branch_summary = tree_summary["branches"].setdefault(branch, {"source": []})
+                    branch_summary["source"].append(source)
+
+    return summary
 
 
 def resolve_file(sample_dir: Path, file_names: tuple[str, ...]) -> Path:

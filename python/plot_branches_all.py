@@ -10,28 +10,30 @@ import uproot
 
 from plot_utils import (
     FILE_GROUPS,
-    SAMPLE_LABELS,
-    SAMPLE_STYLES,
     TREE_NAMES_BY_SOURCE,
     add_delphi_label,
+    build_branch_summary,
     histogram_bins,
-    load_branch_summary,
     read_numeric_values,
     resolve_file,
+    resolve_samples,
+    sample_styles,
     set_hist_yaxis,
     tree_branch_plot_path,
 )
 
 
-def plot_branches_all(input_root: Path, output_root: Path, branch_root: Path) -> None:
+def plot_branches_all(input_root: Path, output_root: Path, samples: list[str] | tuple[str, ...] | None = None) -> None:
     mh.style.use(mh.styles.CMS)
+    samples = resolve_samples(input_root, samples)
+    styles = sample_styles(samples)
     output_root = output_root / "branches_all"
-    summaries = {sample: load_branch_summary(branch_root, sample) for sample in SAMPLE_LABELS}
+    summaries = {sample: build_branch_summary(input_root / sample, sample) for sample in samples}
 
     for source, file_names in FILE_GROUPS:
         for tree_name in TREE_NAMES_BY_SOURCE.get(source, ("Events",)):
             source_branches = set()
-            for sample in SAMPLE_LABELS:
+            for sample in samples:
                 branches = summaries[sample].get("trees", {}).get(tree_name, {}).get("branches", {})
                 for branch, branch_info in branches.items():
                     if source in branch_info["source"]:
@@ -42,8 +44,11 @@ def plot_branches_all(input_root: Path, output_root: Path, branch_root: Path) ->
 
             trees = {}
             typenames = {}
-            for sample in SAMPLE_LABELS:
-                path = resolve_file(input_root / sample, file_names)
+            for sample in samples:
+                try:
+                    path = resolve_file(input_root / sample, file_names)
+                except FileNotFoundError:
+                    continue
                 root_file = uproot.open(path)
                 if tree_name in root_file:
                     trees[sample] = root_file[tree_name]
@@ -53,7 +58,7 @@ def plot_branches_all(input_root: Path, output_root: Path, branch_root: Path) ->
             for branch in sorted(source_branches):
                 values_by_sample = {}
                 stats_by_sample = {}
-                for sample in SAMPLE_LABELS:
+                for sample in samples:
                     if sample not in trees or branch not in typenames[sample]:
                         continue
                     dtype = typenames[sample][branch]
@@ -102,7 +107,7 @@ def plot_branches_all(input_root: Path, output_root: Path, branch_root: Path) ->
                         f"{underflow:<6} "
                         f"{overflow:<6}"
                     )
-                    color, hatch = SAMPLE_STYLES[sample]
+                    color, hatch = styles[sample]
                     mh.histplot(
                         h,
                         ax=ax,

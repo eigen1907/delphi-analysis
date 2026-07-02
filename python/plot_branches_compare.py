@@ -10,37 +10,44 @@ import uproot
 
 from plot_utils import (
     COMPARE_FILE_GROUPS,
-    SAMPLE_LABELS,
     SOURCE_STYLES,
     add_delphi_label,
+    build_branch_summary,
     histogram_bins,
-    load_branch_summary,
     read_numeric_values,
     resolve_file,
+    resolve_samples,
     set_hist_yaxis,
     tree_branch_plot_path,
 )
 
 
-def plot_branches_compare(input_root: Path, output_root: Path, branch_root: Path) -> None:
+def plot_branches_compare(input_root: Path, output_root: Path, samples: list[str] | tuple[str, ...] | None = None) -> None:
     mh.style.use(mh.styles.CMS)
+    samples = resolve_samples(input_root, samples)
     output_dir = output_root / "branches_compare"
 
-    for sample in SAMPLE_LABELS:
-        summary = load_branch_summary(branch_root, sample)
+    for sample in samples:
+        summary = build_branch_summary(input_root / sample, sample)
         sample_dir = input_root / sample
         trees = {}
 
         for source, file_names in COMPARE_FILE_GROUPS:
-            path = resolve_file(sample_dir, file_names)
-            trees[source] = uproot.open(path)["Events"]
+            try:
+                path = resolve_file(sample_dir, file_names)
+            except FileNotFoundError:
+                continue
+            root_file = uproot.open(path)
+            if "Events" in root_file:
+                trees[source] = root_file["Events"]
 
         compare_branches = {}
-        for branch, branch_info in summary["trees"]["Events"]["branches"].items():
+        event_branches = summary.get("trees", {}).get("Events", {}).get("branches", {})
+        for branch, branch_info in event_branches.items():
             sources = [
                 source
                 for source, _ in COMPARE_FILE_GROUPS
-                if source in branch_info["source"]
+                if source in branch_info["source"] and source in trees
             ]
             if len(sources) >= 2:
                 compare_branches[branch] = sources

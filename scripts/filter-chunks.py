@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
 import csv
 import os
 from collections import Counter
@@ -12,10 +13,8 @@ import uproot
 
 
 PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", Path(__file__).resolve().parents[1]))
-SAMPLE_SET = "100kTest"
-INPUT_ROOT = PROJECT_ROOT / "output" / "chunks_raw" / SAMPLE_SET
-OUTPUT_ROOT = PROJECT_ROOT / "output" / "chunks" / SAMPLE_SET
-CHECK_PATH = PROJECT_ROOT / "data" / "check" / SAMPLE_SET / "event-filter.csv"
+
+from plot_utils import add_samples_argument, default_check_root
 
 ROOT_FILES = (
     "nanoaod.root",
@@ -150,10 +149,24 @@ def filter_root_file(src: Path, dst: Path, sample: str, job: str, file_name: str
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    add_samples_argument(parser)
+    parser.add_argument("-i", "--input", required=True, type=Path, help="input raw chunks root")
+    parser.add_argument("-o", "--output", required=True, type=Path, help="filtered chunks output root")
+    parser.add_argument("--check", type=Path, help="filter summary CSV path (default: data/check/<output directory>/event-filter.csv)")
+    args = parser.parse_args()
+
+    input_root = args.input
+    output_root = args.output
+    check_path = args.check or default_check_root(PROJECT_ROOT, output_root) / "event-filter.csv"
+    requested_samples = set(args.samples or ())
+
     rows = []
 
-    for sample_dir in sorted(path for path in INPUT_ROOT.iterdir() if path.is_dir()):
+    for sample_dir in sorted(path for path in input_root.iterdir() if path.is_dir()):
         sample = sample_name(sample_dir)
+        if requested_samples and sample not in requested_samples and sample_dir.name not in requested_samples:
+            continue
         job_dirs = sorted((sample_dir / "final_root").glob("job_*"), key=job_number)
 
         for job_dir in job_dirs:
@@ -162,17 +175,17 @@ def main() -> None:
                 if not src.exists():
                     continue
 
-                dst = OUTPUT_ROOT / sample_dir.name / "final_root" / job_dir.name / file_name
+                dst = output_root / sample_dir.name / "final_root" / job_dir.name / file_name
                 filter_root_file(src, dst, sample, job_dir.name, file_name, None, rows)
 
-    CHECK_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with CHECK_PATH.open("w", newline="") as f:
+    check_path.parent.mkdir(parents=True, exist_ok=True)
+    with check_path.open("w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(("sample", "job", "file", "tree", "n_event", "n_invalid_event", "n_duplicated_event"))
         writer.writerows(rows)
 
-    print(f"filtered chunks: {OUTPUT_ROOT}")
-    print(f"check summary: {CHECK_PATH}")
+    print(f"filtered chunks: {output_root}")
+    print(f"check summary: {check_path}")
 
 
 if __name__ == "__main__":

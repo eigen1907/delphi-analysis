@@ -11,23 +11,23 @@ import uproot
 
 from plot_utils import (
     CHARGED_ABS_PDG,
-    EXPECTED_ABS_PDG,
     MATCH_P_BINS,
     MATCH_PHI_BINS,
     MATCH_PT_BINS,
     MATCH_THETA_BINS,
-    SAMPLE_LABELS,
-    SAMPLE_STYLES,
     add_delphi_label,
     charge_from_pdg,
     has_ancestor_pdg,
+    infer_expected_abs_pdg,
     phi_0_2pi,
+    resolve_samples,
+    sample_grid,
+    sample_styles,
     set_hist_yaxis,
     valid_index,
 )
 
 
-SAMPLES = SAMPLE_LABELS
 Z_MASS = 91.2
 
 BRANCH_PLOTS = (
@@ -81,16 +81,25 @@ def flatten(array) -> np.ndarray:
     return values[np.isfinite(values)]
 
 
-def plot_hist(output_root: Path, name: str, xlabel: str, value_range: tuple[float, float], values_by_sample: dict[str, np.ndarray], n_events: dict[str, int]) -> None:
+def plot_hist(
+    output_root: Path,
+    name: str,
+    xlabel: str,
+    value_range: tuple[float, float],
+    values_by_sample: dict[str, np.ndarray],
+    n_events: dict[str, int],
+    samples: tuple[str, ...],
+    styles: dict[str, tuple[str, str]],
+) -> None:
     fig, ax = plt.subplots(figsize=(12, 10))
     bins = np.linspace(value_range[0], value_range[1], 101)
 
     ax.plot([], [], color="none", label=LEGEND_HEADER)
     counts_list = []
     density_list = []
-    for sample in SAMPLES:
+    for sample in samples:
         values = values_by_sample[sample]
-        color, hatch = SAMPLE_STYLES[sample]
+        color, hatch = styles[sample]
         underflow = int(np.count_nonzero(values < bins[0]))
         overflow = int(np.count_nonzero(values > bins[-1]))
         counts, _ = np.histogram(values, bins=bins)
@@ -114,7 +123,15 @@ def plot_hist(output_root: Path, name: str, xlabel: str, value_range: tuple[floa
     plt.close(fig)
 
 
-def plot_discrete(output_root: Path, name: str, xlabel: str, values_by_sample: dict[str, np.ndarray], n_events: dict[str, int]) -> None:
+def plot_discrete(
+    output_root: Path,
+    name: str,
+    xlabel: str,
+    values_by_sample: dict[str, np.ndarray],
+    n_events: dict[str, int],
+    samples: tuple[str, ...],
+    styles: dict[str, tuple[str, str]],
+) -> None:
     fig, ax = plt.subplots(figsize=(12, 10))
     unique_values = sorted({int(value) for values in values_by_sample.values() for value in values})
     if not unique_values:
@@ -124,14 +141,14 @@ def plot_discrete(output_root: Path, name: str, xlabel: str, values_by_sample: d
     ax.plot([], [], color="none", label=LEGEND_HEADER)
     counts_list = []
     fraction_list = []
-    for sample in SAMPLES:
+    for sample in samples:
         values = values_by_sample[sample].astype(int)
         raw_counts = np.asarray([np.count_nonzero(values == value) for value in unique_values], dtype=float)
         n_object = int(np.sum(raw_counts))
         counts = raw_counts / n_object if n_object else raw_counts
         counts_list.append(raw_counts)
         fraction_list.append(counts)
-        color, hatch = SAMPLE_STYLES[sample]
+        color, hatch = styles[sample]
         label = f"{sample:<8} {n_events[sample]:<8} {n_object:<8} {0:<6} {0:<6}"
         ax.bar(x, counts, width=0.8, label=label, facecolor="none", edgecolor=color, hatch=hatch, alpha=0.9)
 
@@ -152,7 +169,15 @@ def plot_discrete(output_root: Path, name: str, xlabel: str, values_by_sample: d
     plt.close(fig)
 
 
-def plot_int_hist(output_root: Path, name: str, xlabel: str, values_by_sample: dict[str, np.ndarray], n_events: dict[str, int]) -> None:
+def plot_int_hist(
+    output_root: Path,
+    name: str,
+    xlabel: str,
+    values_by_sample: dict[str, np.ndarray],
+    n_events: dict[str, int],
+    samples: tuple[str, ...],
+    styles: dict[str, tuple[str, str]],
+) -> None:
     fig, ax = plt.subplots(figsize=(12, 10))
     lo = int(min(np.min(values) for values in values_by_sample.values()))
     hi = int(max(np.max(values) for values in values_by_sample.values()))
@@ -161,9 +186,9 @@ def plot_int_hist(output_root: Path, name: str, xlabel: str, values_by_sample: d
     ax.plot([], [], color="none", label=LEGEND_HEADER)
     counts_list = []
     density_list = []
-    for sample in SAMPLES:
+    for sample in samples:
         values = values_by_sample[sample]
-        color, hatch = SAMPLE_STYLES[sample]
+        color, hatch = styles[sample]
         underflow = int(np.count_nonzero(values < bins[0]))
         overflow = int(np.count_nonzero(values > bins[-1]))
         counts, _ = np.histogram(values, bins=bins)
@@ -193,19 +218,20 @@ def plot_2d(
     y_bins: np.ndarray,
     x_values_by_sample: dict[str, np.ndarray],
     y_values_by_sample: dict[str, np.ndarray],
+    samples: tuple[str, ...],
 ) -> None:
     counts_by_sample = {}
-    for sample in SAMPLES:
+    for sample in samples:
         counts, _, _ = np.histogram2d(x_values_by_sample[sample], y_values_by_sample[sample], bins=(x_bins, y_bins))
         counts_by_sample[sample] = counts
 
     vmax = max(1.0, max(float(np.max(counts)) for counts in counts_by_sample.values()))
     cmap = plt.get_cmap("viridis").copy()
     cmap.set_bad(color="white", alpha=0.0)
-    fig, axes = plt.subplots(2, 2, figsize=(16, 14), sharex=True, sharey=True)
+    fig, axes = sample_grid(samples)
     mesh = None
 
-    for ax, sample in zip(axes.ravel(), SAMPLES, strict=True):
+    for ax, sample in zip(axes, samples, strict=True):
         counts = counts_by_sample[sample]
         values = np.ma.masked_where(counts <= 0, counts)
         mesh = ax.pcolormesh(x_bins, y_bins, values.T, vmin=0.0, vmax=vmax, cmap=cmap)
@@ -221,9 +247,8 @@ def plot_2d(
         )
         ax.grid(alpha=0.2)
 
-    for ax in axes[-1, :]:
+    for ax in axes:
         ax.set_xlabel(x_label)
-    for ax in axes[:, 0]:
         ax.set_ylabel(y_label)
 
     fig.subplots_adjust(right=0.86, hspace=0.08, wspace=0.08)
@@ -234,13 +259,15 @@ def plot_2d(
     plt.close(fig)
 
 
-def expected_origin_indices(statuses, pdgs, parents, sample: str) -> set[int]:
-    expected_abs_pdg = EXPECTED_ABS_PDG[sample]
+def expected_origin_indices(statuses, pdgs, parents, expected_pdg: int | None) -> set[int]:
+    if expected_pdg is None:
+        return set()
+
     origins = set()
 
     for idx, status in enumerate(statuses):
         pdg = int(pdgs[idx])
-        if int(status) != 1 or abs(pdg) != expected_abs_pdg:
+        if int(status) != 1 or abs(pdg) != expected_pdg:
             continue
         if has_ancestor_pdg(pdgs, parents, idx, 22):
             continue
@@ -251,7 +278,7 @@ def expected_origin_indices(statuses, pdgs, parents, sample: str) -> set[int]:
             parent_idx = int(parents[current])
             if not valid_index(parent_idx, len(pdgs)) or parent_idx in seen:
                 break
-            if abs(int(pdgs[parent_idx])) != expected_abs_pdg:
+            if abs(int(pdgs[parent_idx])) != expected_pdg:
                 break
             seen.add(current)
             current = parent_idx
@@ -261,11 +288,11 @@ def expected_origin_indices(statuses, pdgs, parents, sample: str) -> set[int]:
     return origins
 
 
-def make_selections(sample_arrays: dict) -> tuple[tuple[str, str], ...]:
+def make_selections(sample_arrays: dict, samples: tuple[str, ...]) -> tuple[tuple[str, str], ...]:
     statuses = sorted(
         {
             int(status)
-            for sample in SAMPLES
+            for sample in samples
             for event in ak.to_list(sample_arrays[sample]["GenPart_status"])
             for status in event
         }
@@ -273,7 +300,7 @@ def make_selections(sample_arrays: dict) -> tuple[tuple[str, str], ...]:
     return SELECTIONS + tuple((f"status_{status}", f"status={status}") for status in statuses)
 
 
-def make_selection_mask(arrays: dict, sample: str, selection: str) -> ak.Array:
+def make_selection_mask(arrays: dict, expected_pdg: int | None, selection: str) -> ak.Array:
     status_events = ak.to_list(arrays["GenPart_status"])
     pdg_events = ak.to_list(arrays["GenPart_pdgId"])
     parent_events = ak.to_list(arrays["GenPart_parentIdx"])
@@ -287,7 +314,7 @@ def make_selection_mask(arrays: dict, sample: str, selection: str) -> ak.Array:
     ):
         event_mask = []
         origin_indices = (
-            expected_origin_indices(statuses, pdgs, parents, sample)
+            expected_origin_indices(statuses, pdgs, parents, expected_pdg)
             if selection == "ancestor_not_gamma_status_1_expected_origin"
             else set()
         )
@@ -306,11 +333,11 @@ def make_selection_mask(arrays: dict, sample: str, selection: str) -> ak.Array:
             elif selection == "status_1_charged":
                 keep = status == 1 and charge_from_pdg(pdg) != 0
             elif selection == "status_1_expected":
-                keep = status == 1 and abs(pdg) == EXPECTED_ABS_PDG[sample]
+                keep = expected_pdg is not None and status == 1 and abs(pdg) == expected_pdg
             elif selection == "ancestor_gamma_status_1_expected":
-                keep = has_photon_ancestor and status == 1 and abs(pdg) == EXPECTED_ABS_PDG[sample]
+                keep = expected_pdg is not None and has_photon_ancestor and status == 1 and abs(pdg) == expected_pdg
             elif selection == "ancestor_not_gamma_status_1_expected":
-                keep = not has_photon_ancestor and status == 1 and abs(pdg) == EXPECTED_ABS_PDG[sample]
+                keep = expected_pdg is not None and not has_photon_ancestor and status == 1 and abs(pdg) == expected_pdg
             elif selection == "ancestor_not_gamma_status_1_expected_origin":
                 keep = idx in origin_indices
             elif selection.startswith("status_"):
@@ -325,8 +352,10 @@ def make_selection_mask(arrays: dict, sample: str, selection: str) -> ak.Array:
     return ak.Array(masks)
 
 
-def plot_gen_check(input_root: Path, output_root: Path) -> None:
+def plot_gen_check(input_root: Path, output_root: Path, samples: list[str] | tuple[str, ...] | None = None) -> None:
     mh.style.use(mh.styles.CMS)
+    samples = resolve_samples(input_root, samples)
+    styles = sample_styles(samples)
     output_root = output_root / "gen_check"
     output_root.mkdir(parents=True, exist_ok=True)
     for path in output_root.glob("*.png"):
@@ -334,8 +363,9 @@ def plot_gen_check(input_root: Path, output_root: Path) -> None:
 
     n_events = {}
     sample_arrays = {}
+    expected_pdgs = {}
 
-    for sample in SAMPLES:
+    for sample in samples:
         tree = uproot.open(input_root / sample / "nanoaod.root")["Events"]
         n_events[sample] = int(tree.num_entries)
         arrays = {branch: tree[branch].array(library="ak") for _, _, branch, _ in BRANCH_PLOTS}
@@ -344,8 +374,13 @@ def plot_gen_check(input_root: Path, output_root: Path) -> None:
         arrays["GenPart_pdgId"] = tree["GenPart_pdgId"].array(library="ak")
         arrays["GenPart_parentIdx"] = tree["GenPart_parentIdx"].array(library="ak")
         sample_arrays[sample] = arrays
+        expected_pdgs[sample] = infer_expected_abs_pdg(
+            arrays["GenPart_status"],
+            arrays["GenPart_pdgId"],
+            arrays["GenPart_parentIdx"],
+        )
 
-    selections = make_selections(sample_arrays)
+    selections = make_selections(sample_arrays, samples)
     selection_dirs = {selection_dir for selection_dir, _ in selections}
     for path in output_root.iterdir():
         if path.is_dir() and path.name not in selection_dirs:
@@ -380,11 +415,11 @@ def plot_gen_check(input_root: Path, output_root: Path) -> None:
         for plot_name, _, _, _ in BRANCH_PLOTS:
             values[plot_name] = {}
 
-        for sample in SAMPLES:
+        for sample in samples:
             arrays = sample_arrays[sample]
             status = arrays["GenPart_status"]
             pdg_id = arrays["GenPart_pdgId"]
-            mask = make_selection_mask(arrays, sample, selection_dir)
+            mask = make_selection_mask(arrays, expected_pdgs[sample], selection_dir)
 
             values["n_gen_part"][sample] = np.asarray(ak.to_numpy(ak.sum(mask, axis=1)), dtype=float)
             values["pdg_id"][sample] = flatten(pdg_id[mask])
@@ -482,15 +517,15 @@ def plot_gen_check(input_root: Path, output_root: Path) -> None:
             values["pair_py"][sample] = np.asarray(pair_py_values, dtype=float)
             values["pair_pz"][sample] = np.asarray(pair_pz_values, dtype=float)
 
-        plot_discrete(selection_output, "pdg_id", "PDG ID", values["pdg_id"], n_events)
-        plot_discrete(selection_output, "status", "Status", values["status"], n_events)
-        plot_int_hist(selection_output, "n_gen_part", r"$N_{\mathrm{GenPart}}$", values["n_gen_part"], n_events)
+        plot_discrete(selection_output, "pdg_id", "PDG ID", values["pdg_id"], n_events, samples, styles)
+        plot_discrete(selection_output, "status", "Status", values["status"], n_events, samples, styles)
+        plot_int_hist(selection_output, "n_gen_part", r"$N_{\mathrm{GenPart}}$", values["n_gen_part"], n_events, samples, styles)
 
         for plot_name, xlabel, _, value_range in BRANCH_PLOTS:
-            plot_hist(selection_output, plot_name, xlabel, value_range, values[plot_name], n_events)
+            plot_hist(selection_output, plot_name, xlabel, value_range, values[plot_name], n_events, samples, styles)
         for plot_name, xlabel, value_range in DERIVED_PLOTS:
-            plot_hist(selection_output, plot_name, xlabel, value_range, values[plot_name], n_events)
+            plot_hist(selection_output, plot_name, xlabel, value_range, values[plot_name], n_events, samples, styles)
         for plot_name, x_name, y_name, x_label, y_label, x_bins, y_bins in PLOTS_2D:
-            plot_2d(selection_output, plot_name, x_label, y_label, x_bins, y_bins, values[x_name], values[y_name])
+            plot_2d(selection_output, plot_name, x_label, y_label, x_bins, y_bins, values[x_name], values[y_name], samples)
 
     print(f"wrote {output_root}")

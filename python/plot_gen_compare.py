@@ -9,7 +9,7 @@ import mplhep as mh
 import numpy as np
 import uproot
 
-from plot_utils import GEN_COMPARE_PAIR_STYLES, add_delphi_label, set_hist_yaxis
+from plot_utils import GEN_COMPARE_PAIR_STYLES, add_delphi_label, resolve_samples, set_hist_yaxis
 
 
 SOURCES = (
@@ -105,16 +105,17 @@ def as_list(value) -> list:
     return value if isinstance(value, list) else [value]
 
 
-def plot_gen_compare(input_root: Path, output_root: Path, data_root: Path) -> None:
+def plot_gen_compare(input_root: Path, output_root: Path, data_root: Path, samples: list[str] | tuple[str, ...] | None = None) -> None:
     mh.style.use(mh.styles.CMS)
+    samples = resolve_samples(input_root, samples)
 
     output_root = output_root / "gen_compare"
     data_root = data_root / "gen_compare"
     data_root.mkdir(parents=True, exist_ok=True)
     diff_rows = []
 
-    for sample_dir in sorted(path for path in input_root.iterdir() if path.is_dir()):
-        sample = sample_dir.name
+    for sample in samples:
+        sample_dir = input_root / sample
         sample_output = output_root / sample
         sample_output.mkdir(parents=True, exist_ok=True)
 

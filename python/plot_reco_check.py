@@ -14,15 +14,15 @@ from plot_utils import (
     MATCH_PHI_BINS,
     MATCH_PT_BINS,
     MATCH_THETA_BINS,
-    SAMPLE_LABELS,
-    SAMPLE_STYLES,
     add_delphi_label,
     phi_0_2pi,
+    resolve_samples,
+    sample_grid,
+    sample_styles,
     set_hist_yaxis,
 )
 
 
-SAMPLES = SAMPLE_LABELS
 FILE_NAME = "nanoaod_raw_sdst.root"
 TREE_NAME = "Events"
 TRACK_NAME = "TrackRaw"
@@ -60,16 +60,25 @@ def finite(values: np.ndarray) -> np.ndarray:
     return values[np.isfinite(values)]
 
 
-def plot_hist(output_dir: Path, name: str, xlabel: str, value_range: tuple[float, float], values_by_sample: dict[str, np.ndarray], n_events: dict[str, int]) -> None:
+def plot_hist(
+    output_dir: Path,
+    name: str,
+    xlabel: str,
+    value_range: tuple[float, float],
+    values_by_sample: dict[str, np.ndarray],
+    n_events: dict[str, int],
+    samples: tuple[str, ...],
+    styles: dict[str, tuple[str, str]],
+) -> None:
     fig, ax = plt.subplots(figsize=(12, 10))
     bins = np.linspace(value_range[0], value_range[1], 101)
 
     ax.plot([], [], color="none", label=LEGEND_HEADER)
     counts_list = []
     density_list = []
-    for sample in SAMPLES:
+    for sample in samples:
         values = values_by_sample[sample]
-        color, hatch = SAMPLE_STYLES[sample]
+        color, hatch = styles[sample]
         underflow = int(np.count_nonzero(values < bins[0]))
         overflow = int(np.count_nonzero(values > bins[-1]))
         counts, _ = np.histogram(values, bins=bins)
@@ -93,7 +102,15 @@ def plot_hist(output_dir: Path, name: str, xlabel: str, value_range: tuple[float
     plt.close(fig)
 
 
-def plot_discrete(output_dir: Path, name: str, xlabel: str, values_by_sample: dict[str, np.ndarray], n_events: dict[str, int]) -> None:
+def plot_discrete(
+    output_dir: Path,
+    name: str,
+    xlabel: str,
+    values_by_sample: dict[str, np.ndarray],
+    n_events: dict[str, int],
+    samples: tuple[str, ...],
+    styles: dict[str, tuple[str, str]],
+) -> None:
     fig, ax = plt.subplots(figsize=(12, 10))
     unique_values = sorted({int(value) for values in values_by_sample.values() for value in values})
     if not unique_values:
@@ -103,14 +120,14 @@ def plot_discrete(output_dir: Path, name: str, xlabel: str, values_by_sample: di
     ax.plot([], [], color="none", label=LEGEND_HEADER)
     counts_list = []
     fraction_list = []
-    for sample in SAMPLES:
+    for sample in samples:
         values = values_by_sample[sample].astype(int)
         raw_counts = np.asarray([np.count_nonzero(values == value) for value in unique_values], dtype=float)
         n_object = int(np.sum(raw_counts))
         counts = raw_counts / n_object if n_object else raw_counts
         counts_list.append(raw_counts)
         fraction_list.append(counts)
-        color, hatch = SAMPLE_STYLES[sample]
+        color, hatch = styles[sample]
         label = f"{sample:<8} {n_events[sample]:<8} {n_object:<8} {0:<6} {0:<6}"
         ax.bar(x, counts, width=0.8, label=label, facecolor="none", edgecolor=color, hatch=hatch, alpha=0.9)
 
@@ -127,7 +144,15 @@ def plot_discrete(output_dir: Path, name: str, xlabel: str, values_by_sample: di
     plt.close(fig)
 
 
-def plot_int_hist(output_dir: Path, name: str, xlabel: str, values_by_sample: dict[str, np.ndarray], n_events: dict[str, int]) -> None:
+def plot_int_hist(
+    output_dir: Path,
+    name: str,
+    xlabel: str,
+    values_by_sample: dict[str, np.ndarray],
+    n_events: dict[str, int],
+    samples: tuple[str, ...],
+    styles: dict[str, tuple[str, str]],
+) -> None:
     fig, ax = plt.subplots(figsize=(12, 10))
     all_values = np.concatenate([values for values in values_by_sample.values() if len(values)])
     lo = int(np.min(all_values)) if len(all_values) else 0
@@ -137,9 +162,9 @@ def plot_int_hist(output_dir: Path, name: str, xlabel: str, values_by_sample: di
     ax.plot([], [], color="none", label=LEGEND_HEADER)
     counts_list = []
     density_list = []
-    for sample in SAMPLES:
+    for sample in samples:
         values = values_by_sample[sample]
-        color, hatch = SAMPLE_STYLES[sample]
+        color, hatch = styles[sample]
         underflow = int(np.count_nonzero(values < bins[0]))
         overflow = int(np.count_nonzero(values > bins[-1]))
         counts, _ = np.histogram(values, bins=bins)
@@ -169,19 +194,20 @@ def plot_2d(
     y_bins: np.ndarray,
     x_values_by_sample: dict[str, np.ndarray],
     y_values_by_sample: dict[str, np.ndarray],
+    samples: tuple[str, ...],
 ) -> None:
     counts_by_sample = {}
-    for sample in SAMPLES:
+    for sample in samples:
         counts, _, _ = np.histogram2d(x_values_by_sample[sample], y_values_by_sample[sample], bins=(x_bins, y_bins))
         counts_by_sample[sample] = counts
 
     vmax = max(1.0, max(float(np.max(counts)) for counts in counts_by_sample.values()))
     cmap = plt.get_cmap("viridis").copy()
     cmap.set_bad(color="white", alpha=0.0)
-    fig, axes = plt.subplots(2, 2, figsize=(16, 14), sharex=True, sharey=True)
+    fig, axes = sample_grid(samples)
     mesh = None
 
-    for ax, sample in zip(axes.ravel(), SAMPLES, strict=True):
+    for ax, sample in zip(axes, samples, strict=True):
         counts = counts_by_sample[sample]
         values = np.ma.masked_where(counts <= 0, counts)
         mesh = ax.pcolormesh(x_bins, y_bins, values.T, vmin=0.0, vmax=vmax, cmap=cmap)
@@ -197,9 +223,8 @@ def plot_2d(
         )
         ax.grid(alpha=0.2)
 
-    for ax in axes[-1, :]:
+    for ax in axes:
         ax.set_xlabel(x_label)
-    for ax in axes[:, 0]:
         ax.set_ylabel(y_label)
 
     fig.subplots_adjust(right=0.86, hspace=0.08, wspace=0.08)
@@ -210,8 +235,10 @@ def plot_2d(
     plt.close(fig)
 
 
-def plot_reco_check(input_root: Path, output_root: Path) -> None:
+def plot_reco_check(input_root: Path, output_root: Path, samples: list[str] | tuple[str, ...] | None = None) -> None:
     mh.style.use(mh.styles.CMS)
+    samples = resolve_samples(input_root, samples)
+    styles = sample_styles(samples)
     output_dir = output_root / "reco_check" / TRACK_NAME
     shutil.rmtree(output_dir, ignore_errors=True)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -236,7 +263,7 @@ def plot_reco_check(input_root: Path, output_root: Path) -> None:
         "theta_phi_phi": {},
     }
 
-    for sample in SAMPLES:
+    for sample in samples:
         tree = uproot.open(input_root / sample / FILE_NAME)[TREE_NAME]
         arrays = {branch: tree[branch].array(library="ak") for branch in TRACK_BRANCHES}
         n_events[sample] = int(tree.num_entries)
@@ -273,11 +300,11 @@ def plot_reco_check(input_root: Path, output_root: Path) -> None:
         values["theta_phi_theta"][sample] = theta
         values["theta_phi_phi"][sample] = phi
 
-    plot_int_hist(output_dir, "n_track_raw", r"$N_{\mathrm{TrackRaw}}$", values["n_track_raw"], n_events)
-    plot_discrete(output_dir, "charge", "TrackRaw charge", values["charge"], n_events)
+    plot_int_hist(output_dir, "n_track_raw", r"$N_{\mathrm{TrackRaw}}$", values["n_track_raw"], n_events, samples, styles)
+    plot_discrete(output_dir, "charge", "TrackRaw charge", values["charge"], n_events, samples, styles)
     for plot_name, xlabel, value_range in HIST_PLOTS:
-        plot_hist(output_dir, plot_name, xlabel, value_range, values[plot_name], n_events)
+        plot_hist(output_dir, plot_name, xlabel, value_range, values[plot_name], n_events, samples, styles)
     for plot_name, x_values, y_values, x_label, y_label, x_bins, y_bins in PLOTS_2D:
-        plot_2d(output_dir, plot_name, x_label, y_label, x_bins, y_bins, values[x_values], values[y_values])
+        plot_2d(output_dir, plot_name, x_label, y_label, x_bins, y_bins, values[x_values], values[y_values], samples)
 
     print(f"wrote {output_dir}")
