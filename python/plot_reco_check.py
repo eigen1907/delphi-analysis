@@ -15,6 +15,8 @@ from plot_utils import (
     MATCH_PT_BINS,
     MATCH_THETA_BINS,
     add_delphi_label,
+    add_heatmap_label,
+    normalize_counts,
     phi_0_2pi,
     resolve_samples,
     sample_grid,
@@ -49,6 +51,7 @@ PLOTS_2D = (
     ("theta_phi", "theta_phi_theta", "theta_phi_phi", r"$\theta$ [rad]", r"$\phi$ [rad]", MATCH_THETA_BINS, MATCH_PHI_BINS),
 )
 LEGEND_HEADER = f"{'Sample':<8} {'Event':<8} {'Object':<8} {'UF':<6} {'OF':<6}"
+PREFERRED_2D_SAMPLE_ORDER = ("Zee", "Zmumu", "Zqqps", "1995")
 
 
 def flatten(array) -> np.ndarray:
@@ -195,29 +198,42 @@ def plot_2d(
     x_values_by_sample: dict[str, np.ndarray],
     y_values_by_sample: dict[str, np.ndarray],
     samples: tuple[str, ...],
+    color_scale: str = "per-sample",
 ) -> None:
+    plot_samples = tuple(sample for sample in PREFERRED_2D_SAMPLE_ORDER if sample in samples)
+    plot_samples += tuple(sample for sample in samples if sample not in plot_samples)
     counts_by_sample = {}
-    for sample in samples:
+    normalized_by_sample = {}
+    for sample in plot_samples:
         counts, _, _ = np.histogram2d(x_values_by_sample[sample], y_values_by_sample[sample], bins=(x_bins, y_bins))
         counts_by_sample[sample] = counts
+        normalized_by_sample[sample] = normalize_counts(counts)
 
-    vmax = max(1.0, max(float(np.max(counts)) for counts in counts_by_sample.values()))
+    vmax = max((float(np.max(values)) for values in normalized_by_sample.values()), default=0.0) or 1.0
     cmap = plt.get_cmap("viridis").copy()
     cmap.set_bad(color="white", alpha=0.0)
-    fig, axes = sample_grid(samples)
+    fig, axes = sample_grid(plot_samples)
     mesh = None
 
-    for ax, sample in zip(axes, samples, strict=True):
+    for ax, sample in zip(axes, plot_samples, strict=True):
         counts = counts_by_sample[sample]
-        values = np.ma.masked_where(counts <= 0, counts)
-        mesh = ax.pcolormesh(x_bins, y_bins, values.T, vmin=0.0, vmax=vmax, cmap=cmap)
-        ax.text(
-            0.94,
-            0.92,
-            f"{sample}\nObject {int(np.sum(counts))}",
-            transform=ax.transAxes,
-            ha="right",
-            va="top",
+        normalized = normalized_by_sample[sample]
+        values = np.ma.masked_where(normalized <= 0, normalized)
+        sample_vmax = max(float(np.max(normalized)), 0.0) or 1.0
+        mesh = ax.pcolormesh(
+            x_bins,
+            y_bins,
+            values.T,
+            vmin=0.0,
+            vmax=sample_vmax if color_scale == "per-sample" else vmax,
+            cmap=cmap,
+        )
+        if color_scale == "per-sample":
+            cbar = fig.colorbar(mesh, ax=ax, fraction=0.046, pad=0.02)
+            cbar.set_label("Normalized")
+        add_heatmap_label(
+            ax,
+            f"Sample: {sample}\nObject: {int(np.sum(counts))}",
             fontsize=14,
             family="monospace",
         )
@@ -227,15 +243,23 @@ def plot_2d(
         ax.set_xlabel(x_label)
         ax.set_ylabel(y_label)
 
-    fig.subplots_adjust(right=0.86, hspace=0.08, wspace=0.08)
-    cbar_ax = fig.add_axes([0.88, 0.15, 0.025, 0.70])
-    cbar = fig.colorbar(mesh, cax=cbar_ax)
-    cbar.set_label("Entries")
+    if color_scale == "shared":
+        fig.subplots_adjust(right=0.86, hspace=0.08, wspace=0.08)
+        cbar_ax = fig.add_axes([0.88, 0.15, 0.025, 0.70])
+        cbar = fig.colorbar(mesh, cax=cbar_ax)
+        cbar.set_label("Normalized")
+    else:
+        fig.tight_layout()
     fig.savefig(output_dir / f"{name}.png", dpi=150)
     plt.close(fig)
 
 
-def plot_reco_check(input_root: Path, output_root: Path, samples: list[str] | tuple[str, ...] | None = None) -> None:
+def plot_reco_check(
+    input_root: Path,
+    output_root: Path,
+    samples: list[str] | tuple[str, ...] | None = None,
+    color_scale: str = "per-sample",
+) -> None:
     mh.style.use(mh.styles.CMS)
     samples = resolve_samples(input_root, samples)
     styles = sample_styles(samples)
@@ -305,6 +329,17 @@ def plot_reco_check(input_root: Path, output_root: Path, samples: list[str] | tu
     for plot_name, xlabel, value_range in HIST_PLOTS:
         plot_hist(output_dir, plot_name, xlabel, value_range, values[plot_name], n_events, samples, styles)
     for plot_name, x_values, y_values, x_label, y_label, x_bins, y_bins in PLOTS_2D:
-        plot_2d(output_dir, plot_name, x_label, y_label, x_bins, y_bins, values[x_values], values[y_values], samples)
+        plot_2d(
+            output_dir,
+            plot_name,
+            x_label,
+            y_label,
+            x_bins,
+            y_bins,
+            values[x_values],
+            values[y_values],
+            samples,
+            color_scale,
+        )
 
     print(f"wrote {output_dir}")

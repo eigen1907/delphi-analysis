@@ -49,7 +49,7 @@ plots/<sample-set>/<plot-name>/
 `filter-chunks.py` keeps events with `nGenPart > 0`, removes duplicate
 `(run, event, nGenPart)` keys per job, and writes a per-job summary to
 `data/check/<sample-set>/event-filter.csv`. `hadd-chunks.py` then combines the filtered
-chunks into `output/dataset/<sample-set>/` without ROOT `hadd`.
+chunks into `output/dataset/<sample-set>/` with ROOT `hadd` by default.
 
 `plot-branches-all.py` and `plot-branches-compare.py` inspect the ROOT files directly
 before plotting, so no separate branch summary JSON step is needed. Plotting scripts

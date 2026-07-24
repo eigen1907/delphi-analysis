@@ -13,10 +13,10 @@ import numpy as np
 NUMERIC_WORDS = ("bool", "float", "double", "int", "short", "long")
 INTEGER_WORDS = ("bool", "char", "int", "short", "long")
 SAMPLE_STYLE_CYCLE = (
-    ("C0", "/"),
-    ("C1", "\\"),
-    ("C2", "x"),
-    ("C3", "."),
+    ("C0", "*"),
+    ("C1", "."),
+    ("C2", "/"),
+    ("C3", "\\"),
 )
 CHARGED_ABS_PDG = {11, 13, 211, 321, 2212}
 MATCH_SOURCES = (
@@ -74,6 +74,15 @@ def add_samples_argument(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def add_color_scale_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--color-scale",
+        choices=("shared", "per-sample"),
+        default="per-sample",
+        help="2D plot color scale mode (default: per-sample)",
+    )
+
+
 def default_plot_root(project_root: Path, input_root: Path) -> Path:
     return project_root / "plots" / input_root.expanduser().resolve().name
 
@@ -104,6 +113,11 @@ def sample_styles(samples: tuple[str, ...] | list[str]) -> dict[str, tuple[str, 
         sample: SAMPLE_STYLE_CYCLE[index % len(SAMPLE_STYLE_CYCLE)]
         for index, sample in enumerate(samples)
     }
+
+
+def normalize_counts(counts: np.ndarray) -> np.ndarray:
+    total = np.sum(counts)
+    return counts / total if total else counts.astype(float, copy=False)
 
 
 def infer_expected_abs_pdg(status_events, pdg_events, parent_events) -> int | None:
@@ -147,6 +161,30 @@ def sample_grid(samples: tuple[str, ...] | list[str], subplot_width: float = 8.0
     for ax in flat_axes[len(samples) :]:
         ax.set_visible(False)
     return fig, flat_axes[: len(samples)]
+
+
+def add_heatmap_label(ax, label: str, *, fontsize: float = 14, family: str | None = None) -> None:
+    import matplotlib.patheffects as path_effects
+
+    text_options = {
+        "transform": ax.transAxes,
+        "ha": "right",
+        "va": "top",
+        "multialignment": "left",
+        "fontsize": fontsize,
+        "color": "white",
+        "path_effects": [path_effects.withStroke(linewidth=3.0, foreground="black")],
+        "bbox": {
+            "boxstyle": "round,pad=0.25",
+            "facecolor": "black",
+            "edgecolor": "none",
+            "alpha": 0.45,
+        },
+    }
+    if family is not None:
+        text_options["family"] = family
+
+    ax.text(0.94, 0.92, label, **text_options)
 
 
 def build_branch_summary(sample_dir: Path, sample: str) -> dict:

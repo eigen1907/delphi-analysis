@@ -14,12 +14,14 @@ from plot_utils import (
     MATCH_ALPHA_CUTS,
     MATCH_AXES,
     MATCH_SOURCES,
+    add_heatmap_label,
     charge_from_pdg,
     divide,
     has_ancestor_pdg,
     infer_expected_abs_pdg,
     is_track_fiducial,
     match_cut_dir,
+    normalize_counts,
     opening_angle,
     phi_0_2pi,
     resolve_samples,
@@ -139,24 +141,40 @@ def plot_metric_2d(
     numerator_by_sample: dict[str, np.ndarray],
     denominator_by_sample: dict[str, np.ndarray],
     samples: tuple[str, ...],
+    color_scale: str = "per-sample",
 ) -> None:
     fig, axes = sample_grid(samples)
     mesh = None
 
     for ax, sample in zip(axes, samples, strict=True):
         values = divide(numerator_by_sample[sample], denominator_by_sample[sample])
-        mesh = ax.pcolormesh(x_bins, y_bins, values.T, vmin=0.0, vmax=1.0, cmap="viridis")
-        ax.text(0.94, 0.92, sample, transform=ax.transAxes, ha="right", fontsize=22)
+        finite = values[np.isfinite(values)]
+        sample_vmax = (max(float(np.max(finite)), 0.0) if finite.size else 0.0) or 1.0
+        mesh = ax.pcolormesh(
+            x_bins,
+            y_bins,
+            np.ma.masked_invalid(values).T,
+            vmin=0.0,
+            vmax=sample_vmax if color_scale == "per-sample" else 1.0,
+            cmap="viridis",
+        )
+        if color_scale == "per-sample":
+            cbar = fig.colorbar(mesh, ax=ax, fraction=0.046, pad=0.02)
+            cbar.set_label(values_label)
+        add_heatmap_label(ax, f"Sample: {sample}", fontsize=22)
         ax.grid(alpha=0.2)
 
     for ax in axes:
         ax.set_xlabel(x_label)
         ax.set_ylabel(y_label)
 
-    fig.subplots_adjust(right=0.86, hspace=0.08, wspace=0.08)
-    cbar_ax = fig.add_axes([0.88, 0.15, 0.025, 0.70])
-    cbar = fig.colorbar(mesh, cax=cbar_ax)
-    cbar.set_label(values_label)
+    if color_scale == "shared":
+        fig.subplots_adjust(right=0.86, hspace=0.08, wspace=0.08)
+        cbar_ax = fig.add_axes([0.88, 0.15, 0.025, 0.70])
+        cbar = fig.colorbar(mesh, cax=cbar_ax)
+        cbar.set_label(values_label)
+    else:
+        fig.tight_layout()
     fig.savefig(output_dir / f"{name}.png", dpi=150)
     plt.close(fig)
 
@@ -209,41 +227,51 @@ def plot_count_2d(
     matched_by_sample: dict[str, np.ndarray],
     missed_by_sample: dict[str, np.ndarray],
     samples: tuple[str, ...],
+    color_scale: str = "per-sample",
 ) -> None:
-    vmax = max(1.0, max((float(np.max(counts)) for counts in counts_by_sample.values() if counts.size), default=1.0))
+    normalized_by_sample = {sample: normalize_counts(counts_by_sample[sample]) for sample in samples}
+    vmax = max(
+        (float(np.max(values)) for values in normalized_by_sample.values() if values.size),
+        default=0.0,
+    ) or 1.0
     cmap = plt.get_cmap("viridis").copy()
     cmap.set_bad(color="white", alpha=0.0)
     fig, axes = sample_grid(samples)
     mesh = None
 
     for ax, sample in zip(axes, samples, strict=True):
-        counts = counts_by_sample[sample]
         matched = int(np.sum(matched_by_sample[sample]))
         missed = int(np.sum(missed_by_sample[sample]))
         n_object = matched + missed
-        values = np.ma.masked_where(counts <= 0, counts)
-        mesh = ax.pcolormesh(x_bins, y_bins, values.T, vmin=0.0, vmax=vmax, cmap=cmap)
-        label = f"{sample}\n{'Object':>7} {'Matched':>7} {'Missed':>7}\n{n_object:>7} {matched:>7} {missed:>7}"
-        ax.text(
-            0.94,
-            0.92,
-            label,
-            transform=ax.transAxes,
-            ha="right",
-            va="top",
-            fontsize=12,
-            family="monospace",
+        normalized = normalized_by_sample[sample]
+        values = np.ma.masked_where(normalized <= 0, normalized)
+        sample_vmax = max(float(np.max(normalized)), 0.0) or 1.0
+        mesh = ax.pcolormesh(
+            x_bins,
+            y_bins,
+            values.T,
+            vmin=0.0,
+            vmax=sample_vmax if color_scale == "per-sample" else vmax,
+            cmap=cmap,
         )
+        if color_scale == "per-sample":
+            cbar = fig.colorbar(mesh, ax=ax, fraction=0.046, pad=0.02)
+            cbar.set_label("Normalized")
+        label = f"Sample: {sample}\nObject: {n_object}\nMatched: {matched}\nMissed: {missed}"
+        add_heatmap_label(ax, label, fontsize=12, family="monospace")
         ax.grid(alpha=0.2)
 
     for ax in axes:
         ax.set_xlabel(x_label)
         ax.set_ylabel(y_label)
 
-    fig.subplots_adjust(right=0.86, hspace=0.08, wspace=0.08)
-    cbar_ax = fig.add_axes([0.88, 0.15, 0.025, 0.70])
-    cbar = fig.colorbar(mesh, cax=cbar_ax)
-    cbar.set_label("Entries")
+    if color_scale == "shared":
+        fig.subplots_adjust(right=0.86, hspace=0.08, wspace=0.08)
+        cbar_ax = fig.add_axes([0.88, 0.15, 0.025, 0.70])
+        cbar = fig.colorbar(mesh, cax=cbar_ax)
+        cbar.set_label("Normalized")
+    else:
+        fig.tight_layout()
     fig.savefig(output_dir / f"{name}.png", dpi=150)
     plt.close(fig)
 
@@ -255,6 +283,7 @@ def plot_gen_reco_track_match_cut(
     fiducial_cos_max: float = 1.00,
     pt_min: float = 0.00,
     samples: list[str] | tuple[str, ...] | None = None,
+    color_scale: str = "per-sample",
 ) -> None:
     mh.style.use(mh.styles.CMS)
     samples = resolve_samples(input_root, samples)
@@ -573,6 +602,7 @@ def plot_gen_reco_track_match_cut(
                 metric_num_2d[metric][plane],
                 metric_den_2d[metric][plane],
                 samples,
+                color_scale,
             )
 
     for state, counts_by_axis, counts_2d in (
@@ -603,6 +633,7 @@ def plot_gen_reco_track_match_cut(
                 expected_matched_count_2d[plane],
                 expected_missed_count_2d[plane],
                 samples,
+                color_scale,
             )
 
     print(f"wrote {scan_output}")

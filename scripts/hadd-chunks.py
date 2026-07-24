@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import argparse
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -28,10 +29,8 @@ def sample_name(sample_dir: Path) -> str:
 
 
 def job_number(job_dir: Path) -> int:
-    try:
-        return int(job_dir.name.removeprefix("job_"))
-    except ValueError:
-        return 10**9
+    match = re.search(r"(\d+)$", job_dir.name)
+    return int(match.group(1)) if match else 10**9
 
 
 def is_tree(obj) -> bool:
@@ -131,8 +130,8 @@ def main() -> None:
     parser.add_argument(
         "--backend",
         choices=("uproot", "hadd"),
-        default="uproot",
-        help="merge backend (default: uproot)",
+        default="hadd",
+        help="merge backend (default: hadd)",
     )
     args = parser.parse_args()
 
@@ -144,7 +143,8 @@ def main() -> None:
         sample = sample_name(sample_dir)
         if requested_samples and sample not in requested_samples and sample_dir.name not in requested_samples:
             continue
-        job_dirs = sorted((sample_dir / "final_root").glob("job_*"), key=job_number)
+        final_root = sample_dir / "final_root"
+        job_dirs = sorted((path for path in final_root.iterdir() if path.is_dir()), key=job_number)
 
         for file_name in ROOT_FILES:
             paths = [job_dir / file_name for job_dir in job_dirs if (job_dir / file_name).exists()]

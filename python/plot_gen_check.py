@@ -16,9 +16,11 @@ from plot_utils import (
     MATCH_PT_BINS,
     MATCH_THETA_BINS,
     add_delphi_label,
+    add_heatmap_label,
     charge_from_pdg,
     has_ancestor_pdg,
     infer_expected_abs_pdg,
+    normalize_counts,
     phi_0_2pi,
     resolve_samples,
     sample_grid,
@@ -41,6 +43,13 @@ BRANCH_PLOTS = (
     ("vertex_z", r"$z_{\mathrm{vtx}}$", "GenPart_vertex.fCoordinates.fZ", (-2.5, 2.5)),
     ("vertex_t", r"$t_{\mathrm{vtx}}$", "GenPart_vertex.fCoordinates.fT", (-1e-6, 1e-6)),
 )
+CORE_BRANCHES = ("GenPart_status", "GenPart_pdgId", "GenPart_parentIdx")
+SPATIAL_VECTOR_BRANCHES = (
+    "GenPart_vector.fCoordinates.fX",
+    "GenPart_vector.fCoordinates.fY",
+    "GenPart_vector.fCoordinates.fZ",
+)
+ENERGY_VECTOR_BRANCH = "GenPart_vector.fCoordinates.fT"
 DERIVED_PLOTS = (
     ("pt", r"$p_T$ [GeV]", (0.0, 60.0)),
     ("p", r"$p$ [GeV]", (0.0, 60.0)),
@@ -79,6 +88,14 @@ SELECTIONS = (
 def flatten(array) -> np.ndarray:
     values = np.asarray(ak.to_numpy(ak.flatten(array, axis=None)), dtype=float)
     return values[np.isfinite(values)]
+
+
+def empty_values() -> np.ndarray:
+    return np.asarray([], dtype=float)
+
+
+def has_values(values_by_sample: dict[str, np.ndarray], samples: tuple[str, ...]) -> bool:
+    return any(len(values_by_sample[sample]) for sample in samples)
 
 
 def plot_hist(
@@ -179,8 +196,9 @@ def plot_int_hist(
     styles: dict[str, tuple[str, str]],
 ) -> None:
     fig, ax = plt.subplots(figsize=(12, 10))
-    lo = int(min(np.min(values) for values in values_by_sample.values()))
-    hi = int(max(np.max(values) for values in values_by_sample.values()))
+    non_empty_values = [values for values in values_by_sample.values() if len(values)]
+    lo = int(min(np.min(values) for values in non_empty_values)) if non_empty_values else 0
+    hi = int(max(np.max(values) for values in non_empty_values)) if non_empty_values else 0
     bins = np.arange(lo - 0.5, hi + 1.5, 1.0)
 
     ax.plot([], [], color="none", label=LEGEND_HEADER)
@@ -219,13 +237,16 @@ def plot_2d(
     x_values_by_sample: dict[str, np.ndarray],
     y_values_by_sample: dict[str, np.ndarray],
     samples: tuple[str, ...],
+    color_scale: str = "per-sample",
 ) -> None:
     counts_by_sample = {}
+    normalized_by_sample = {}
     for sample in samples:
         counts, _, _ = np.histogram2d(x_values_by_sample[sample], y_values_by_sample[sample], bins=(x_bins, y_bins))
         counts_by_sample[sample] = counts
+        normalized_by_sample[sample] = normalize_counts(counts)
 
-    vmax = max(1.0, max(float(np.max(counts)) for counts in counts_by_sample.values()))
+    vmax = max((float(np.max(values)) for values in normalized_by_sample.values()), default=0.0) or 1.0
     cmap = plt.get_cmap("viridis").copy()
     cmap.set_bad(color="white", alpha=0.0)
     fig, axes = sample_grid(samples)
@@ -233,15 +254,23 @@ def plot_2d(
 
     for ax, sample in zip(axes, samples, strict=True):
         counts = counts_by_sample[sample]
-        values = np.ma.masked_where(counts <= 0, counts)
-        mesh = ax.pcolormesh(x_bins, y_bins, values.T, vmin=0.0, vmax=vmax, cmap=cmap)
-        ax.text(
-            0.94,
-            0.92,
-            f"{sample}\nObject {int(np.sum(counts))}",
-            transform=ax.transAxes,
-            ha="right",
-            va="top",
+        normalized = normalized_by_sample[sample]
+        values = np.ma.masked_where(normalized <= 0, normalized)
+        sample_vmax = max(float(np.max(normalized)), 0.0) or 1.0
+        mesh = ax.pcolormesh(
+            x_bins,
+            y_bins,
+            values.T,
+            vmin=0.0,
+            vmax=sample_vmax if color_scale == "per-sample" else vmax,
+            cmap=cmap,
+        )
+        if color_scale == "per-sample":
+            cbar = fig.colorbar(mesh, ax=ax, fraction=0.046, pad=0.02)
+            cbar.set_label("Normalized")
+        add_heatmap_label(
+            ax,
+            f"Sample: {sample}\nObject: {int(np.sum(counts))}",
             fontsize=14,
             family="monospace",
         )
@@ -251,10 +280,13 @@ def plot_2d(
         ax.set_xlabel(x_label)
         ax.set_ylabel(y_label)
 
-    fig.subplots_adjust(right=0.86, hspace=0.08, wspace=0.08)
-    cbar_ax = fig.add_axes([0.88, 0.15, 0.025, 0.70])
-    cbar = fig.colorbar(mesh, cax=cbar_ax)
-    cbar.set_label("Entries")
+    if color_scale == "shared":
+        fig.subplots_adjust(right=0.86, hspace=0.08, wspace=0.08)
+        cbar_ax = fig.add_axes([0.88, 0.15, 0.025, 0.70])
+        cbar = fig.colorbar(mesh, cax=cbar_ax)
+        cbar.set_label("Normalized")
+    else:
+        fig.tight_layout()
     fig.savefig(output_root / f"{name}.png", dpi=150)
     plt.close(fig)
 
@@ -352,10 +384,14 @@ def make_selection_mask(arrays: dict, expected_pdg: int | None, selection: str) 
     return ak.Array(masks)
 
 
-def plot_gen_check(input_root: Path, output_root: Path, samples: list[str] | tuple[str, ...] | None = None) -> None:
+def plot_gen_check(
+    input_root: Path,
+    output_root: Path,
+    samples: list[str] | tuple[str, ...] | None = None,
+    color_scale: str = "per-sample",
+) -> None:
     mh.style.use(mh.styles.CMS)
     samples = resolve_samples(input_root, samples)
-    styles = sample_styles(samples)
     output_root = output_root / "gen_check"
     output_root.mkdir(parents=True, exist_ok=True)
     for path in output_root.glob("*.png"):
@@ -364,21 +400,40 @@ def plot_gen_check(input_root: Path, output_root: Path, samples: list[str] | tup
     n_events = {}
     sample_arrays = {}
     expected_pdgs = {}
+    active_samples = []
 
     for sample in samples:
         tree = uproot.open(input_root / sample / "nanoaod.root")["Events"]
+        available_branches = set(tree.keys())
+        missing_core = [branch for branch in CORE_BRANCHES if branch not in available_branches]
+        if missing_core:
+            print(f"[{sample}] skipping gen_check: missing required branches: {', '.join(missing_core)}")
+            continue
+
         n_events[sample] = int(tree.num_entries)
-        arrays = {branch: tree[branch].array(library="ak") for _, _, branch, _ in BRANCH_PLOTS}
-        arrays["nGenPart"] = tree["nGenPart"].array(library="ak")
-        arrays["GenPart_status"] = tree["GenPart_status"].array(library="ak")
-        arrays["GenPart_pdgId"] = tree["GenPart_pdgId"].array(library="ak")
-        arrays["GenPart_parentIdx"] = tree["GenPart_parentIdx"].array(library="ak")
+        arrays = {branch: tree[branch].array(library="ak") for branch in CORE_BRANCHES}
+        missing_optional = []
+        for _, _, branch, _ in BRANCH_PLOTS:
+            if branch in available_branches:
+                arrays[branch] = tree[branch].array(library="ak")
+            else:
+                missing_optional.append(branch)
+        if missing_optional:
+            print(f"[{sample}] missing {len(missing_optional)} optional GenPart branches; related plots will be skipped")
+
         sample_arrays[sample] = arrays
+        active_samples.append(sample)
         expected_pdgs[sample] = infer_expected_abs_pdg(
             arrays["GenPart_status"],
             arrays["GenPart_pdgId"],
             arrays["GenPart_parentIdx"],
         )
+
+    samples = tuple(active_samples)
+    if not samples:
+        print(f"No samples under {input_root} have the required GenPart branches; skipping gen_check plots")
+        return
+    styles = sample_styles(samples)
 
     selections = make_selections(sample_arrays, samples)
     selection_dirs = {selection_dir for selection_dir, _ in selections}
@@ -425,12 +480,18 @@ def plot_gen_check(input_root: Path, output_root: Path, samples: list[str] | tup
             values["pdg_id"][sample] = flatten(pdg_id[mask])
             values["status"][sample] = flatten(status[mask])
             for plot_name, _, branch, _ in BRANCH_PLOTS:
-                values[plot_name][sample] = flatten(arrays[branch][mask])
+                values[plot_name][sample] = flatten(arrays[branch][mask]) if branch in arrays else empty_values()
+
+            for plot_name, _, _ in DERIVED_PLOTS:
+                values[plot_name][sample] = empty_values()
+
+            if not all(branch in arrays for branch in SPATIAL_VECTOR_BRANCHES):
+                continue
 
             px_events = ak.to_list(arrays["GenPart_vector.fCoordinates.fX"][mask])
             py_events = ak.to_list(arrays["GenPart_vector.fCoordinates.fY"][mask])
             pz_events = ak.to_list(arrays["GenPart_vector.fCoordinates.fZ"][mask])
-            e_events = ak.to_list(arrays["GenPart_vector.fCoordinates.fT"][mask])
+            e_events = ak.to_list(arrays[ENERGY_VECTOR_BRANCH][mask]) if ENERGY_VECTOR_BRANCH in arrays else None
             pdg_events = ak.to_list(pdg_id[mask])
 
             pt_values = []
@@ -449,7 +510,10 @@ def plot_gen_check(input_root: Path, output_root: Path, samples: list[str] | tup
             pair_px_values = []
             pair_py_values = []
             pair_pz_values = []
-            for pxs, pys, pzs, es, pdg_ids in zip(px_events, py_events, pz_events, e_events, pdg_events, strict=True):
+            for event_index, (pxs, pys, pzs, pdg_ids) in enumerate(
+                zip(px_events, py_events, pz_events, pdg_events, strict=True)
+            ):
+                es = e_events[event_index] if e_events is not None else [None] * len(pxs)
                 particles = []
                 for px, py, pz, energy, pdg in zip(pxs, pys, pzs, es, pdg_ids, strict=True):
                     pt = float(np.hypot(px, py))
@@ -460,7 +524,9 @@ def plot_gen_check(input_root: Path, output_root: Path, samples: list[str] | tup
                     phi_values.append(phi_0_2pi(float(np.arctan2(py, px))))
                     charge = charge_from_pdg(int(pdg))
                     if charge != 0 and abs(pdg) in CHARGED_ABS_PDG:
-                        particles.append({"px": px, "py": py, "pz": pz, "energy": energy, "pt": pt, "p": p, "charge": charge})
+                        particles.append(
+                            {"px": px, "py": py, "pz": pz, "energy": energy, "pt": pt, "p": p, "charge": charge}
+                        )
 
                 particles = sorted(particles, key=lambda item: item["pt"], reverse=True)
                 if len(particles) >= 1:
@@ -470,35 +536,40 @@ def plot_gen_check(input_root: Path, output_root: Path, samples: list[str] | tup
                     subleading_pt_values.append(particles[1]["pt"])
                     subleading_p_values.append(particles[1]["p"])
 
-                    best_mass = None
-                    best_distance = None
-                    best_pair = None
-                    for i, particle_i in enumerate(particles):
-                        for particle_j in particles[i + 1 :]:
-                            if particle_i["charge"] * particle_j["charge"] >= 0:
-                                continue
-                            energy = particle_i["energy"] + particle_j["energy"]
-                            px = particle_i["px"] + particle_j["px"]
-                            py = particle_i["py"] + particle_j["py"]
-                            pz = particle_i["pz"] + particle_j["pz"]
-                            mass = float(np.sqrt(max(energy * energy - px * px - py * py - pz * pz, 0.0)))
-                            distance = abs(mass - Z_MASS)
-                            if best_distance is None or distance < best_distance:
-                                best_mass = mass
-                                best_distance = distance
-                                best_pair = (px, py, pz)
+                    if e_events is not None:
+                        best_mass = None
+                        best_distance = None
+                        best_pair = None
+                        for i, particle_i in enumerate(particles):
+                            for particle_j in particles[i + 1 :]:
+                                if particle_i["charge"] * particle_j["charge"] >= 0:
+                                    continue
+                                energy = particle_i["energy"] + particle_j["energy"]
+                                px = particle_i["px"] + particle_j["px"]
+                                py = particle_i["py"] + particle_j["py"]
+                                pz = particle_i["pz"] + particle_j["pz"]
+                                mass = float(
+                                    np.sqrt(max(energy * energy - px * px - py * py - pz * pz, 0.0))
+                                )
+                                distance = abs(mass - Z_MASS)
+                                if best_distance is None or distance < best_distance:
+                                    best_mass = mass
+                                    best_distance = distance
+                                    best_pair = (px, py, pz)
 
-                    if best_mass is not None:
-                        pair_mass_values.append(best_mass)
-                        pair_px, pair_py, pair_pz = best_pair
-                        pair_pt = float(np.hypot(pair_px, pair_py))
-                        pair_px_values.append(pair_px)
-                        pair_py_values.append(pair_py)
-                        pair_pz_values.append(pair_pz)
-                        pair_pt_values.append(pair_pt)
-                        pair_p_values.append(float(np.sqrt(pair_px * pair_px + pair_py * pair_py + pair_pz * pair_pz)))
-                        pair_theta_values.append(float(np.arctan2(pair_pt, pair_pz)))
-                        pair_phi_values.append(phi_0_2pi(float(np.arctan2(pair_py, pair_px))))
+                        if best_mass is not None:
+                            pair_mass_values.append(best_mass)
+                            pair_px, pair_py, pair_pz = best_pair
+                            pair_pt = float(np.hypot(pair_px, pair_py))
+                            pair_px_values.append(pair_px)
+                            pair_py_values.append(pair_py)
+                            pair_pz_values.append(pair_pz)
+                            pair_pt_values.append(pair_pt)
+                            pair_p_values.append(
+                                float(np.sqrt(pair_px * pair_px + pair_py * pair_py + pair_pz * pair_pz))
+                            )
+                            pair_theta_values.append(float(np.arctan2(pair_pt, pair_pz)))
+                            pair_phi_values.append(phi_0_2pi(float(np.arctan2(pair_py, pair_px))))
 
             values["pt"][sample] = np.asarray(pt_values, dtype=float)
             values["p"][sample] = np.asarray(p_values, dtype=float)
@@ -522,10 +593,24 @@ def plot_gen_check(input_root: Path, output_root: Path, samples: list[str] | tup
         plot_int_hist(selection_output, "n_gen_part", r"$N_{\mathrm{GenPart}}$", values["n_gen_part"], n_events, samples, styles)
 
         for plot_name, xlabel, _, value_range in BRANCH_PLOTS:
-            plot_hist(selection_output, plot_name, xlabel, value_range, values[plot_name], n_events, samples, styles)
+            if has_values(values[plot_name], samples):
+                plot_hist(selection_output, plot_name, xlabel, value_range, values[plot_name], n_events, samples, styles)
         for plot_name, xlabel, value_range in DERIVED_PLOTS:
-            plot_hist(selection_output, plot_name, xlabel, value_range, values[plot_name], n_events, samples, styles)
+            if has_values(values[plot_name], samples):
+                plot_hist(selection_output, plot_name, xlabel, value_range, values[plot_name], n_events, samples, styles)
         for plot_name, x_name, y_name, x_label, y_label, x_bins, y_bins in PLOTS_2D:
-            plot_2d(selection_output, plot_name, x_label, y_label, x_bins, y_bins, values[x_name], values[y_name], samples)
+            if any(len(values[x_name][sample]) and len(values[y_name][sample]) for sample in samples):
+                plot_2d(
+                    selection_output,
+                    plot_name,
+                    x_label,
+                    y_label,
+                    x_bins,
+                    y_bins,
+                    values[x_name],
+                    values[y_name],
+                    samples,
+                    color_scale,
+                )
 
     print(f"wrote {output_root}")
