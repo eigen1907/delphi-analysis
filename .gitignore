@@ -1,8 +1,7 @@
 *DS_Store
 
-output/*
+data/*
 plots/*
-data/check/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
