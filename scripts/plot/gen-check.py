@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 
-PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", Path(__file__).resolve().parents[1]))
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", Path(__file__).resolve().parents[2]))
 
 from plot_utils import add_color_scale_argument, add_samples_argument, default_plot_root
 
@@ -19,11 +19,11 @@ def main() -> None:
     add_color_scale_argument(parser)
     args = parser.parse_args()
 
-    from plot_reco_check import plot_reco_check
+    from plot_gen_check import plot_gen_check
 
     input_root = args.input
     output_root = args.output or default_plot_root(PROJECT_ROOT, input_root)
-    plot_reco_check(input_root, output_root, args.samples, args.color_scale)
+    plot_gen_check(input_root, output_root, args.samples, args.color_scale)
 
 
 if __name__ == "__main__":

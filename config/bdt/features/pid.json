@@ -1,0 +1,62 @@
+{
+  "name": "pid",
+  "features": {
+    "TracRaw": [
+      "nTracRaw",
+      "TracRaw_impactRPhi",
+      "TracRaw_impactZ",
+      "TracRaw_theta",
+      "TracRaw_phi",
+      "TracRaw_invR",
+      "TracRaw_weightMatrix",
+      "TracRaw_trackLength",
+      "TracRaw_firstPointR",
+      "TracRaw_firstPointZ",
+      "TracRaw_chi2NoVD",
+      "TracRaw_chi2VD",
+      "TracRaw_ndfNoVD",
+      "TracRaw_ndfVD",
+      "TracRaw_chi2VDHits",
+      "TracRaw_charge"
+    ],
+    "MuidRaw": [
+      "nMuidRaw",
+      "MuidRaw_tag",
+      "MuidRaw_looseChi2"
+    ],
+    "ElidRaw": [
+      "nElidRaw",
+      "ElidRaw_tag",
+      "ElidRaw_gammaConvTag"
+    ],
+    "HaidRaw": [
+      "nHaidRaw",
+      "HaidRaw_kaonDedx",
+      "HaidRaw_protonDedx",
+      "HaidRaw_kaonRich",
+      "HaidRaw_protonRich",
+      "HaidRaw_pionRich",
+      "HaidRaw_kaonCombined",
+      "HaidRaw_protonCombined",
+      "HaidRaw_richQuality",
+      "HaidRaw_thetaGas",
+      "HaidRaw_sigmaGas",
+      "HaidRaw_nphGas",
+      "HaidRaw_nepGas",
+      "HaidRaw_flagGas",
+      "HaidRaw_thetaLiq",
+      "HaidRaw_sigmaLiq",
+      "HaidRaw_nphLiq",
+      "HaidRaw_nepLiq"
+    ],
+    "Vtx": [
+      "nVtx",
+      "Vtx_position.fCoordinates.fX",
+      "Vtx_position.fCoordinates.fY",
+      "Vtx_position.fCoordinates.fZ",
+      "Vtx_chi2",
+      "Vtx_ndf",
+      "Vtx_nOutgoing"
+    ]
+  }
+}

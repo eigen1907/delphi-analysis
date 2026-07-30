@@ -11,7 +11,7 @@ from pathlib import Path
 import uproot
 
 
-PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", Path(__file__).resolve().parents[1]))
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", Path(__file__).resolve().parents[2]))
 
 from plot_utils import add_samples_argument
 
@@ -130,8 +130,8 @@ def main() -> None:
     parser.add_argument(
         "--backend",
         choices=("uproot", "hadd"),
-        default="hadd",
-        help="merge backend (default: hadd)",
+        default="uproot",
+        help="merge backend (default: uproot)",
     )
     args = parser.parse_args()
 

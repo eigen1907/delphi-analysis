@@ -1,0 +1,78 @@
+{
+  "name": "detector",
+  "features": {
+    "TracRaw": [
+      "nTracRaw",
+      "TracRaw_impactRPhi",
+      "TracRaw_impactZ",
+      "TracRaw_theta",
+      "TracRaw_phi",
+      "TracRaw_invR",
+      "TracRaw_weightMatrix",
+      "TracRaw_trackLength",
+      "TracRaw_firstPointR",
+      "TracRaw_firstPointZ",
+      "TracRaw_chi2NoVD",
+      "TracRaw_chi2VD",
+      "TracRaw_ndfNoVD",
+      "TracRaw_ndfVD",
+      "TracRaw_chi2VDHits",
+      "TracRaw_charge"
+    ],
+    "EmShower": [
+      "nEmShower",
+      "EmShower_detector",
+      "EmShower_energy",
+      "EmShower_position.fCoordinates.fX",
+      "EmShower_position.fCoordinates.fY",
+      "EmShower_position.fCoordinates.fZ",
+      "EmShower_nLayers",
+      "EmShower_nLayerEnergies"
+    ],
+    "EmLayer": [
+      "nEmLayer",
+      "EmLayer_layer",
+      "EmLayer_energy"
+    ],
+    "HadShower": [
+      "nHadShower",
+      "HadShower_energy",
+      "HadShower_direction.fCoordinates.fX",
+      "HadShower_direction.fCoordinates.fY",
+      "HadShower_direction.fCoordinates.fZ",
+      "HadShower_nHits",
+      "HadShower_nHitRows"
+    ],
+    "HadHit": [
+      "nHadHit",
+      "HadHit_layer",
+      "HadHit_nTowers",
+      "HadHit_energy"
+    ],
+    "MtpcRaw": [
+      "nMtpcRaw",
+      "MtpcRaw_dEdx80Max",
+      "MtpcRaw_dEdx80Sigma",
+      "MtpcRaw_dEdx65Max",
+      "MtpcRaw_dEdx65Sigma",
+      "MtpcRaw_dEdx80Integrated",
+      "MtpcRaw_zFitChi2"
+    ],
+    "VdAssocHit": [
+      "nVdAssocHit",
+      "VdAssocHit_module",
+      "VdAssocHit_localX",
+      "VdAssocHit_R",
+      "VdAssocHit_RPhi"
+    ],
+    "Vtx": [
+      "nVtx",
+      "Vtx_position.fCoordinates.fX",
+      "Vtx_position.fCoordinates.fY",
+      "Vtx_position.fCoordinates.fZ",
+      "Vtx_chi2",
+      "Vtx_ndf",
+      "Vtx_nOutgoing"
+    ]
+  }
+}

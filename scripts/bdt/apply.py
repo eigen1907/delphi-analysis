@@ -9,9 +9,9 @@ import numpy as np
 import uproot
 
 
-PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", Path(__file__).resolve().parents[1]))
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", Path(__file__).resolve().parents[2]))
 
-from bdt_features import FEATURE_NAMES, TREE_NAME, extract_features
+from bdt import TREE_NAME, extract_features
 
 
 def main() -> None:
@@ -25,12 +25,12 @@ def main() -> None:
         import joblib
     except ImportError as error:
         raise RuntimeError(
-            "scikit-learn is required; recreate or update the environment from environment.yml"
+            "joblib and XGBoost are required; update the environment from environment.yml"
         ) from error
 
     bundle = joblib.load(args.model)
-    if tuple(bundle["features"]) != FEATURE_NAMES:
-        raise ValueError("Model feature list differs from bdt_features.FEATURE_NAMES")
+    feature_names = list(bundle["features"])
+    feature_config = bundle["feature_config"]
 
     label_items = sorted(bundle["labels"].items(), key=lambda item: item[1])
     class_names = [name for name, _ in label_items]
@@ -39,8 +39,10 @@ def main() -> None:
         if TREE_NAME not in input_file:
             raise KeyError(f"Missing tree {TREE_NAME} in {args.input}")
         tree = input_file[TREE_NAME]
-        features = extract_features(tree)
-        feature_matrix = np.column_stack([features[name] for name in FEATURE_NAMES])
+        features = extract_features(tree, feature_config)
+        if list(features) != feature_names:
+            raise ValueError("Model and extracted feature lists differ")
+        feature_matrix = np.column_stack([features[name] for name in feature_names])
         predicted_label = np.asarray(bundle["model"].predict(feature_matrix), dtype=np.int8)
         probabilities = np.asarray(bundle["model"].predict_proba(feature_matrix), dtype=np.float32)
         probability_column = {

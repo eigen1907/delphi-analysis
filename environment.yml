@@ -8,6 +8,7 @@ dependencies:
   - matplotlib
   - pandas
   - scikit-learn
+  - xgboost
   - root
   - uproot
   - uproot-browser

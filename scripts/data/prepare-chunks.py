@@ -12,7 +12,7 @@ import numpy as np
 import uproot
 
 
-PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", Path(__file__).resolve().parents[1]))
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", Path(__file__).resolve().parents[2]))
 
 from plot_utils import add_samples_argument, default_check_root
 
@@ -152,7 +152,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     add_samples_argument(parser)
     parser.add_argument("-i", "--input", required=True, type=Path, help="input raw chunks root")
-    parser.add_argument("-o", "--output", required=True, type=Path, help="filtered chunks output root")
+    parser.add_argument("-o", "--output", required=True, type=Path, help="prepared chunks output root")
     parser.add_argument("--check", type=Path, help="filter summary CSV path (default: data/check/<output directory>/event-filter.csv)")
     args = parser.parse_args()
 
@@ -184,7 +184,7 @@ def main() -> None:
         writer.writerow(("sample", "job", "file", "tree", "n_event", "n_invalid_event", "n_duplicated_event"))
         writer.writerows(rows)
 
-    print(f"filtered chunks: {output_root}")
+    print(f"prepared chunks: {output_root}")
     print(f"check summary: {check_path}")
 
 

@@ -1,99 +1,124 @@
 # DELPHI Analysis
 
-Small analysis workspace for the merged SDST, RAWSDST, and RAWFADANA NanoAOD workflow.
+Compact analysis workspace for DELPHI SDST, RAW-SDST, and RAW-FADANA
+NanoAOD samples.
 
-## Setup
+## Environment
 
-```bash
-micromamba create -y -f environment.yml
-source setup.sh
-```
+The Python and ROOT dependencies are defined in `environment.yml`.
+`setup.sh` activates the `delphi-analysis-py312` environment and adds
+`python/` to `PYTHONPATH`.
 
 ## Workflow
 
-Chunk filtering and merging require explicit input and output roots. Sample names are
-discovered from the input root, so different datasets can contain different samples.
-
-```bash
-./scripts/filter-chunks.py -i data/raw/<sample-set> -o data/chunk/<sample-set>
-./scripts/hadd-chunks.py -i data/chunk/<sample-set> -o data/dataset/<sample-set>
+```text
+data/raw/<sample-set>
+  |
+  +-- scripts/data/prepare-chunks.py
+  |     -> data/chunk/<sample-set>
+  |
+  +-- data/chunk/<sample-set>
+        |
+        +-- scripts/data/build-dataset.py
+        |     -> data/dataset/<sample-set>
+        |          -> scripts/plot/*
+        |               -> plots/<sample-set>
+        |
+        +-- scripts/bdt/prepare.py
+              -> data/ml/<sample-set>_<feature-set>
+                   -> scripts/bdt/train.py
+                        -> plots/bdt/<sample-set>_<feature-set>_<profile>
 ```
 
-Plotting scripts require `-i/--input`. If `-o/--output` is omitted, plots are written
-under `plots/<input-directory-name>/`; for example, `-i /path/to/OpenData` writes to
-`plots/OpenData/`.
-
-```bash
-./scripts/plot-branches-all.py -i data/dataset/<sample-set>
-./scripts/plot-branches-compare.py -i data/dataset/<sample-set>
-./scripts/plot-gen-compare.py -i data/dataset/<sample-set>
-./scripts/plot-gen-reco-track-match-cut.py -i data/dataset/<sample-set>
-./scripts/plot-gen-reco-track-match-result.py -i data/dataset/<sample-set>
-./scripts/plot-gen-check.py -i data/dataset/<sample-set>
-./scripts/plot-reco-check.py -i data/dataset/<sample-set>
-```
-
-Use `--samples sample_a sample_b` to process an explicit subset. Use `--data-root` or `--check`
-when a specific script needs a custom diagnostic path.
-
-The output layout is:
+Scripts are grouped by responsibility:
 
 ```text
-data/raw/<sample-set>/<generated-sample>/final_root/job_<n>/<nanoaod-file>.root
-data/chunk/<sample-set>/<generated-sample>/final_root/job_<n>/<nanoaod-file>.root
-data/dataset/<sample-set>/<sample>/<nanoaod-file>.root
-data/ml/<sample-set>/{train,val,test}.root
-data/check/<sample-set>/
-plots/<sample-set>/<plot-name>/
+scripts/data/  raw input filtering and dataset merging
+scripts/plot/  dataset validation and diagnostic plots
+scripts/bdt/   BDT preparation, training, and application
+python/        shared implementation
+config/bdt/    feature and hyperparameter configurations
 ```
 
-`filter-chunks.py` keeps events with `nGenPart > 0`, removes duplicate
-`(run, event, nGenPart)` keys per job, and writes a per-job summary to
-`data/check/<sample-set>/event-filter.csv`. `hadd-chunks.py` then combines the filtered
-chunks into `data/dataset/<sample-set>/` with ROOT `hadd` by default.
+## Data Preparation
 
-`plot-branches-all.py` and `plot-branches-compare.py` inspect the ROOT files directly
-before plotting, so no separate branch summary JSON step is needed. Plotting scripts
-write diagnostic text or CSV files under `data/check/<sample-set>/<plot-name>/`.
+`prepare-chunks.py` preserves the per-job directory structure. For trees with
+generator information, it keeps events with `nGenPart > 0` and rejects duplicated
+`(run, event, nGenPart)` keys. The filtering summary is written under
+`data/check/<sample-set>/`.
 
-## BDT classification
+`build-dataset.py` merges the prepared jobs independently for each sample and ROOT
+file type. The uproot backend is used by default because ROOT's experimental RNTuple
+merger may abort on these files. ROOT `hadd` remains available for compatible inputs.
 
-The BDT input is built from the filtered `nanoaod_raw_sdst.root` chunks. Jobs are
-shuffled with a fixed seed and split independently for each class, so events from one
-job cannot appear in multiple splits.
+The merged datasets are intended for validation plots and event-level inspection.
+BDT preparation reads the prepared chunks directly so that complete jobs, rather
+than individual events, can be assigned to train, validation, and test splits.
 
-```bash
-./scripts/prepare-bdt-data.py \
-  -i data/chunk/20260606_100kTest \
-  -o data/ml/20260606_100kTest
+## Plotting
 
-./scripts/train-bdt.py \
-  -i data/ml/20260606_100kTest \
-  -o data/bdt/20260606_100kTest
+The plotting scripts inspect ROOT branches directly and write figures below
+`plots/<sample-set>/`:
+
+```text
+branches-all.py                 every numeric branch by sample
+branches-compare.py             common branches across NanoAOD sources
+gen-check.py                    generator-level validation
+gen-compare.py                  generator-level source comparison
+reco-check.py                   reconstruction-level validation
+gen-reco-track-match-cut.py     matching efficiency and cut scan
+gen-reco-track-match-result.py  matched-track residuals
 ```
 
-The default split is 60% training, 20% validation, and 20% test by job for each
-of `Zee`, `Zmumu`, `ZKK`, and `Zpipi`. The class labels, selected jobs, event
-counts, and feature list are recorded in `metadata.json`.
+Plotting diagnostics and CSV summaries are written below
+`data/check/<sample-set>/`.
 
-BDT features are defined and extracted in `python/bdt_features.py`. The current
-feature set uses the four highest-momentum tracks with matched PID and calorimeter
-information, the four highest-energy EM and hadronic showers, and a small set of
-event-level energy and momentum features. Generator truth and MC-only metadata are
-excluded; event identifiers are stored only for tracing events and are not model
-inputs.
+## BDT Classification
 
-Training writes the fitted model, metrics, normalized validation and test confusion
-matrices, and validation permutation importance under the requested output directory.
+The classifier uses `xgboost.XGBClassifier`. Four classes are assigned fixed labels:
+`Zee`, `Zmumu`, `ZKK`, and `Zpipi`. Jobs are shuffled with a fixed seed and split
+independently per class; the default train/validation/test fractions are 60/20/20.
 
-Apply the trained model to another `nanoaod_raw_sdst.root` file with:
+Feature configurations are stored separately:
 
-```bash
-./scripts/apply-bdt.py \
-  -i data/dataset/20260606_100kTest/Zee/nanoaod_raw_sdst.root \
-  -m data/bdt/20260606_100kTest/bdt.joblib \
-  -o data/bdt/20260606_100kTest/prediction_Zee.root
+```text
+config/bdt/features/detector.json  tracking and detector observables without direct DELPHI PID decisions
+config/bdt/features/pid.json       tracking, vertex, and DELPHI PID outputs
+config/bdt/features/combined.json  broad detector, reconstruction, and PID inputs
 ```
 
-The prediction tree contains the run and event identifiers, `predicted_label`, and
-one probability branch per class. The input ROOT file is not modified.
+The JSON keys retain the ROOT collection names. Vector branches are ordered,
+truncated to ten objects, and padded with `NaN`. Track-associated collections are
+matched to the leading `TracRaw` entries through their association indices. The raw
+15-element track covariance is retained for the four leading tracks. No sums, means,
+ratios, pair variables, or reconstructed momentum features are calculated.
+
+Hyperparameter profiles are stored in:
+
+```text
+config/bdt/hyperparameters/light.json
+config/bdt/hyperparameters/standard.json
+config/bdt/hyperparameters/heavy.json
+```
+
+`prepare.py` writes `train.root`, `val.root`, `test.root`, and `metadata.json`.
+The metadata records the class mapping, selected jobs, event counts, split fractions,
+feature configuration, and exact expanded feature list.
+
+`train.py` writes the fitted model, metrics, normalized validation and test confusion
+matrices, and XGBoost gain feature importance. `apply.py` writes event identifiers,
+the predicted class, and per-class probabilities without modifying the input ROOT
+file.
+
+Generator truth, event identifiers, and MC-only metadata are not model inputs.
+
+## Source Integrity
+
+Files below `data/raw/` are treated as the source of truth. Filtering, merging,
+plotting, and BDT preparation do not recalibrate or repair branch contents. When the
+NanoAOD schema or converter changes, regenerate `data/raw/` before rebuilding the
+downstream products.
+
+In particular, RICH measurements stored in `HaidRaw_*` should only be used after the
+upstream `QGRIC/KGRIC` and `QLRIC/KLRIC` mappings and output types have been
+validated.

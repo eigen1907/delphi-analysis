@@ -6,14 +6,21 @@ import json
 import os
 import re
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import uproot
 
 
-PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", Path(__file__).resolve().parents[1]))
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", Path(__file__).resolve().parents[2]))
 
-from bdt_features import FEATURE_NAMES, SOURCE_FILE_NAME, TREE_NAME, extract_features
+from bdt import (
+    SOURCE_FILE_NAME,
+    TREE_NAME,
+    extract_features,
+    feature_names,
+    load_config,
+)
 
 
 LABELS = {
@@ -36,7 +43,7 @@ def job_number(job_dir: Path) -> int:
     return int(match.group(1))
 
 
-def discover_jobs(input_root: Path) -> dict[str, list[Path]]:
+def discover_jobs(input_root: Path, source_file: str) -> dict[str, list[Path]]:
     jobs_by_class = {}
     for sample_dir in sorted(path for path in input_root.iterdir() if path.is_dir()):
         sample = class_name(sample_dir)
@@ -47,11 +54,11 @@ def discover_jobs(input_root: Path) -> dict[str, list[Path]]:
 
         jobs = []
         for job_dir in sorted((sample_dir / "final_root").glob("job_*"), key=job_number):
-            source_path = job_dir / SOURCE_FILE_NAME
+            source_path = job_dir / source_file
             if source_path.exists():
                 jobs.append(source_path)
         if not jobs:
-            raise FileNotFoundError(f"No {SOURCE_FILE_NAME} chunks found under {sample_dir}")
+            raise FileNotFoundError(f"No {source_file} chunks found under {sample_dir}")
         jobs_by_class[sample] = jobs
 
     missing = set(LABELS) - set(jobs_by_class)
@@ -87,25 +94,30 @@ def split_jobs(
     return split_paths
 
 
-def output_branch_types() -> dict[str, object]:
+def output_branch_types(selected_features: tuple[str, ...]) -> dict[str, object]:
     return {
         "run_number": np.int32,
         "event_number": np.int32,
         "job_id": np.int16,
         "label": np.int8,
-        **{feature: np.float32 for feature in FEATURE_NAMES},
+        **{feature: np.float32 for feature in selected_features},
     }
 
 
 def write_split(
     output_path: Path,
     paths: list[tuple[str, Path]],
+    selected_features: tuple[str, ...],
+    feature_config: dict[str, Any],
 ) -> tuple[dict[str, int], dict[str, list[int]]]:
     event_counts = {sample: 0 for sample in LABELS}
     jobs = {sample: [] for sample in LABELS}
 
     with uproot.recreate(output_path) as output_file:
-        output_tree = output_file.mktree(TREE_NAME, output_branch_types())
+        output_tree = output_file.mktree(
+            TREE_NAME,
+            output_branch_types(selected_features),
+        )
 
         for sample, source_path in paths:
             job_id = job_number(source_path.parent)
@@ -113,7 +125,7 @@ def write_split(
                 if TREE_NAME not in source_file:
                     raise KeyError(f"Missing tree {TREE_NAME} in {source_path}")
                 tree = source_file[TREE_NAME]
-                features = extract_features(tree)
+                features = extract_features(tree, feature_config)
                 n_events = int(tree.num_entries)
                 data = {
                     "run_number": np.asarray(tree["Event_runNumber"].array(library="np"), dtype=np.int32),
@@ -145,21 +157,35 @@ def main() -> None:
         help="job split fractions (default: 0.6 0.2 0.2)",
     )
     parser.add_argument("--seed", type=int, default=1907, help="split seed (default: 1907)")
+    parser.add_argument(
+        "--feature-config",
+        type=Path,
+        default=PROJECT_ROOT / "config" / "bdt" / "features" / "pid.json",
+        help="RAW feature JSON config (default: config/bdt/features/pid.json)",
+    )
     args = parser.parse_args()
 
+    feature_config = load_config(args.feature_config)
+    feature_set = feature_config["name"]
     fractions = tuple(args.fractions)
     if any(value <= 0 for value in fractions):
         parser.error("split fractions must be positive")
     if not np.isclose(sum(fractions), 1.0):
         parser.error("split fractions must sum to 1")
-    jobs_by_class = discover_jobs(args.input)
+    jobs_by_class = discover_jobs(args.input, SOURCE_FILE_NAME)
     split_paths = split_jobs(jobs_by_class, fractions, args.seed)
+    selected_features = feature_names(feature_config)
 
     args.output.mkdir(parents=True, exist_ok=True)
     split_metadata = {}
     for split in SPLIT_NAMES:
         output_path = args.output / f"{split}.root"
-        event_counts, jobs = write_split(output_path, split_paths[split])
+        event_counts, jobs = write_split(
+            output_path,
+            split_paths[split],
+            selected_features,
+            feature_config,
+        )
         split_metadata[split] = {
             "file": output_path.name,
             "event_counts": event_counts,
@@ -168,13 +194,15 @@ def main() -> None:
         print(f"{split}: {sum(event_counts.values())} events -> {output_path}")
 
     metadata = {
-        "format_version": 1,
+        "format_version": 4,
         "source_file": SOURCE_FILE_NAME,
         "tree": TREE_NAME,
+        "feature_set": feature_set,
+        "feature_config": feature_config,
         "seed": args.seed,
         "fractions": dict(zip(SPLIT_NAMES, fractions, strict=True)),
         "labels": LABELS,
-        "features": list(FEATURE_NAMES),
+        "features": list(selected_features),
         "splits": split_metadata,
     }
     metadata_path = args.output / "metadata.json"

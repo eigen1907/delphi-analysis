@@ -1,0 +1,143 @@
+{
+  "name": "combined",
+  "features": {
+    "Event": [
+      "Event_bFieldGevCm",
+      "Event_beamSpotX",
+      "Event_beamSpotY",
+      "Event_beamSpotZ",
+      "Event_beamSpotSigmaX",
+      "Event_beamSpotSigmaY",
+      "Event_beamSpotSigmaZ",
+      "Event_beamSpotErrorFlag"
+    ],
+    "TracRaw": [
+      "nTracRaw",
+      "TracRaw_impactRPhi",
+      "TracRaw_impactZ",
+      "TracRaw_theta",
+      "TracRaw_phi",
+      "TracRaw_invR",
+      "TracRaw_weightMatrix",
+      "TracRaw_trackLength",
+      "TracRaw_firstPointR",
+      "TracRaw_firstPointZ",
+      "TracRaw_chi2NoVD",
+      "TracRaw_chi2VD",
+      "TracRaw_ndfNoVD",
+      "TracRaw_ndfVD",
+      "TracRaw_chi2VDHits",
+      "TracRaw_charge"
+    ],
+    "EmShower": [
+      "nEmShower",
+      "EmShower_detector",
+      "EmShower_energy",
+      "EmShower_position.fCoordinates.fX",
+      "EmShower_position.fCoordinates.fY",
+      "EmShower_position.fCoordinates.fZ",
+      "EmShower_nLayers",
+      "EmShower_nLayerEnergies"
+    ],
+    "EmLayer": [
+      "nEmLayer",
+      "EmLayer_layer",
+      "EmLayer_energy"
+    ],
+    "HadShower": [
+      "nHadShower",
+      "HadShower_energy",
+      "HadShower_direction.fCoordinates.fX",
+      "HadShower_direction.fCoordinates.fY",
+      "HadShower_direction.fCoordinates.fZ",
+      "HadShower_nHits",
+      "HadShower_nHitRows"
+    ],
+    "HadHit": [
+      "nHadHit",
+      "HadHit_layer",
+      "HadHit_nTowers",
+      "HadHit_energy"
+    ],
+    "Stic": [
+      "nStic",
+      "Stic_energyFromMain",
+      "Stic_directionFromMain.fCoordinates.fX",
+      "Stic_directionFromMain.fCoordinates.fY",
+      "Stic_directionFromMain.fCoordinates.fZ",
+      "Stic_numHitTowers"
+    ],
+    "MuidRaw": [
+      "nMuidRaw",
+      "MuidRaw_tag",
+      "MuidRaw_looseChi2"
+    ],
+    "ElidRaw": [
+      "nElidRaw",
+      "ElidRaw_tag",
+      "ElidRaw_gammaConvTag"
+    ],
+    "HaidRaw": [
+      "nHaidRaw",
+      "HaidRaw_kaonDedx",
+      "HaidRaw_protonDedx",
+      "HaidRaw_kaonRich",
+      "HaidRaw_protonRich",
+      "HaidRaw_pionRich",
+      "HaidRaw_kaonCombined",
+      "HaidRaw_protonCombined",
+      "HaidRaw_richQuality",
+      "HaidRaw_thetaGas",
+      "HaidRaw_sigmaGas",
+      "HaidRaw_nphGas",
+      "HaidRaw_nepGas",
+      "HaidRaw_flagGas",
+      "HaidRaw_thetaLiq",
+      "HaidRaw_sigmaLiq",
+      "HaidRaw_nphLiq",
+      "HaidRaw_nepLiq",
+      "HaidRaw_flagLiq"
+    ],
+    "VdAssocHit": [
+      "nVdAssocHit",
+      "VdAssocHit_module",
+      "VdAssocHit_localX",
+      "VdAssocHit_R",
+      "VdAssocHit_RPhi",
+      "VdAssocHit_signalToNoise"
+    ],
+    "VdUnassocHit": [
+      "nVdUnassocHit",
+      "VdUnassocHit_module",
+      "VdUnassocHit_localX",
+      "VdUnassocHit_R",
+      "VdUnassocHit_RPhi",
+      "VdUnassocHit_signalToNoise"
+    ],
+    "MtpcRaw": [
+      "nMtpcRaw",
+      "MtpcRaw_dEdx80Max",
+      "MtpcRaw_dEdx80Sigma",
+      "MtpcRaw_dEdx65Max",
+      "MtpcRaw_dEdx65Sigma",
+      "MtpcRaw_dEdx80Integrated",
+      "MtpcRaw_zFitChi2"
+    ],
+    "Vtx": [
+      "nVtx",
+      "Vtx_position.fCoordinates.fX",
+      "Vtx_position.fCoordinates.fY",
+      "Vtx_position.fCoordinates.fZ",
+      "Vtx_chi2",
+      "Vtx_ndf",
+      "Vtx_nOutgoing",
+      "Vtx_massCode",
+      "Vtx_errXX",
+      "Vtx_errXY",
+      "Vtx_errYY",
+      "Vtx_errXZ",
+      "Vtx_errYZ",
+      "Vtx_errZZ"
+    ]
+  }
+}

@@ -15,17 +15,36 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", Path(__file__).resolve().parents[1]))
-
-from bdt_features import FEATURE_NAMES, TREE_NAME
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", Path(__file__).resolve().parents[2]))
 
 
-def load_split(path: Path) -> tuple[np.ndarray, np.ndarray]:
+def load_hyperparameters(path: Path) -> tuple[str, dict]:
+    with path.open() as input_file:
+        config = json.load(input_file)
+
+    name = config.get("name")
+    parameters = config.get("parameters")
+    if not isinstance(name, str) or not isinstance(parameters, dict):
+        raise ValueError("Hyperparameter config needs string name and object parameters")
+    reserved = {"num_class", "random_state"}
+    conflicts = reserved & set(parameters)
+    if conflicts:
+        raise ValueError(
+            f"Hyperparameter config cannot set runtime values: {sorted(conflicts)}"
+        )
+    return name, parameters
+
+
+def load_split(
+    path: Path,
+    feature_names: list[str],
+    tree_name: str,
+) -> tuple[np.ndarray, np.ndarray]:
     with uproot.open(path) as root_file:
-        tree = root_file[TREE_NAME]
+        tree = root_file[tree_name]
         features = [
             np.asarray(tree[name].array(library="np"), dtype=np.float32)
-            for name in FEATURE_NAMES
+            for name in feature_names
         ]
         labels = np.asarray(tree["label"].array(library="np"), dtype=np.int8)
     return np.column_stack(features), labels
@@ -81,52 +100,26 @@ def plot_confusion_matrix(matrix, class_names, output_path: Path) -> None:
 
 def write_feature_importance(
     model,
-    features: np.ndarray,
-    labels: np.ndarray,
+    feature_names: list[str],
     output_dir: Path,
-    seed: int,
-    max_events: int,
 ) -> None:
-    from sklearn.inspection import permutation_importance
-
-    if len(labels) > max_events:
-        rng = np.random.default_rng(seed)
-        indices = rng.choice(len(labels), size=max_events, replace=False)
-        features = features[indices]
-        labels = labels[indices]
-
-    result = permutation_importance(
-        model,
-        features,
-        labels,
-        scoring="f1_macro",
-        n_repeats=3,
-        random_state=seed,
-        n_jobs=1,
-    )
-    order = np.argsort(result.importances_mean)[::-1]
+    importance = np.asarray(model.feature_importances_, dtype=float)
+    order = np.argsort(importance)[::-1]
 
     csv_path = output_dir / "feature_importance.csv"
     with csv_path.open("w", newline="") as output_file:
         writer = csv.writer(output_file)
-        writer.writerow(("feature", "importance_mean", "importance_std"))
+        writer.writerow(("feature", "gain_importance"))
         for index in order:
-            writer.writerow(
-                (
-                    FEATURE_NAMES[index],
-                    result.importances_mean[index],
-                    result.importances_std[index],
-                )
-            )
+            writer.writerow((feature_names[index], importance[index]))
 
     fig, ax = plt.subplots(figsize=(10, 8))
     selected = order[:20][::-1]
     ax.barh(
-        [FEATURE_NAMES[index] for index in selected],
-        result.importances_mean[selected],
-        xerr=result.importances_std[selected],
+        [feature_names[index] for index in selected],
+        importance[selected],
     )
-    ax.set_xlabel("Permutation importance (macro F1)")
+    ax.set_xlabel("XGBoost gain importance")
     ax.grid(axis="x", alpha=0.3)
     fig.tight_layout()
     fig.savefig(output_dir / "feature_importance.png", dpi=150)
@@ -139,66 +132,100 @@ def main() -> None:
     parser.add_argument("-o", "--output", required=True, type=Path, help="model output directory")
     parser.add_argument("--seed", type=int, default=1907, help="model seed (default: 1907)")
     parser.add_argument(
-        "--importance-events",
-        type=int,
-        default=20_000,
-        help="maximum validation events for permutation importance (default: 20000)",
+        "--hyperparameters",
+        type=Path,
+        default=PROJECT_ROOT
+        / "config"
+        / "bdt"
+        / "hyperparameters"
+        / "standard.json",
+        help="XGBoost hyperparameter JSON config",
     )
     args = parser.parse_args()
 
     try:
         import joblib
-        from sklearn.ensemble import HistGradientBoostingClassifier
+        from xgboost import XGBClassifier
     except ImportError as error:
         raise RuntimeError(
-            "scikit-learn is required; recreate or update the environment from environment.yml"
+            "XGBoost is required; update the environment from environment.yml"
         ) from error
 
     with (args.input / "metadata.json").open() as metadata_file:
         metadata = json.load(metadata_file)
+    if metadata.get("format_version") != 4:
+        parser.error(
+            "BDT dataset uses an older feature format; rerun scripts/bdt/prepare.py"
+        )
 
-    if tuple(metadata["features"]) != FEATURE_NAMES:
-        raise ValueError("Prepared dataset feature list differs from bdt_features.FEATURE_NAMES")
-
+    feature_names = list(metadata["features"])
+    feature_set = metadata.get("feature_set", "pid")
+    feature_config = metadata["feature_config"]
+    selected_tree = metadata["tree"]
     label_items = sorted(metadata["labels"].items(), key=lambda item: item[1])
     class_names = [name for name, _ in label_items]
+    try:
+        hyperparameter_name, model_parameters = load_hyperparameters(
+            args.hyperparameters
+        )
+    except ValueError as error:
+        parser.error(str(error))
 
-    train_features, train_labels = load_split(args.input / "train.root")
-    val_features, val_labels = load_split(args.input / "val.root")
-    test_features, test_labels = load_split(args.input / "test.root")
-
-    model = HistGradientBoostingClassifier(
-        learning_rate=0.05,
-        max_iter=300,
-        max_leaf_nodes=31,
-        l2_regularization=1.0,
-        early_stopping=False,
-        random_state=args.seed,
+    train_features, train_labels = load_split(
+        args.input / "train.root", feature_names, selected_tree
     )
-    model.fit(train_features, train_labels)
+    val_features, val_labels = load_split(
+        args.input / "val.root", feature_names, selected_tree
+    )
+
+    model = XGBClassifier(
+        num_class=len(class_names),
+        random_state=args.seed,
+        **model_parameters,
+    )
+    model.fit(
+        train_features,
+        train_labels,
+        eval_set=[(val_features, val_labels)],
+        verbose=False,
+    )
 
     args.output.mkdir(parents=True, exist_ok=True)
     joblib.dump(
         {
             "model": model,
-            "features": list(FEATURE_NAMES),
+            "feature_set": feature_set,
+            "features": feature_names,
             "labels": metadata["labels"],
+            "feature_config": feature_config,
+            "hyperparameter_name": hyperparameter_name,
+            "hyperparameters": model_parameters,
         },
         args.output / "bdt.joblib",
     )
 
+    train_metrics = evaluate(model, train_features, train_labels, class_names)
+    val_metrics = evaluate(model, val_features, val_labels, class_names)
+    del train_features, train_labels, val_features, val_labels
+    test_features, test_labels = load_split(
+        args.input / "test.root", feature_names, selected_tree
+    )
+    test_metrics = evaluate(model, test_features, test_labels, class_names)
+
     metrics = {
         "model": {
             "type": type(model).__name__,
-            "learning_rate": model.learning_rate,
-            "max_iter": model.max_iter,
-            "max_leaf_nodes": model.max_leaf_nodes,
-            "l2_regularization": model.l2_regularization,
+            "feature_set": feature_set,
+            "feature_count": len(feature_names),
+            "hyperparameter_name": hyperparameter_name,
+            "parameters": model.get_params(),
+            "best_iteration": int(model.best_iteration),
+            "boosting_rounds_used": int(model.best_iteration + 1),
             "seed": args.seed,
         },
-        "train": evaluate(model, train_features, train_labels, class_names),
-        "val": evaluate(model, val_features, val_labels, class_names),
-        "test": evaluate(model, test_features, test_labels, class_names),
+        "train": train_metrics,
+        "val": val_metrics,
+        "test": test_metrics,
     }
     with (args.output / "metrics.json").open("w") as output_file:
         json.dump(metrics, output_file, indent=2, sort_keys=True)
@@ -213,11 +240,8 @@ def main() -> None:
 
     write_feature_importance(
         model,
-        val_features,
-        val_labels,
+        feature_names,
         args.output,
-        args.seed,
-        args.importance_events,
     )
 
     for split in ("train", "val", "test"):
