@@ -17,6 +17,7 @@ SAMPLE_STYLE_CYCLE = (
     ("C1", "."),
     ("C2", "/"),
     ("C3", "\\"),
+    ("C4", "x"),
 )
 CHARGED_ABS_PDG = {11, 13, 211, 321, 2212}
 MATCH_SOURCES = (

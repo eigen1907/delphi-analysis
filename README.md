@@ -51,18 +51,19 @@ The repository keeps code, recipes, and generated files in separate locations:
 Generated contents of `data/` and `plots/` are ignored by Git. Their `.gitkeep`
 files preserve the directories. Study recipes in `runs/` are versioned.
 
-The default recipes target `20260606_100kTest` under
-`data/202606xx_jongwon/`. Run them from the repository root:
+Run the recipes from the repository root:
 
 ```bash
 bash runs/prepare_data.sh
 bash runs/plot_checks.sh
+bash runs/plot_isr_fsr_photons.sh
 bash runs/train_bdt_pid_standard.sh
 bash runs/apply_bdt_pid_standard.sh
 ```
 
-Each recipe calls the corresponding CLI with its default settings. Edit the
-sample and data path in the recipe for another study.
+The data preparation, checks, and BDT recipes target `20260606_100kTest`
+under `data/202606xx_jongwon/`. The photon recipe targets the Florian samples.
+Edit the sample and data path in a recipe for another study.
 
 ## Data Preparation
 
@@ -93,10 +94,32 @@ reco-check.py                   reconstruction-level validation
 rich.py                         RICH storage, dtype, and consistency study
 gen-reco-track-match-cut.py     matching efficiency and cut scan
 gen-reco-track-match-result.py  matched-track residuals
+isr-fsr-photons.py              generated ISR/FSR photons and reconstruction efficiency
 ```
 
 Plotting diagnostics and CSV summaries are written below
 `data/check/<sample-set>/`.
+
+The photon recipe reads `data/20260828_florian` and uses only its five
+`photosFSR` samples: `Zee`, `Zmumu`, `Ztautau`, `ZKK`, and `Zpipi`.
+The `stable_gen_*` plots include every status-1 gen photon, with no energy cut,
+including the ultra-soft tail. The `reco_*` plots include every reconstructed
+`Photon` candidate. The ISR/FSR gen plots select stable photons with
+$E_\gamma \geq 0.1$ GeV and follow photon copies to the emitting particle:
+emission from beam-electron ancestors outside the hard-parent branch is ISR,
+while emission from the hard parent or its
+direct final-state daughters is FSR. The hard parent is the common parent of
+the selected final-state pair; in the hadron samples it is encoded as an
+electron. Hadron-decay photons are excluded from the ISR/FSR categories.
+
+The `isr_matched_reco_*` and `fsr_matched_reco_*` plots show the reconstructed
+side of one-to-one gen-to-`Photon` matches within 0.05 rad. Every category has
+multiplicity per event, $E_\gamma$, $\cos\theta_\gamma$, and $\phi_\gamma$
+plots. The efficiency denominator is the selected stable gen ISR or FSR
+photons with $E_\gamma \geq 0.1$ GeV; the numerator is the matched gen photons,
+binned in gen energy or gen $\cos\theta_\gamma$. No fiducial-angle cut is
+applied to the denominator. Plots are saved under
+`plots/20260828_florian/isr_fsr_photons/`.
 
 ## BDT Classification
 
