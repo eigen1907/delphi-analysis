@@ -8,14 +8,15 @@
     "max_depth": 0,
     "importance_type": "gain",
     "n_jobs": -1,
-    "learning_rate": 0.03,
-    "n_estimators": 1600,
-    "max_leaves": 63,
-    "min_child_weight": 3.0,
-    "subsample": 0.9,
-    "colsample_bytree": 0.9,
+    "learning_rate": 0.1,
+    "n_estimators": 250,
+    "max_leaves": 15,
+    "max_bin": 64,
+    "min_child_weight": 10.0,
+    "subsample": 0.8,
+    "colsample_bytree": 0.75,
     "reg_alpha": 0.0,
     "reg_lambda": 1.5,
-    "early_stopping_rounds": 75
+    "early_stopping_rounds": 20
   }
 }
