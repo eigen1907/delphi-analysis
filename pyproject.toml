@@ -1,0 +1,41 @@
+[project]
+name = "delphi-analysis"
+version = "0.1.0"
+description = "DELPHI NanoAOD analysis and BDT studies"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "awkward",
+    "hist",
+    "ipykernel",
+    "joblib",
+    "matplotlib",
+    "mplhep",
+    "numpy",
+    "pandas",
+    "scikit-learn",
+    "uproot",
+    "uproot-browser",
+    "xgboost",
+]
+
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = [
+    "bdt",
+    "plot_branches_all",
+    "plot_branches_compare",
+    "plot_gen_check",
+    "plot_gen_compare",
+    "plot_gen_reco_track_match_cut",
+    "plot_gen_reco_track_match_result",
+    "plot_reco_check",
+    "plot_rich",
+    "plot_utils",
+]
+
+[tool.setuptools.package-dir]
+"" = "python"

@@ -5,9 +5,20 @@ NanoAOD samples.
 
 ## Environment
 
-The Python and ROOT dependencies are defined in `environment.yml`.
-`setup.sh` activates the `delphi-analysis-py312` environment and adds
-`python/` to `PYTHONPATH`.
+The Python dependencies are defined in `pyproject.toml` and pinned in `uv.lock`.
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then run:
+
+```bash
+uv sync --locked
+uv run --locked python scripts/plot/rich.py --help
+```
+
+On macOS, install the OpenMP runtime with `brew install libomp` before using
+XGBoost. ROOT is only needed for the optional `--backend hadd` merge mode;
+the default uproot backend works with the uv environment alone.
+
+For an interactive shell, `source setup.sh` syncs the locked environment and
+activates `.venv/`. Commands run with `uv run` do not need this step.
 
 ## Workflow
 

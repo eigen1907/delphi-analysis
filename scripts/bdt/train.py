@@ -148,7 +148,7 @@ def main() -> None:
         from xgboost import XGBClassifier
     except ImportError as error:
         raise RuntimeError(
-            "XGBoost is required; update the environment from environment.yml"
+            "XGBoost is required; run uv sync"
         ) from error
 
     with (args.input / "metadata.json").open() as metadata_file:

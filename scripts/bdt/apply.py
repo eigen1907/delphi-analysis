@@ -25,7 +25,7 @@ def main() -> None:
         import joblib
     except ImportError as error:
         raise RuntimeError(
-            "joblib and XGBoost are required; update the environment from environment.yml"
+            "joblib and XGBoost are required; run uv sync"
         ) from error
 
     bundle = joblib.load(args.model)
