@@ -85,18 +85,7 @@
       "HaidRaw_protonRich",
       "HaidRaw_pionRich",
       "HaidRaw_kaonCombined",
-      "HaidRaw_protonCombined",
-      "HaidRaw_richQuality",
-      "HaidRaw_thetaGas",
-      "HaidRaw_sigmaGas",
-      "HaidRaw_nphGas",
-      "HaidRaw_nepGas",
-      "HaidRaw_flagGas",
-      "HaidRaw_thetaLiq",
-      "HaidRaw_sigmaLiq",
-      "HaidRaw_nphLiq",
-      "HaidRaw_nepLiq",
-      "HaidRaw_flagLiq"
+      "HaidRaw_protonCombined"
     ],
     "VdAssocHit": [
       "nVdAssocHit",

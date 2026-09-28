@@ -66,6 +66,7 @@ branches-compare.py             common branches across NanoAOD sources
 gen-check.py                    generator-level validation
 gen-compare.py                  generator-level source comparison
 reco-check.py                   reconstruction-level validation
+rich.py                         RICH storage, dtype, and consistency study
 gen-reco-track-match-cut.py     matching efficiency and cut scan
 gen-reco-track-match-result.py  matched-track residuals
 ```
@@ -122,4 +123,5 @@ downstream products.
 
 In particular, RICH measurements stored in `HaidRaw_*` should only be used after the
 upstream `QGRIC/KGRIC` and `QLRIC/KLRIC` mappings and output types have been
-validated.
+validated. The current PID and combined feature configs therefore keep the DELPHI
+PID decisions but exclude the unverified RICH ring summaries and quality word.
