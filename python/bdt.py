@@ -175,6 +175,8 @@ def _matched_matrices(
         )
 
     source_ids = arrays[source_id_branch]
+    if source_id_branch == "HaidRaw_paIdx":
+        source_ids = source_ids - 1
     if source_order is not None:
         source_ids = source_ids[source_order]
 

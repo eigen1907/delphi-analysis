@@ -153,7 +153,7 @@ def main() -> None:
 
     with (args.input / "metadata.json").open() as metadata_file:
         metadata = json.load(metadata_file)
-    if metadata.get("format_version") != 4:
+    if metadata.get("format_version") != 5:
         parser.error(
             "BDT dataset uses an older feature format; rerun scripts/bdt/prepare.py"
         )

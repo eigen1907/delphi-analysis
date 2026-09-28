@@ -194,7 +194,7 @@ def main() -> None:
         print(f"{split}: {sum(event_counts.values())} events -> {output_path}")
 
     metadata = {
-        "format_version": 4,
+        "format_version": 5,
         "source_file": SOURCE_FILE_NAME,
         "tree": TREE_NAME,
         "feature_set": feature_set,
