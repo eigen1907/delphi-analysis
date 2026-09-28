@@ -10,35 +10,30 @@ Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then run:
 
 ```bash
 uv sync --locked
-uv run --locked python scripts/plot/rich.py --help
 ```
 
 On macOS, install the OpenMP runtime with `brew install libomp` before using
 XGBoost. ROOT is only needed for the optional `--backend hadd` merge mode;
 the default uproot backend works with the uv environment alone.
 
-For an interactive shell, `source setup.sh` syncs the locked environment and
-activates `.venv/`. Commands run with `uv run` do not need this step.
-
 ## Workflow
 
 ```text
-data/raw/<sample-set>
+data/<study>/raw/<sample-set>
   |
   +-- scripts/data/prepare-chunks.py
-  |     -> data/chunk/<sample-set>
+  |     -> data/<study>/chunk/<sample-set>
   |
-  +-- data/chunk/<sample-set>
+  +-- data/<study>/chunk/<sample-set>
         |
         +-- scripts/data/build-dataset.py
-        |     -> data/dataset/<sample-set>
+        |     -> data/<study>/dataset/<sample-set>
         |          -> scripts/plot/*
         |               -> plots/<sample-set>
         |
         +-- scripts/bdt/prepare.py
-              -> data/ml/<sample-set>_<feature-set>
+              -> data/<study>/ml/<sample-set>_<feature-set>
                    -> scripts/bdt/train.py
-                        -> data/models/<sample-set>_<feature-set>_<profile>
                         -> plots/bdt/<sample-set>_<feature-set>_<profile>
 ```
 
@@ -50,25 +45,24 @@ The repository keeps code, recipes, and generated files in separate locations:
 | `scripts/` | Command-line programs for data, plots, and BDTs |
 | `config/` | Feature sets and hyperparameter profiles |
 | `runs/` | Reproducible study commands |
-| `data/` | Input data, intermediate files, ML datasets, and models |
-| `plots/` | Generated figures |
-| `logs/` | Execution and training logs |
-| `docs/` | Versioned study documentation |
-| `notebooks/` | Local exploratory notebooks |
+| `data/` | Input data, intermediate files, and ML datasets |
+| `plots/` | Generated figures and BDT run outputs |
 
-Generated contents of `data/`, `plots/`, and `logs/`, along with scratch
-notebooks, are ignored by Git. Their `.gitkeep` files preserve the directories.
-Documentation in `docs/` and study recipes in `runs/` are versioned.
+Generated contents of `data/` and `plots/` are ignored by Git. Their `.gitkeep`
+files preserve the directories. Study recipes in `runs/` are versioned.
 
-For example, after preparing `data/chunk/<sample-set>`, run the PID baseline
-with:
+The default recipes target `20260606_100kTest` under
+`data/202606xx_jongwon/`. Run them from the repository root:
 
 ```bash
-bash runs/train_bdt_pid_standard.sh <sample-set>
+bash runs/prepare_data.sh
+bash runs/plot_checks.sh
+bash runs/train_bdt_pid_standard.sh
+bash runs/apply_bdt_pid_standard.sh
 ```
 
-The recipe writes its model and metrics to `data/models/`, figures to
-`plots/bdt/`, and execution log to `logs/bdt/`.
+Each recipe calls the corresponding CLI with its default settings. Edit the
+sample and data path in the recipe for another study.
 
 ## Data Preparation
 
@@ -137,20 +131,19 @@ config/bdt/hyperparameters/heavy.json
 The metadata records the class mapping, selected jobs, event counts, split fractions,
 feature configuration, and exact expanded feature list.
 
-`train.py` writes the fitted model and metrics under `--output`. Its normalized
-validation and test confusion matrices and XGBoost gain feature importance go to
-`--plot-output` when specified. `apply.py` writes event identifiers,
-the predicted class, and per-class probabilities without modifying the input ROOT
-file.
+`train.py` writes the fitted model, metrics, normalized validation and test
+confusion matrices, and XGBoost gain feature importance under `--output`.
+`apply.py` writes event identifiers, the predicted class, and per-class
+probabilities without modifying the input ROOT file.
 
 Generator truth, event identifiers, and MC-only metadata are not model inputs.
 
 ## Source Integrity
 
-Files below `data/raw/` are treated as the source of truth. Filtering, merging,
-plotting, and BDT preparation do not recalibrate or repair branch contents. When the
-NanoAOD schema or converter changes, regenerate `data/raw/` before rebuilding the
-downstream products.
+Files below `data/<study>/raw/` are treated as the source of truth. Filtering,
+merging, plotting, and BDT preparation do not recalibrate or repair branch
+contents. When the NanoAOD schema or converter changes, regenerate the raw
+data before rebuilding the downstream products.
 
 In particular, RICH measurements stored in `HaidRaw_*` should only be used after the
 upstream `QGRIC/KGRIC` and `QLRIC/KLRIC` mappings and output types have been

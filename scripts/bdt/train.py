@@ -4,18 +4,19 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import os
 from pathlib import Path
 
+import joblib
 import matplotlib
 import numpy as np
 import uproot
+from xgboost import XGBClassifier
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", Path(__file__).resolve().parents[2]))
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def load_hyperparameters(path: Path) -> tuple[str, dict]:
@@ -129,12 +130,7 @@ def write_feature_importance(
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--input", required=True, type=Path, help="BDT dataset directory")
-    parser.add_argument("-o", "--output", required=True, type=Path, help="model and metrics output directory")
-    parser.add_argument(
-        "--plot-output",
-        type=Path,
-        help="figure output directory (default: model output directory)",
-    )
+    parser.add_argument("-o", "--output", required=True, type=Path, help="model output directory")
     parser.add_argument("--seed", type=int, default=1907, help="model seed (default: 1907)")
     parser.add_argument(
         "--hyperparameters",
@@ -147,14 +143,6 @@ def main() -> None:
         help="XGBoost hyperparameter JSON config",
     )
     args = parser.parse_args()
-
-    try:
-        import joblib
-        from xgboost import XGBClassifier
-    except ImportError as error:
-        raise RuntimeError(
-            "XGBoost is required; run uv sync"
-        ) from error
 
     with (args.input / "metadata.json").open() as metadata_file:
         metadata = json.load(metadata_file)
@@ -196,8 +184,6 @@ def main() -> None:
     )
 
     args.output.mkdir(parents=True, exist_ok=True)
-    plot_output = args.plot_output or args.output
-    plot_output.mkdir(parents=True, exist_ok=True)
     joblib.dump(
         {
             "model": model,
@@ -242,13 +228,13 @@ def main() -> None:
         plot_confusion_matrix(
             metrics[split]["confusion_matrix"],
             class_names,
-            plot_output / f"confusion_matrix_{split}.png",
+            args.output / f"confusion_matrix_{split}.png",
         )
 
     write_feature_importance(
         model,
         feature_names,
-        plot_output,
+        args.output,
     )
 
     for split in ("train", "val", "test"):
@@ -256,8 +242,7 @@ def main() -> None:
             f"{split}: accuracy={metrics[split]['accuracy']:.4f}, "
             f"macro_f1={metrics[split]['macro_f1']:.4f}"
         )
-    print(f"model and metrics: {args.output}")
-    print(f"figures and feature importance: {plot_output}")
+    print(f"model and diagnostics: {args.output}")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import os
 import argparse
 import re
 import shutil
@@ -9,9 +8,6 @@ import subprocess
 from pathlib import Path
 
 import uproot
-
-
-PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", Path(__file__).resolve().parents[2]))
 
 from plot_utils import add_samples_argument
 

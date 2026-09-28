@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import os
 from collections import Counter
 from pathlib import Path
 
@@ -12,7 +11,7 @@ import numpy as np
 import uproot
 
 
-PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", Path(__file__).resolve().parents[2]))
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 from plot_utils import add_samples_argument, default_check_root
 

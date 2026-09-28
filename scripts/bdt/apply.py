@@ -2,14 +2,11 @@
 from __future__ import annotations
 
 import argparse
-import os
 from pathlib import Path
 
+import joblib
 import numpy as np
 import uproot
-
-
-PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", Path(__file__).resolve().parents[2]))
 
 from bdt import TREE_NAME, extract_features
 
@@ -20,13 +17,6 @@ def main() -> None:
     parser.add_argument("-m", "--model", required=True, type=Path, help="trained bdt.joblib")
     parser.add_argument("-o", "--output", required=True, type=Path, help="prediction ROOT file")
     args = parser.parse_args()
-
-    try:
-        import joblib
-    except ImportError as error:
-        raise RuntimeError(
-            "joblib and XGBoost are required; run uv sync"
-        ) from error
 
     bundle = joblib.load(args.model)
     feature_names = list(bundle["features"])
