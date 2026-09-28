@@ -2,8 +2,15 @@
 
 RECIPE.md
 
-data/*
-plots/*
+# Generated analysis files; keep the directory layout in Git.
+/data/*
+!/data/.gitkeep
+/plots/*
+!/plots/.gitkeep
+/logs/*
+!/logs/.gitkeep
+/notebooks/*
+!/notebooks/.gitkeep
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

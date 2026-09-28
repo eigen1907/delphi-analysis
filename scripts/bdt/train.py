@@ -129,7 +129,12 @@ def write_feature_importance(
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--input", required=True, type=Path, help="BDT dataset directory")
-    parser.add_argument("-o", "--output", required=True, type=Path, help="model output directory")
+    parser.add_argument("-o", "--output", required=True, type=Path, help="model and metrics output directory")
+    parser.add_argument(
+        "--plot-output",
+        type=Path,
+        help="figure output directory (default: model output directory)",
+    )
     parser.add_argument("--seed", type=int, default=1907, help="model seed (default: 1907)")
     parser.add_argument(
         "--hyperparameters",
@@ -191,6 +196,8 @@ def main() -> None:
     )
 
     args.output.mkdir(parents=True, exist_ok=True)
+    plot_output = args.plot_output or args.output
+    plot_output.mkdir(parents=True, exist_ok=True)
     joblib.dump(
         {
             "model": model,
@@ -235,13 +242,13 @@ def main() -> None:
         plot_confusion_matrix(
             metrics[split]["confusion_matrix"],
             class_names,
-            args.output / f"confusion_matrix_{split}.png",
+            plot_output / f"confusion_matrix_{split}.png",
         )
 
     write_feature_importance(
         model,
         feature_names,
-        args.output,
+        plot_output,
     )
 
     for split in ("train", "val", "test"):
@@ -249,7 +256,8 @@ def main() -> None:
             f"{split}: accuracy={metrics[split]['accuracy']:.4f}, "
             f"macro_f1={metrics[split]['macro_f1']:.4f}"
         )
-    print(f"model and diagnostics: {args.output}")
+    print(f"model and metrics: {args.output}")
+    print(f"figures and feature importance: {plot_output}")
 
 
 if __name__ == "__main__":

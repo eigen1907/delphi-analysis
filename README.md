@@ -38,18 +38,37 @@ data/raw/<sample-set>
         +-- scripts/bdt/prepare.py
               -> data/ml/<sample-set>_<feature-set>
                    -> scripts/bdt/train.py
+                        -> data/models/<sample-set>_<feature-set>_<profile>
                         -> plots/bdt/<sample-set>_<feature-set>_<profile>
 ```
 
-Scripts are grouped by responsibility:
+The repository keeps code, recipes, and generated files in separate locations:
 
-```text
-scripts/data/  raw input filtering and dataset merging
-scripts/plot/  dataset validation and diagnostic plots
-scripts/bdt/   BDT preparation, training, and application
-python/        shared implementation
-config/bdt/    feature and hyperparameter configurations
+| Directory | Purpose |
+| --- | --- |
+| `python/` | Reusable analysis and feature construction code |
+| `scripts/` | Command-line programs for data, plots, and BDTs |
+| `config/` | Feature sets and hyperparameter profiles |
+| `runs/` | Reproducible study commands |
+| `data/` | Input data, intermediate files, ML datasets, and models |
+| `plots/` | Generated figures |
+| `logs/` | Execution and training logs |
+| `docs/` | Versioned study documentation |
+| `notebooks/` | Local exploratory notebooks |
+
+Generated contents of `data/`, `plots/`, and `logs/`, along with scratch
+notebooks, are ignored by Git. Their `.gitkeep` files preserve the directories.
+Documentation in `docs/` and study recipes in `runs/` are versioned.
+
+For example, after preparing `data/chunk/<sample-set>`, run the PID baseline
+with:
+
+```bash
+bash runs/train_bdt_pid_standard.sh <sample-set>
 ```
+
+The recipe writes its model and metrics to `data/models/`, figures to
+`plots/bdt/`, and execution log to `logs/bdt/`.
 
 ## Data Preparation
 
@@ -118,8 +137,9 @@ config/bdt/hyperparameters/heavy.json
 The metadata records the class mapping, selected jobs, event counts, split fractions,
 feature configuration, and exact expanded feature list.
 
-`train.py` writes the fitted model, metrics, normalized validation and test confusion
-matrices, and XGBoost gain feature importance. `apply.py` writes event identifiers,
+`train.py` writes the fitted model and metrics under `--output`. Its normalized
+validation and test confusion matrices and XGBoost gain feature importance go to
+`--plot-output` when specified. `apply.py` writes event identifiers,
 the predicted class, and per-class probabilities without modifying the input ROOT
 file.
 
