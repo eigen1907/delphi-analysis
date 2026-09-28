@@ -1,16 +1,6 @@
 {
-  "name": "detector",
+  "name": "minimal",
   "features": {
-    "Event": [
-      "Event_bFieldGevCm",
-      "Event_beamSpotX",
-      "Event_beamSpotY",
-      "Event_beamSpotZ",
-      "Event_beamSpotSigmaX",
-      "Event_beamSpotSigmaY",
-      "Event_beamSpotSigmaZ",
-      "Event_beamSpotErrorFlag"
-    ],
     "TracRaw": [
       "nTracRaw",
       "TracRaw_impactRPhi",
@@ -59,14 +49,6 @@
       "HadHit_nTowers",
       "HadHit_energy"
     ],
-    "Stic": [
-      "nStic",
-      "Stic_energyFromMain",
-      "Stic_directionFromMain.fCoordinates.fX",
-      "Stic_directionFromMain.fCoordinates.fY",
-      "Stic_directionFromMain.fCoordinates.fZ",
-      "Stic_numHitTowers"
-    ],
     "MtpcRaw": [
       "nMtpcRaw",
       "MtpcRaw_dEdx80Max",
@@ -81,16 +63,7 @@
       "VdAssocHit_module",
       "VdAssocHit_localX",
       "VdAssocHit_R",
-      "VdAssocHit_RPhi",
-      "VdAssocHit_signalToNoise"
-    ],
-    "VdUnassocHit": [
-      "nVdUnassocHit",
-      "VdUnassocHit_module",
-      "VdUnassocHit_localX",
-      "VdUnassocHit_R",
-      "VdUnassocHit_RPhi",
-      "VdUnassocHit_signalToNoise"
+      "VdAssocHit_RPhi"
     ],
     "Vtx": [
       "nVtx",
@@ -99,14 +72,7 @@
       "Vtx_position.fCoordinates.fZ",
       "Vtx_chi2",
       "Vtx_ndf",
-      "Vtx_nOutgoing",
-      "Vtx_massCode",
-      "Vtx_errXX",
-      "Vtx_errXY",
-      "Vtx_errYY",
-      "Vtx_errXZ",
-      "Vtx_errYZ",
-      "Vtx_errZZ"
+      "Vtx_nOutgoing"
     ]
   }
 }

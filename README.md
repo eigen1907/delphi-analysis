@@ -82,9 +82,10 @@ independently per class; the default train/validation/test fractions are 60/20/2
 Feature configurations are stored separately:
 
 ```text
-config/bdt/features/detector.json  tracking and detector observables without direct DELPHI PID decisions
+config/bdt/features/minimal.json   focused tracking, calorimeter, and vertex detector baseline
+config/bdt/features/detector.json  all combined inputs except direct DELPHI PID decisions
 config/bdt/features/pid.json       tracking, vertex, and DELPHI PID outputs
-config/bdt/features/combined.json  broad detector, reconstruction, and PID inputs
+config/bdt/features/combined.json  detector inputs plus MuidRaw, ElidRaw, and HaidRaw PID outputs
 ```
 
 The JSON keys retain the ROOT collection names. Vector branches are ordered,
