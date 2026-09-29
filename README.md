@@ -28,12 +28,12 @@ data/<study>/raw/<sample-set>
         |
         +-- scripts/data/build-dataset.py
         |     -> data/<study>/dataset/<sample-set>
-        |          -> scripts/plot/*
+        |          -> scripts/<study>/*
         |               -> plots/<sample-set>
         |
-        +-- scripts/bdt/prepare.py
+        +-- scripts/pid/prepare.py
               -> data/<study>/ml/<sample-set>_<feature-set>
-                   -> scripts/bdt/train.py
+                   -> scripts/pid/train.py
                         -> plots/bdt/<sample-set>_<feature-set>_<profile>
 ```
 
@@ -48,17 +48,34 @@ The repository keeps code, recipes, and generated files in separate locations:
 | `data/` | Input data, intermediate files, and ML datasets |
 | `plots/` | Generated figures and BDT run outputs |
 
+Code and recipes are grouped by study with matching directory names:
+
+```text
+python/delphi_analysis/
+  plot_utils.py       shared plotting helpers
+  checks/             branch, generator, and reco validation
+  tracking/           gen–reco track matching
+  rich/               RICH inspection
+  pid/                BDT preparation, training, and application
+  photons/            photon reconstruction and ISR study
+scripts/{checks,tracking,rich,pid,photons,data}/
+runs/{checks,tracking,rich,pid,photons,data}/
+config/pid/{features,hyperparameters}/
+```
+
 Generated contents of `data/` and `plots/` are ignored by Git. Their `.gitkeep`
 files preserve the directories. Study recipes in `runs/` are versioned.
 
 Run the recipes from the repository root:
 
 ```bash
-bash runs/prepare_data.sh
-bash runs/plot_checks.sh
-bash runs/plot_isr_photons.sh
-bash runs/train_bdt_pid_standard.sh
-bash runs/apply_bdt_pid_standard.sh
+bash runs/data/prepare_data.sh
+bash runs/checks/plot_checks.sh
+bash runs/tracking/plot_track_matching.sh
+bash runs/rich/plot_rich.sh
+bash runs/photons/plot_isr_photons.sh
+bash runs/pid/train_bdt_pid_standard.sh
+bash runs/pid/apply_bdt_pid_standard.sh
 ```
 
 The data preparation, checks, and BDT recipes target `20260606_100kTest`
@@ -100,61 +117,65 @@ isr-photons.py                  generated ISR photons and reconstruction efficie
 Plotting diagnostics and CSV summaries are written below
 `data/check/<sample-set>/`.
 
-The ISR recipe reads `data/20260828_florian` and uses only its five
-`photosFSR` samples: `Zee`, `Zmumu`, `Ztautau`, `ZKK`, and `Zpipi`.
-The `stable_gen_*` plots include all gen particles with `GenPart_pdgId == 22`
-and `GenPart_status == 1`, with no energy cut. Gen energy comes from
-`GenPart_vector.fCoordinates.fT`. The `reco_*` plots use the
-`Photon_fourMomentum.fCoordinates` branch: energy is `fT`, and the angles
-come from `fX`, `fY`, and `fZ`. Both populations require a valid momentum
-direction. The `isr_*` plots select stable gen photons with
-$E_\gamma \geq 0.1$ GeV whose first non-photon ancestor is an electron
-outside the hard-parent ancestry. The hard parent is the common parent of
-the selected final-state pair. The `isr_matched_reco_*` plots show the reco
-side of matches to those selected gen ISR photons. Each population has
-multiplicity per event, $E_\gamma$, $\cos\theta_\gamma$, and $\phi_\gamma$
-plots. The $\phi_\gamma$ plots omit photons with $p_T=0$, for which azimuth
-is undefined; those photons remain in the other distributions. The FSR
-implementation is parked in `python/plot_fsr_photons.py`; it has
-no default recipe and does not produce plots during the ISR run.
+## Photon and ISR study
 
-Gen ISR photons are matched one to one to reco `Photon` candidates with an
-opening angle below 0.05 rad. A populated `Photon`→`Part`→`SimPart`→`GenPart`
-link that disagrees with an angular pair vetoes it; an absent link permits the
-angular match. ISR and FSR candidates share the one-to-one matching step, so
-one reco photon cannot be counted twice. Efficiency is matched gen ISR photons
-divided by selected gen ISR photons, binned in gen energy or gen
-$\cos\theta_\gamma$. No fiducial-angle cut is applied to the denominator.
-The efficiency plots use 68.27% Clopper–Pearson intervals. Their energy bins
-are wider than the distribution bins, with a single 5–50 GeV tail bin:
-individual high-energy bins had as few as one gen ISR photon and produced
-misleading 100% spikes. Normalized count distributions show $\sqrt{n}$
-count errors with the same normalization as their plotted values. Matching
-checks also show the nearest opening angle before the matching cut and the
-reco-to-gen energy ratio for matched photons.
+```bash
+bash runs/photons/plot_isr_photons.sh
+```
 
-The event energy plots compare the total selected gen ISR energy
-$E_{\mathrm{ISR}}^{\mathrm{gen}}$ with the total energy of reco photons matched
-to ISR, $E_{\mathrm{ISR}}^{\mathrm{reco}}$. In each bin of total gen ISR energy,
-the energy recovery plot shows
-$\sum E_{\mathrm{ISR}}^{\mathrm{reco}}/\sum E_{\mathrm{ISR}}^{\mathrm{gen}}$.
-The radiated, recovered, and difference distributions show
-$E_{\mathrm{ISR}}^{\mathrm{gen}}/\sqrt{s}$,
-$E_{\mathrm{ISR}}^{\mathrm{reco}}/\sqrt{s}$, and
-$(E_{\mathrm{ISR}}^{\mathrm{gen}}-E_{\mathrm{ISR}}^{\mathrm{reco}})/\sqrt{s}$
-per event, using `Event_cmEnergy` as $\sqrt{s}$ (91.25 GeV in these samples).
-The difference can be negative when reco energy exceeds gen energy; these
-fractions do not directly determine the reconstructed collision energy. A
-grouped bar plot shows the mean of each fraction per event in percent, making
-the overall scale visible despite the large zero-event peak in the distributions.
+The recipe reads the five Florian `photosFSR` samples: `Zee`, `Zmumu`,
+`Ztautau`, `ZKK`, and `Zpipi`. The code lives in
+`python/delphi_analysis/photons/`: `data.py` reads and classifies photons,
+`plot_isr_photons.py` makes 1D figures, and `plot_2d.py` makes energy–angle
+maps. The FSR-specific script is reserved for a later study.
+
+All stable gen photons and all reco photons enter the study. There is no gen
+energy threshold or fiducial-angle cut. ISR is divided into beam-collinear
+photons and the remaining non-collinear photons. Stable gen photons are
+partitioned into non-collinear ISR, beam-collinear ISR, FSR from the hard pair,
+and all other photons. The exact branch and ancestry rules are in `data.py`.
+Four-vectors must have finite, positive energy and nonzero momentum; invalid
+records stop the run. None were found in these five samples.
+
+Energy, cos(theta), and phi use component stacks with the same event
+normalization. An exactly beam-directed photon has undefined phi; the stack
+**displays** it in the phi=0 bin, as the figure title states. That location is
+not a physical angle measurement. Multiplicity plots overlay the total and
+component distributions because their histogram heights cannot be stacked to
+obtain the total multiplicity distribution.
+
+All stable gen and reco photons compete in one closest-angle-first one-to-one
+match. The opening angle must be below 0.05 rad. A known truth association to
+another gen particle vetoes the pair; an absent association permits angular
+matching. No energy compatibility cut is applied. The `truth_linked/` companion
+figures contain only matched pairs whose stored association resolves to the
+same gen photon. Their denominators remain inclusive, so the companion figures
+also depend on truth-association completeness.
+
+Inclusive photon and ISR efficiencies use matched gen photons over all gen
+photons of that population, with gen coordinates in both numerator and
+denominator. The 1D plots show 68.27% Clopper–Pearson intervals. The 2D maps
+include the denominator and interval width, with empty denominator bins shown
+gray. These efficiencies include detector acceptance. The beam-collinear
+records are included in the denominators.
+
+The inclusive angular match can associate very soft beam-collinear records
+with unrelated forward reco photons. In these samples, 225 such pairs have no
+truth association. Therefore the angular-associated reco energy is a matching
+diagnostic, not a validated physical ISR energy recovery. The `truth_linked/`
+companion results expose this difference. Total gen ISR energy always includes
+all ISR photons, including the beam-collinear component. Energy fractions use
+the per-event `Event_cmEnergy`; reco energies can exceed gen energies and are
+not clipped.
 
 Plots are grouped under `plots/20260828_florian/isr_photons/`:
 
 ```text
-01_gen/         stable gen and selected ISR distributions
-02_reco/        all reco Photon distributions
-03_matching/    matched reco distributions and matching/energy checks
-04_efficiency/  ISR count efficiency and energy recovery relative to gen ISR and sqrt(s)
+01_gen/         stable gen and ISR distributions, component stacks, gen 2D maps
+02_reco/        reco photon distributions and 2D map
+03_matching/    matched gen/reco distributions and matching 2D maps
+04_efficiency/  1D/2D photon and ISR efficiencies, energy accounting,
+                and truth_linked/ companion results
 ```
 
 ## BDT Classification
@@ -166,10 +187,10 @@ independently per class; the default train/validation/test fractions are 60/20/2
 Feature configurations are stored separately:
 
 ```text
-config/bdt/features/minimal.json   focused tracking, calorimeter, and vertex detector baseline
-config/bdt/features/detector.json  all combined inputs except direct DELPHI PID decisions
-config/bdt/features/pid.json       tracking, vertex, and DELPHI PID outputs
-config/bdt/features/combined.json  detector inputs plus MuidRaw, ElidRaw, and HaidRaw PID outputs
+config/pid/features/minimal.json   focused tracking, calorimeter, and vertex detector baseline
+config/pid/features/detector.json  all combined inputs except direct DELPHI PID decisions
+config/pid/features/pid.json       tracking, vertex, and DELPHI PID outputs
+config/pid/features/combined.json  detector inputs plus MuidRaw, ElidRaw, and HaidRaw PID outputs
 ```
 
 The JSON keys retain the ROOT collection names. Vector branches are ordered,
@@ -181,9 +202,9 @@ ratios, pair variables, or reconstructed momentum features are calculated.
 Hyperparameter profiles are stored in:
 
 ```text
-config/bdt/hyperparameters/light.json
-config/bdt/hyperparameters/standard.json
-config/bdt/hyperparameters/heavy.json
+config/pid/hyperparameters/light.json
+config/pid/hyperparameters/standard.json
+config/pid/hyperparameters/heavy.json
 ```
 
 `prepare.py` writes `train.root`, `val.root`, `test.root`, and `metadata.json`.
