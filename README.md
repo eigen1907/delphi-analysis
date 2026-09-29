@@ -107,8 +107,8 @@ including the ultra-soft tail. The `reco_*` plots include every reconstructed
 `Photon` candidate. The ISR/FSR gen plots select stable photons with
 $E_\gamma \geq 0.1$ GeV and follow photon copies to the emitting particle:
 emission from beam-electron ancestors outside the hard-parent branch is ISR,
-while emission from the hard parent or its
-direct final-state daughters is FSR. The hard parent is the common parent of
+while emission from the hard parent or its direct final-state daughters is
+FSR. The hard parent is the common parent of
 the selected final-state pair; in the hadron samples it is encoded as an
 electron. Hadron-decay photons are excluded from the ISR/FSR categories.
 
@@ -118,8 +118,24 @@ multiplicity per event, $E_\gamma$, $\cos\theta_\gamma$, and $\phi_\gamma$
 plots. The efficiency denominator is the selected stable gen ISR or FSR
 photons with $E_\gamma \geq 0.1$ GeV; the numerator is the matched gen photons,
 binned in gen energy or gen $\cos\theta_\gamma$. No fiducial-angle cut is
-applied to the denominator. Plots are saved under
-`plots/20260828_florian/isr_fsr_photons/`.
+applied to the denominator. Additional ISR checks show the total selected gen
+ISR energy per event, the nearest gen-ISR-to-reco opening angle before the
+0.05 rad matching cut, and $E_{\mathrm{reco}}/E_{\mathrm{gen}}$ for matched ISR
+photons. The nearest angle is undefined for a gen ISR photon when its event
+has no reco `Photon` candidate, so that photon is absent from the angle plot.
+The direct `Photon`→`Part`→`SimPart`→`GenPart` link has partial coverage. A
+populated link that disagrees with an angular pair vetoes that pair; pairs
+without a link can still match by angle. The summary prints linked agreement
+and unverified match counts.
+
+Plots are grouped under `plots/20260828_florian/isr_fsr_photons/`:
+
+```text
+01_gen/         stable gen and selected ISR/FSR distributions, including total ISR energy
+02_reco/        all reco Photon distributions
+03_matching/    matched reco distributions and ISR matching checks
+04_efficiency/  ISR and FSR efficiencies versus gen energy and cos(theta)
+```
 
 ## BDT Classification
 
