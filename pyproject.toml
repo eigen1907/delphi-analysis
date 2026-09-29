@@ -21,21 +21,5 @@ dependencies = [
 requires = ["setuptools>=80"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-py-modules = [
-    "bdt",
-    "plot_branches_all",
-    "plot_branches_compare",
-    "plot_gen_check",
-    "plot_gen_compare",
-    "plot_gen_reco_track_match_cut",
-    "plot_gen_reco_track_match_result",
-    "plot_isr_photons",
-    "plot_fsr_photons",
-    "plot_reco_check",
-    "plot_rich",
-    "plot_utils",
-]
-
-[tool.setuptools.package-dir]
-"" = "python"
+[tool.setuptools.packages.find]
+where = ["python"]

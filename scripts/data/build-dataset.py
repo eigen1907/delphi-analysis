@@ -9,7 +9,7 @@ from pathlib import Path
 
 import uproot
 
-from plot_utils import add_samples_argument
+from delphi_analysis.plot_utils import add_samples_argument
 
 ROOT_FILES = (
     "nanoaod.root",

@@ -13,7 +13,7 @@ import uproot
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-from plot_utils import add_samples_argument, default_check_root
+from delphi_analysis.plot_utils import add_samples_argument, default_check_root
 
 ROOT_FILES = (
     "nanoaod.root",
