@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import mplhep as mh
 import numpy as np
 import uproot
+from scipy.stats import beta
 
 from plot_utils import add_delphi_label, opening_angle, phi_0_2pi, sample_styles, set_hist_yaxis
 
@@ -15,6 +16,10 @@ TARGET_PDG = {"Zee": 11, "Zmumu": 13, "Ztautau": 15, "ZKK": 321, "Zpipi": 211}
 MIN_ENERGY = 0.1  # GeV; gen photon selection for the ISR/FSR study
 MAX_ANGLE = 0.05  # rad; same angular cut as the track matching study
 ENERGY_BINS = np.geomspace(MIN_ENERGY, 50.0, 41)
+EFFICIENCY_ENERGY_BINS = np.array([0.1, 0.15, 0.2, 0.3, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 5.0, 50.0])
+EFFICIENCY_COS_BINS = np.linspace(-1.0, 1.0, 21)
+INTERVAL_COVERAGE = 0.6826894921370859  # central one-sigma interval
+FIGURE_SIZE = (14, 9)
 RECO_ENERGY_BINS = np.geomspace(0.01, 100.0, 41)
 COS_BINS = np.linspace(-1.0, 1.0, 41)
 PHI_BINS = np.linspace(0.0, 2.0 * np.pi, 41)
@@ -87,26 +92,56 @@ def photon_origin(index: int, pdgs: list[int], parents: list[int], hard_parent: 
     return None
 
 
-def direction(px: float, py: float, pz: float) -> tuple[float, float, float] | None:
+def direction(px: float, py: float, pz: float) -> tuple[float, float, float | None] | None:
     momentum = float(np.sqrt(px * px + py * py + pz * pz))
     if not np.isfinite(momentum) or momentum == 0:
         return None
     cos_theta = float(pz / momentum)
     theta = float(np.arccos(np.clip(cos_theta, -1.0, 1.0)))
-    phi = phi_0_2pi(float(np.arctan2(py, px)))
+    phi = None if px == 0 and py == 0 else phi_0_2pi(float(np.arctan2(py, px)))
     return cos_theta, theta, phi
 
 
-def record_photon(values: dict, photon: tuple[float, float, float, float]) -> None:
+def record_photon(values: dict, photon: tuple[float, float, float, float | None]) -> None:
     energy, cos_theta, _, phi = photon
     values["energy"].append(energy)
     values["cos_theta"].append(cos_theta)
-    values["phi"].append(phi)
+    if phi is not None:
+        values["phi"].append(phi)
 
 
-def add_photon_legend(ax, kind: str, note: str = "", loc: str = "best") -> None:
+def add_photon_legend(ax, kind: str, note: str = "") -> None:
     title = LEGEND_TITLES[kind]
-    ax.legend(title=f"{title}\n{note}" if note else title, title_fontsize=15, loc=loc)
+    ax.legend(
+        title=f"{title}\n{note}" if note else title,
+        fontsize=13, title_fontsize=11, labelspacing=0.25,
+        handlelength=1.6, frameon=False,
+        loc="upper left", bbox_to_anchor=(1.02, 1.0), borderaxespad=0,
+    )
+
+
+def add_count_errorbars(ax, bins, counts, normalization, color, log_x: bool = False) -> None:
+    if np.sum(counts) == 0:
+        return
+    centers = np.sqrt(bins[:-1] * bins[1:]) if log_x else 0.5 * (bins[:-1] + bins[1:])
+    shown = counts > 0
+    ax.errorbar(
+        centers[shown], (counts / normalization)[shown],
+        yerr=(np.sqrt(counts) / normalization)[shown],
+        fmt="o", markersize=2.5, capsize=1.5, elinewidth=0.8,
+        color=color, alpha=0.7,
+    )
+
+
+def clopper_pearson(numerator, denominator) -> tuple[np.ndarray, np.ndarray]:
+    alpha = 1.0 - INTERVAL_COVERAGE
+    lower = np.zeros(len(denominator), dtype=float)
+    upper = np.ones(len(denominator), dtype=float)
+    nonzero = numerator > 0
+    not_all = numerator < denominator
+    lower[nonzero] = beta.ppf(alpha / 2, numerator[nonzero], denominator[nonzero] - numerator[nonzero] + 1)
+    upper[not_all] = beta.ppf(1 - alpha / 2, numerator[not_all] + 1, denominator[not_all] - numerator[not_all])
+    return lower, upper
 
 
 def linked_gen_index(reco_index: int, photon_parts, part_sims, sim_gens) -> int | None:
@@ -194,7 +229,7 @@ def read_sample(input_root: Path, sample: str) -> dict:
                 nearest_angles = [np.inf] * len(gen_photons)
                 for gen_index, (_, _, _, gen_theta, gen_phi, original_index) in enumerate(gen_photons):
                     for reco_index, (_, _, reco_theta, reco_phi) in enumerate(reco_photons):
-                        angle = opening_angle(gen_theta, gen_phi, reco_theta, reco_phi)
+                        angle = opening_angle(gen_theta, gen_phi or 0.0, reco_theta, reco_phi or 0.0)
                         # Keep the nearest angle before either matching requirement.
                         nearest_angles[gen_index] = min(nearest_angles[gen_index], angle)
                         linked_index = reco_gen_links[reco_index]
@@ -272,30 +307,48 @@ def plot_distribution(output_dir: Path, kind: str, name: str, values_by_sample: 
         bins, xlabel = COS_BINS, rf"{level} $\cos\theta_\gamma$"
     else:
         bins, xlabel = PHI_BINS, rf"{level} $\phi_\gamma$ [rad]"
-    fig, ax = plt.subplots(figsize=(12, 10))
+    fig, ax = plt.subplots(figsize=FIGURE_SIZE)
     counts_list = []
     fractions_list = []
+    densities = []
     for sample in SAMPLES:
         values = np.asarray(values_by_sample[sample][kind][name])
         counts = np.histogram(values, bins=bins)[0]
         counts_list.append(counts)
-        fractions_list.append(counts / len(values))
+        fractions_list.append(counts / len(values) if len(values) else counts.astype(float))
         color, _ = styles[sample]
         if len(values):
             if name == "energy":
                 ax.hist(values, bins=bins, weights=np.full(len(values), 1.0 / len(values)), histtype="step", color=color, linewidth=2, label=f"{sample} (N={len(values)})")
+                normalization = len(values)
             else:
                 ax.hist(values, bins=bins, density=True, histtype="step", color=color, linewidth=2, label=f"{sample} (N={len(values)})")
+                normalization = counts.sum() * np.diff(bins)
+                densities.append(counts / normalization)
+            add_count_errorbars(ax, bins, counts, normalization, color, log_x=name == "energy")
         else:
             ax.plot([], [], color=color, label=f"{sample} (N=0)")
     if name == "energy":
         ax.set_xscale("log")
     ax.set_xlabel(xlabel)
     ax.set_ylabel("Fraction of photons / bin" if name == "energy" else "Density")
-    add_photon_legend(ax, kind)
+    add_photon_legend(ax, kind, "$p_T > 0$ for $\\phi$" if name == "phi" else "")
     ax.grid(alpha=0.3)
-    add_delphi_label(ax)
-    set_hist_yaxis(ax, counts_list, fractions_list if name == "energy" else None)
+    if name == "cos_theta" and kind in ("stable_gen", "isr"):
+        _, simulation, _, _ = mh.label.exp_label(
+            exp="DELPHI", llabel="Simulation", rlabel="LEP 1 (91.2 GeV)", loc=3, ax=ax,
+        )
+        simulation.set_x(0.4)
+    else:
+        add_delphi_label(ax)
+    if name == "energy":
+        set_hist_yaxis(ax, counts_list, fractions_list)
+    elif name == "cos_theta" and kind in ("stable_gen", "isr"):
+        positive = [value for density in densities for value in density if value > 0]
+        ax.set_yscale("log")
+        ax.set_ylim(min(positive) * 0.5, max(positive) * 1.5)
+    else:
+        ax.set_ylim(0, max(max(density) for density in densities) * 1.3)
     fig.tight_layout()
     fig.savefig(output_dir / f"{kind}_{name}.png", dpi=150)
     plt.close(fig)
@@ -304,7 +357,7 @@ def plot_distribution(output_dir: Path, kind: str, name: str, values_by_sample: 
 def plot_multiplicity(output_dir: Path, kind: str, values_by_sample: dict, styles: dict) -> None:
     maximum = max(max(values_by_sample[sample][kind]["multiplicity"], default=0) for sample in SAMPLES)
     bins = np.arange(-0.5, maximum + 1.5)
-    fig, ax = plt.subplots(figsize=(12, 10))
+    fig, ax = plt.subplots(figsize=FIGURE_SIZE)
     counts_list = []
     fractions_list = []
     for sample in SAMPLES:
@@ -314,6 +367,7 @@ def plot_multiplicity(output_dir: Path, kind: str, values_by_sample: dict, style
         fractions_list.append(counts / len(values))
         color, _ = styles[sample]
         ax.hist(values, bins=bins, weights=np.full(len(values), 1.0 / len(values)), histtype="step", color=color, linewidth=2, label=sample)
+        add_count_errorbars(ax, bins, counts, len(values), color)
     if maximum <= 12:
         ax.set_xticks(range(maximum + 1))
     xlabel = f"{POPULATION_LABELS[kind]} per event"
@@ -325,6 +379,8 @@ def plot_multiplicity(output_dir: Path, kind: str, values_by_sample: dict, style
     ax.grid(alpha=0.3)
     add_delphi_label(ax)
     set_hist_yaxis(ax, counts_list, fractions_list)
+    if ax.get_yscale() == "log":
+        ax.set_ylim(top=max(max(values) for values in fractions_list) * 3)
     fig.tight_layout()
     fig.savefig(output_dir / f"{kind}_multiplicity.png", dpi=150)
     plt.close(fig)
@@ -333,12 +389,15 @@ def plot_multiplicity(output_dir: Path, kind: str, values_by_sample: dict, style
 def plot_total_isr_energy(output_dir: Path, values_by_sample: dict, styles: dict) -> None:
     maximum = max(max(values_by_sample[sample]["isr"]["total_energy"]) for sample in SAMPLES)
     bins = np.linspace(0.0, 5.0 * np.ceil(maximum / 5.0), 61)
-    fig, ax = plt.subplots(figsize=(12, 10))
+    fig, ax = plt.subplots(figsize=FIGURE_SIZE)
     for sample in SAMPLES:
         values = np.asarray(values_by_sample[sample]["isr"]["total_energy"])
+        counts = np.histogram(values, bins=bins)[0]
         color, _ = styles[sample]
         ax.hist(values, bins=bins, weights=np.full(len(values), 1.0 / len(values)), histtype="step", color=color, linewidth=2, label=sample)
+        add_count_errorbars(ax, bins, counts, len(values), color)
     ax.set_yscale("log")
+    ax.set_ylim(top=3)
     ax.set_xlabel(r"Total gen ISR $E_\gamma$ per event [GeV]")
     ax.set_ylabel("Fraction of events / bin")
     add_photon_legend(ax, "isr")
@@ -361,7 +420,7 @@ def plot_matching_validation(output_dir: Path, name: str, values_by_sample: dict
         bins = np.geomspace(lower, upper, 61)
         xlabel = r"Matched ISR $E_\gamma^{\mathrm{reco}} / E_\gamma^{\mathrm{gen}}$"
         reference, label = 1.0, "Unit response"
-    fig, ax = plt.subplots(figsize=(12, 10))
+    fig, ax = plt.subplots(figsize=FIGURE_SIZE)
     counts_list = []
     fractions_list = []
     for sample in SAMPLES:
@@ -374,6 +433,7 @@ def plot_matching_validation(output_dir: Path, name: str, values_by_sample: dict
         if name == "nearest_angle":
             legend = f"{sample} ({len(values)}/{len(values_by_sample[sample]['isr']['energy'])} with reco)"
         ax.hist(values, bins=bins, weights=np.full(len(values), 1.0 / len(values)), histtype="step", color=color, linewidth=2, label=legend)
+        add_count_errorbars(ax, bins, counts, len(values), color, log_x=True)
     ax.axvline(reference, color="black", linestyle="--", linewidth=2, label=label)
     ax.set_xscale("log")
     ax.set_xlabel(xlabel)
@@ -382,31 +442,43 @@ def plot_matching_validation(output_dir: Path, name: str, values_by_sample: dict
     ax.grid(alpha=0.3)
     add_delphi_label(ax)
     set_hist_yaxis(ax, counts_list, fractions_list)
+    if ax.get_yscale() == "log":
+        ax.set_ylim(top=max(max(values) for values in fractions_list) * 3)
     fig.tight_layout()
     fig.savefig(output_dir / f"isr_{name}.png", dpi=150)
     plt.close(fig)
 
 
 def plot_efficiency(output_dir: Path, kind: str, name: str, values_by_sample: dict, styles: dict) -> None:
-    bins = ENERGY_BINS if name == "energy" else COS_BINS
+    bins = EFFICIENCY_ENERGY_BINS if name == "energy" else EFFICIENCY_COS_BINS
     xlabel = r"Gen $E_\gamma$ [GeV]" if name == "energy" else r"Gen $\cos\theta_\gamma$"
-    fig, ax = plt.subplots(figsize=(12, 10))
-    centers = 0.5 * (bins[:-1] + bins[1:])
+    fig, ax = plt.subplots(figsize=FIGURE_SIZE)
+    highest = 0.0
     for sample in SAMPLES:
         values = values_by_sample[sample][kind]
         denominator = np.histogram(values[name], bins=bins)[0]
         numerator = np.histogram(values[f"matched_{name}"], bins=bins)[0]
         assert np.all(numerator <= denominator)
         efficiency = np.divide(numerator, denominator, out=np.full(len(denominator), np.nan), where=denominator > 0)
+        lower, upper = clopper_pearson(numerator, denominator)
+        shown = denominator > 0
+        highest = max(highest, np.max(upper[shown]))
         color, _ = styles[sample]
-        ax.step(centers, efficiency, where="mid", color=color, linewidth=2, label=f"{sample} ({sum(numerator)}/{sum(denominator)})")
+        ax.stairs(efficiency, bins, color=color, linewidth=2, label=f"{sample} ({sum(numerator)}/{sum(denominator)})")
+        centers = np.sqrt(bins[:-1] * bins[1:]) if name == "energy" else 0.5 * (bins[:-1] + bins[1:])
+        ax.errorbar(
+            centers[shown], efficiency[shown],
+            yerr=[efficiency[shown] - lower[shown], upper[shown] - efficiency[shown]],
+            fmt="o", markersize=3, capsize=2, elinewidth=0.8,
+            color=color, alpha=0.8,
+        )
     if name == "energy":
         ax.set_xscale("log")
     ax.set_xlim(bins[0], bins[-1])
-    ax.set_ylim(0, 1.05)
+    ax.set_ylim(0, min(1.05, highest * 1.1))
     ax.set_xlabel(xlabel)
     ax.set_ylabel("Reconstruction efficiency")
-    add_photon_legend(ax, kind)
+    add_photon_legend(ax, kind, "68.27% Clopper–Pearson intervals")
     ax.grid(alpha=0.3)
     add_delphi_label(ax)
     fig.tight_layout()
@@ -416,9 +488,8 @@ def plot_efficiency(output_dir: Path, kind: str, name: str, values_by_sample: di
 
 def plot_energy_recovery(output_dir: Path, values_by_sample: dict, styles: dict) -> None:
     maximum = max(max(values_by_sample[sample]["isr"]["total_energy"]) for sample in SAMPLES)
-    bins = np.geomspace(MIN_ENERGY, 10 ** np.ceil(np.log10(maximum)), 21)
-    centers = np.sqrt(bins[:-1] * bins[1:])
-    fig, ax = plt.subplots(figsize=(12, 10))
+    bins = np.r_[EFFICIENCY_ENERGY_BINS[:-1], 5 * np.ceil(maximum / 5)]
+    fig, ax = plt.subplots(figsize=FIGURE_SIZE)
     highest = 0.0
     for sample in SAMPLES:
         values = values_by_sample[sample]["isr"]
@@ -429,13 +500,13 @@ def plot_energy_recovery(output_dir: Path, values_by_sample: dict, styles: dict)
         recovery = np.divide(numerator, denominator, out=np.full(len(denominator), np.nan), where=denominator > 0)
         highest = max(highest, np.nanmax(recovery))
         color, _ = styles[sample]
-        ax.step(centers, recovery, where="mid", color=color, linewidth=2, label=sample)
+        ax.stairs(recovery, bins, color=color, linewidth=2, label=sample)
     ax.set_xscale("log")
     ax.set_xlim(bins[0], bins[-1])
     ax.set_ylim(0, max(0.1, highest * 1.15))
     ax.set_xlabel(r"Total gen ISR $E_\gamma$ per event [GeV]")
     ax.set_ylabel(r"$\sum E_{\mathrm{matched\ reco}} / \sum E_{\mathrm{gen\ ISR}}$ in bin")
-    add_photon_legend(ax, "isr_energy_recovery", loc="upper center")
+    add_photon_legend(ax, "isr_energy_recovery")
     ax.grid(alpha=0.3)
     add_delphi_label(ax)
     fig.tight_layout()
@@ -459,12 +530,15 @@ def plot_sqrts_fraction(output_dir: Path, name: str, values_by_sample: dict, sty
         maximum = max(maximum, np.max(gen_energy / cm_energy), np.max(reco_energy / cm_energy))
     minimum = min(min(values) for values in fractions.values()) if name == "unrecovered_energy" else 0
     bins = np.linspace(0.1 * np.floor(minimum / 0.1), 0.1 * np.ceil(maximum / 0.1), 61)
-    fig, ax = plt.subplots(figsize=(12, 10))
+    fig, ax = plt.subplots(figsize=FIGURE_SIZE)
     for sample in SAMPLES:
         values = fractions[sample]
+        counts = np.histogram(values, bins=bins)[0]
         color, _ = styles[sample]
         ax.hist(values, bins=bins, weights=np.full(len(values), 1.0 / len(values)), histtype="step", color=color, linewidth=2, label=sample)
+        add_count_errorbars(ax, bins, counts, len(values), color)
     ax.set_yscale("log")
+    ax.set_ylim(top=3)
     if name == "total_energy":
         ax.set_xlabel("Gen ISR energy radiated / √s")
         output_name, kind = "isr_radiated_fraction_of_sqrts.png", "isr"
@@ -484,7 +558,7 @@ def plot_sqrts_fraction(output_dir: Path, name: str, values_by_sample: dict, sty
 
 
 def plot_mean_sqrts_fractions(output_dir: Path, values_by_sample: dict, styles: dict) -> None:
-    fig, ax = plt.subplots(figsize=(12, 10))
+    fig, ax = plt.subplots(figsize=FIGURE_SIZE)
     width = 0.22
     highest = 0.0
     for index, sample in enumerate(SAMPLES):
@@ -508,7 +582,7 @@ def plot_mean_sqrts_fractions(output_dir: Path, values_by_sample: dict, styles: 
     ax.set_xticks(range(len(SAMPLES)), SAMPLES)
     ax.set_ylim(0, highest * 1.7)
     ax.set_ylabel("Mean energy / √s per event [%]")
-    ax.legend(title="ISR energy fractions\n√s = Event_cmEnergy", title_fontsize=15)
+    ax.legend(title="ISR energy fractions\n√s = Event_cmEnergy", fontsize=13, title_fontsize=11, frameon=False)
     ax.grid(axis="y", alpha=0.3)
     add_delphi_label(ax)
     fig.tight_layout()
@@ -518,6 +592,7 @@ def plot_mean_sqrts_fractions(output_dir: Path, values_by_sample: dict, styles: 
 
 def plot_isr_photons(input_root: Path, output_root: Path) -> None:
     mh.style.use(mh.styles.CMS)
+    plt.rcParams["font.size"] = 20
     study_dir = output_root / "isr_photons"
     directories = {
         "gen": study_dir / "01_gen",

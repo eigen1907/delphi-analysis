@@ -113,7 +113,9 @@ outside the hard-parent ancestry. The hard parent is the common parent of
 the selected final-state pair. The `isr_matched_reco_*` plots show the reco
 side of matches to those selected gen ISR photons. Each population has
 multiplicity per event, $E_\gamma$, $\cos\theta_\gamma$, and $\phi_\gamma$
-plots. The FSR implementation is parked in `python/plot_fsr_photons.py`; it has
+plots. The $\phi_\gamma$ plots omit photons with $p_T=0$, for which azimuth
+is undefined; those photons remain in the other distributions. The FSR
+implementation is parked in `python/plot_fsr_photons.py`; it has
 no default recipe and does not produce plots during the ISR run.
 
 Gen ISR photons are matched one to one to reco `Photon` candidates with an
@@ -123,9 +125,13 @@ angular match. ISR and FSR candidates share the one-to-one matching step, so
 one reco photon cannot be counted twice. Efficiency is matched gen ISR photons
 divided by selected gen ISR photons, binned in gen energy or gen
 $\cos\theta_\gamma$. No fiducial-angle cut is applied to the denominator.
-Matching checks also show the nearest
-opening angle before the matching cut and the reco-to-gen energy ratio for
-matched photons.
+The efficiency plots use 68.27% Clopper–Pearson intervals. Their energy bins
+are wider than the distribution bins, with a single 5–50 GeV tail bin:
+individual high-energy bins had as few as one gen ISR photon and produced
+misleading 100% spikes. Normalized count distributions show $\sqrt{n}$
+count errors with the same normalization as their plotted values. Matching
+checks also show the nearest opening angle before the matching cut and the
+reco-to-gen energy ratio for matched photons.
 
 The event energy plots compare the total selected gen ISR energy
 $E_{\mathrm{ISR}}^{\mathrm{gen}}$ with the total energy of reco photons matched

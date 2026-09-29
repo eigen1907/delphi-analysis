@@ -152,6 +152,7 @@ dependencies = [
     { name = "mplhep" },
     { name = "numpy" },
     { name = "scikit-learn" },
+    { name = "scipy" },
     { name = "uproot" },
     { name = "xgboost" },
 ]
@@ -165,6 +166,7 @@ requires-dist = [
     { name = "mplhep" },
     { name = "numpy" },
     { name = "scikit-learn" },
+    { name = "scipy" },
     { name = "uproot" },
     { name = "xgboost" },
 ]
