@@ -3,11 +3,11 @@
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import mplhep as mh
 import numpy as np
 from matplotlib.colors import LogNorm, Normalize
 from scipy.stats import beta
 
-from delphi_analysis.plot_utils import add_delphi_label
 from .data import SAMPLES
 
 
@@ -15,10 +15,10 @@ POPULATIONS = {
     "stable_gen": "Stable gen photons",
     "reco": "Reco photons",
     "isr": "All gen ISR photons",
-    "collinear_isr": "Beam-collinear ISR",
-    "noncollinear_isr": "Non-collinear ISR",
-    "fsr": "FSR from hard pair",
-    "others": "Other gen photons",
+    "collinear_isr": "Beam ISR",
+    "noncollinear_isr": "Non-beam ISR",
+    "fsr": "FSR",
+    "others": "Others",
     "matched_gen": "Matched gen photons",
     "matched_reco": "Matched reco photons",
     "isr_matched_gen": "Matched gen ISR photons",
@@ -73,7 +73,8 @@ def draw_maps(output: Path, maps: dict, e_bins: np.ndarray, cos_bins: np.ndarray
                 bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.7})
         colorbar = fig.colorbar(mesh, ax=ax, pad=0.025)
         colorbar.set_label(color_label)
-        add_delphi_label(ax)
+        mh.label.exp_label(exp="DELPHI", llabel="Simulation",
+                           rlabel="LEP 1 (91.2 GeV)", loc=0, ax=ax)
         destination = output.parent / sample
         destination.mkdir(parents=True, exist_ok=True)
         fig.savefig(destination / output.name, dpi=150)

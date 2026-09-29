@@ -130,11 +130,11 @@ The recipe reads the five Florian `photosFSR` samples: `Zee`, `Zmumu`,
 maps. The FSR-specific script is reserved for a later study.
 
 All stable gen photons and all reco photons enter the study. There is no gen
-energy threshold or fiducial-angle cut. ISR is divided into beam-collinear
-photons and the remaining ISR photons (labeled "non-collinear ISR" in plots;
-there is no separate nonzero-transverse-momentum cut). Stable gen photons are
-partitioned into non-collinear ISR, beam-collinear ISR, FSR from the hard pair,
-and all other photons. The exact branch and ancestry rules are in `data.py`.
+energy threshold or fiducial-angle cut. The plots label beam-collinear ISR as
+"Beam ISR" and the remaining ISR as "Non-beam ISR"; there is no separate
+nonzero-transverse-momentum cut. Stable gen photons are partitioned into these
+two ISR categories, FSR from the hard pair, and Others. The exact branch and
+ancestry rules are in `data.py`.
 Four-vectors must have finite, positive energy and nonzero momentum; invalid
 records stop the run. None were found in these five samples.
 

@@ -6,7 +6,6 @@ import mplhep as mh
 import numpy as np
 from scipy.stats import beta
 
-from delphi_analysis.plot_utils import add_delphi_label
 from .data import MAX_ANGLE, SAMPLES, read_sample
 from .plot_2d import POPULATIONS, energy_bins, plot_maps
 
@@ -42,7 +41,8 @@ def finish(ax, sample, xlabel, ylabel, legend_loc='upper right'):
     ax.set_ylabel(ylabel)
     ax.legend(title=sample, loc=legend_loc, framealpha=1, edgecolor='none')
     ax.grid(alpha=0.2)
-    add_delphi_label(ax)
+    mh.label.exp_label(exp='DELPHI', llabel='Simulation',
+                       rlabel='LEP 1 (91.2 GeV)', loc=0, ax=ax)
 
 
 def plot_population(output, kind, name, values_by_sample, sample):
@@ -134,7 +134,7 @@ def plot_stack(output, total_kind, name, values_by_sample, sample):
             bottom += heights
     if name == 'multiplicity':
         count_curve(ax, values_by_sample[sample][total_kind][name], bins,
-                    n_events, 'black', f'Total {POPULATIONS[total_kind].lower()}')
+                    n_events, 'black', 'Total')
     else:
         total_values = values_by_sample[sample][total_kind][name]
         if name == 'phi':
