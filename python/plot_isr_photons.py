@@ -34,6 +34,23 @@ POPULATION_LABELS = {
     "isr_matched_reco": "Reco photons matched to gen ISR",
     "fsr_matched_reco": "Reco photons matched to gen FSR",
 }
+LEGEND_TITLES = {
+    "stable_gen": "Stable gen photons\nGenPart_pdgId = 22, GenPart_status = 1\nvalid direction",
+    "reco": "Reco photons\nEvents.Photon_fourMomentum.fCoordinates\nE = fT; direction from fX/fY/fZ; valid direction",
+    "isr": (
+        "Gen ISR photons\nGenPart_pdgId = 22, GenPart_status = 1"
+        f"\nfirst non-γ ancestor: e±; no hard-parent ancestor\n$E_\\gamma \\geq {MIN_ENERGY}$ GeV; valid direction"
+    ),
+    "fsr": (
+        "Gen FSR photons\nGenPart_pdgId = 22, GenPart_status = 1"
+        f"\nfirst non-γ ancestor: hard parent / direct target-PDG daughter\n$E_\\gamma \\geq {MIN_ENERGY}$ GeV; valid direction"
+    ),
+    "isr_matched_reco": f"Reco matched to gen ISR\nPhoton_fourMomentum; one to one, $\\alpha < {MAX_ANGLE}$ rad",
+    "fsr_matched_reco": f"Reco matched to gen FSR\nPhoton_fourMomentum; one to one, $\\alpha < {MAX_ANGLE}$ rad",
+    "isr_energy_recovery": "ISR energy recovery\nMatched reco energy / gen ISR energy in each bin",
+    "isr_unrecovered_energy": "ISR energy difference\nGen ISR energy − matched reco energy; can be negative",
+}
+CM_ENERGY_BRANCH = "Event_cmEnergy"
 
 GEN_BRANCHES = (
     "GenPart_status",
@@ -87,6 +104,11 @@ def record_photon(values: dict, photon: tuple[float, float, float, float]) -> No
     values["phi"].append(phi)
 
 
+def add_photon_legend(ax, kind: str, note: str = "", loc: str = "best") -> None:
+    title = LEGEND_TITLES[kind]
+    ax.legend(title=f"{title}\n{note}" if note else title, title_fontsize=15, loc=loc)
+
+
 def linked_gen_index(reco_index: int, photon_parts, part_sims, sim_gens) -> int | None:
     part_index = int(photon_parts[reco_index])
     if not 0 <= part_index < len(part_sims):
@@ -105,6 +127,8 @@ def read_sample(input_root: Path, sample: str) -> dict:
         values[kind]["matched_energy"] = []
         values[kind]["matched_cos_theta"] = []
     values["isr"]["total_energy"] = []
+    values["isr"]["matched_reco_total_energy"] = []
+    values["isr"]["cm_energy"] = []
     values["isr"]["nearest_angle"] = []
     values["isr"]["energy_response"] = []
     n_events = 0
@@ -115,7 +139,7 @@ def read_sample(input_root: Path, sample: str) -> dict:
     for path in sorted(sample_dir.glob("job_*/nanoaod.root")):
         with uproot.open(path) as root_file:
             tree = root_file["Events"]
-            branches = {name: tree[name].array(library="ak") for name in (*GEN_BRANCHES, *RECO_BRANCHES, *TRUTH_LINK_BRANCHES)}
+            branches = {name: tree[name].array(library="ak") for name in (*GEN_BRANCHES, *RECO_BRANCHES, *TRUTH_LINK_BRANCHES, CM_ENERGY_BRANCH)}
 
             for event in range(tree.num_entries):
                 n_events += 1
@@ -188,6 +212,12 @@ def read_sample(input_root: Path, sample: str) -> dict:
                 values["stable_gen"]["multiplicity"].append(len(stable_gen_photons))
                 values["reco"]["multiplicity"].append(len(reco_photons))
                 values["isr"]["total_energy"].append(sum(photon[1] for photon in gen_photons if photon[0] == "isr"))
+                values["isr"]["matched_reco_total_energy"].append(sum(
+                    reco_photons[reco_index][0]
+                    for gen_index, reco_index in matched_reco.items()
+                    if gen_photons[gen_index][0] == "isr"
+                ))
+                values["isr"]["cm_energy"].append(float(branches[CM_ENERGY_BRANCH][event]))
                 for kind in ("isr", "fsr"):
                     values[kind]["multiplicity"].append(sum(photon[0] == kind for photon in gen_photons))
                     values[f"{kind}_matched_reco"]["multiplicity"].append(sum(
@@ -212,13 +242,18 @@ def read_sample(input_root: Path, sample: str) -> dict:
 
     n_isr = len(values["isr"]["energy"])
     n_matched = len(values["isr"]["matched_energy"])
+    gen_isr_energy = sum(values["isr"]["total_energy"])
+    reco_isr_energy = sum(values["isr"]["matched_reco_total_energy"])
+    cm_energy = sum(values["isr"]["cm_energy"])
     assert n_matched <= n_isr
     assert n_matched == len(values["isr_matched_reco"]["energy"])
     print(
         f"{sample}: events={n_events}, stable gen photons={len(values['stable_gen']['energy'])}, "
         f"gen ISR={n_isr}, matched ISR={n_matched} ({n_matched / n_isr:.1%}), "
         f"truth-linked={n_linked_isr}, unlinked={n_matched - n_linked_isr}, "
-        f"no reco for ISR={n_isr - len(values['isr']['nearest_angle'])}"
+        f"no reco for ISR={n_isr - len(values['isr']['nearest_angle'])}, "
+        f"energy recovered={reco_isr_energy / gen_isr_energy:.1%}, "
+        f"radiated/recovered of sqrt(s)={gen_isr_energy / cm_energy:.2%}/{reco_isr_energy / cm_energy:.2%}"
     )
     return values
 
@@ -257,7 +292,7 @@ def plot_distribution(output_dir: Path, kind: str, name: str, values_by_sample: 
         ax.set_xscale("log")
     ax.set_xlabel(xlabel)
     ax.set_ylabel("Fraction of photons / bin" if name == "energy" else "Density")
-    ax.legend(title=POPULATION_LABELS[kind])
+    add_photon_legend(ax, kind)
     ax.grid(alpha=0.3)
     add_delphi_label(ax)
     set_hist_yaxis(ax, counts_list, fractions_list if name == "energy" else None)
@@ -286,7 +321,7 @@ def plot_multiplicity(output_dir: Path, kind: str, values_by_sample: dict, style
         xlabel += fr" ($E_\gamma \geq {MIN_ENERGY}$ GeV)"
     ax.set_xlabel(xlabel)
     ax.set_ylabel("Fraction of events")
-    ax.legend()
+    add_photon_legend(ax, kind)
     ax.grid(alpha=0.3)
     add_delphi_label(ax)
     set_hist_yaxis(ax, counts_list, fractions_list)
@@ -306,7 +341,7 @@ def plot_total_isr_energy(output_dir: Path, values_by_sample: dict, styles: dict
     ax.set_yscale("log")
     ax.set_xlabel(r"Total gen ISR $E_\gamma$ per event [GeV]")
     ax.set_ylabel("Fraction of events / bin")
-    ax.legend()
+    add_photon_legend(ax, "isr")
     ax.grid(alpha=0.3)
     add_delphi_label(ax)
     fig.tight_layout()
@@ -343,7 +378,7 @@ def plot_matching_validation(output_dir: Path, name: str, values_by_sample: dict
     ax.set_xscale("log")
     ax.set_xlabel(xlabel)
     ax.set_ylabel("Fraction of photons / bin")
-    ax.legend()
+    add_photon_legend(ax, "isr" if name == "nearest_angle" else "isr_matched_reco")
     ax.grid(alpha=0.3)
     add_delphi_label(ax)
     set_hist_yaxis(ax, counts_list, fractions_list)
@@ -371,7 +406,7 @@ def plot_efficiency(output_dir: Path, kind: str, name: str, values_by_sample: di
     ax.set_ylim(0, 1.05)
     ax.set_xlabel(xlabel)
     ax.set_ylabel("Reconstruction efficiency")
-    ax.legend()
+    add_photon_legend(ax, kind)
     ax.grid(alpha=0.3)
     add_delphi_label(ax)
     fig.tight_layout()
@@ -379,9 +414,111 @@ def plot_efficiency(output_dir: Path, kind: str, name: str, values_by_sample: di
     plt.close(fig)
 
 
-def plot_isr_fsr_photons(input_root: Path, output_root: Path) -> None:
+def plot_energy_recovery(output_dir: Path, values_by_sample: dict, styles: dict) -> None:
+    maximum = max(max(values_by_sample[sample]["isr"]["total_energy"]) for sample in SAMPLES)
+    bins = np.geomspace(MIN_ENERGY, 10 ** np.ceil(np.log10(maximum)), 21)
+    centers = np.sqrt(bins[:-1] * bins[1:])
+    fig, ax = plt.subplots(figsize=(12, 10))
+    highest = 0.0
+    for sample in SAMPLES:
+        values = values_by_sample[sample]["isr"]
+        gen_energy = np.asarray(values["total_energy"])
+        reco_energy = np.asarray(values["matched_reco_total_energy"])
+        denominator = np.histogram(gen_energy, bins=bins, weights=gen_energy)[0]
+        numerator = np.histogram(gen_energy, bins=bins, weights=reco_energy)[0]
+        recovery = np.divide(numerator, denominator, out=np.full(len(denominator), np.nan), where=denominator > 0)
+        highest = max(highest, np.nanmax(recovery))
+        color, _ = styles[sample]
+        ax.step(centers, recovery, where="mid", color=color, linewidth=2, label=sample)
+    ax.set_xscale("log")
+    ax.set_xlim(bins[0], bins[-1])
+    ax.set_ylim(0, max(0.1, highest * 1.15))
+    ax.set_xlabel(r"Total gen ISR $E_\gamma$ per event [GeV]")
+    ax.set_ylabel(r"$\sum E_{\mathrm{matched\ reco}} / \sum E_{\mathrm{gen\ ISR}}$ in bin")
+    add_photon_legend(ax, "isr_energy_recovery", loc="upper center")
+    ax.grid(alpha=0.3)
+    add_delphi_label(ax)
+    fig.tight_layout()
+    fig.savefig(output_dir / "isr_energy_recovery_vs_total_gen_energy.png", dpi=150)
+    plt.close(fig)
+
+
+def plot_sqrts_fraction(output_dir: Path, name: str, values_by_sample: dict, styles: dict) -> None:
+    fractions = {}
+    maximum = 0.0
+    for sample in SAMPLES:
+        values = values_by_sample[sample]["isr"]
+        gen_energy = np.asarray(values["total_energy"])
+        reco_energy = np.asarray(values["matched_reco_total_energy"])
+        cm_energy = np.asarray(values["cm_energy"])
+        if name == "unrecovered_energy":
+            energy = gen_energy - reco_energy
+        else:
+            energy = np.asarray(values[name])
+        fractions[sample] = energy / cm_energy
+        maximum = max(maximum, np.max(gen_energy / cm_energy), np.max(reco_energy / cm_energy))
+    minimum = min(min(values) for values in fractions.values()) if name == "unrecovered_energy" else 0
+    bins = np.linspace(0.1 * np.floor(minimum / 0.1), 0.1 * np.ceil(maximum / 0.1), 61)
+    fig, ax = plt.subplots(figsize=(12, 10))
+    for sample in SAMPLES:
+        values = fractions[sample]
+        color, _ = styles[sample]
+        ax.hist(values, bins=bins, weights=np.full(len(values), 1.0 / len(values)), histtype="step", color=color, linewidth=2, label=sample)
+    ax.set_yscale("log")
+    if name == "total_energy":
+        ax.set_xlabel("Gen ISR energy radiated / √s")
+        output_name, kind = "isr_radiated_fraction_of_sqrts.png", "isr"
+    elif name == "matched_reco_total_energy":
+        ax.set_xlabel("Matched reco photon energy / √s")
+        output_name, kind = "isr_recovered_fraction_of_sqrts.png", "isr_matched_reco"
+    else:
+        ax.set_xlabel("(Gen ISR − matched reco) energy / √s")
+        output_name, kind = "isr_unrecovered_fraction_of_sqrts.png", "isr_unrecovered_energy"
+    ax.set_ylabel("Fraction of all events / bin")
+    add_photon_legend(ax, kind, "√s = Event_cmEnergy")
+    ax.grid(alpha=0.3)
+    add_delphi_label(ax)
+    fig.tight_layout()
+    fig.savefig(output_dir / output_name, dpi=150)
+    plt.close(fig)
+
+
+def plot_mean_sqrts_fractions(output_dir: Path, values_by_sample: dict, styles: dict) -> None:
+    fig, ax = plt.subplots(figsize=(12, 10))
+    width = 0.22
+    highest = 0.0
+    for index, sample in enumerate(SAMPLES):
+        values = values_by_sample[sample]["isr"]
+        gen = np.asarray(values["total_energy"])
+        reco = np.asarray(values["matched_reco_total_energy"])
+        cm = np.asarray(values["cm_energy"])
+        color, _ = styles[sample]
+        for offset, energy, hatch, label in (
+            (-width, gen, "", "Gen ISR"),
+            (0, reco, "//", "Matched reco"),
+            (width, gen - reco, "xx", "Gen ISR − matched reco"),
+        ):
+            percentage = 100 * np.mean(energy / cm)
+            highest = max(highest, percentage)
+            ax.bar(
+                index + offset, percentage, width,
+                color=color, edgecolor="black", hatch=hatch,
+                label=label if index == 0 else None,
+            )
+    ax.set_xticks(range(len(SAMPLES)), SAMPLES)
+    ax.set_ylim(0, highest * 1.7)
+    ax.set_ylabel("Mean energy / √s per event [%]")
+    ax.legend(title="ISR energy fractions\n√s = Event_cmEnergy", title_fontsize=15)
+    ax.grid(axis="y", alpha=0.3)
+    add_delphi_label(ax)
+    fig.tight_layout()
+    fig.savefig(output_dir / "isr_mean_energy_fractions_of_sqrts.png", dpi=150)
+    plt.close(fig)
+
+
+def plot_isr_photons(input_root: Path, output_root: Path) -> None:
     mh.style.use(mh.styles.CMS)
-    study_dir = output_root / "isr_fsr_photons"
+    study_dir = output_root / "isr_photons"
     directories = {
         "gen": study_dir / "01_gen",
         "reco": study_dir / "02_reco",
@@ -392,15 +529,19 @@ def plot_isr_fsr_photons(input_root: Path, output_root: Path) -> None:
         directory.mkdir(parents=True, exist_ok=True)
     styles = sample_styles(SAMPLES)
     values_by_sample = {sample: read_sample(input_root, sample) for sample in SAMPLES}
-    for kind in POPULATIONS:
+    for kind in ("stable_gen", "reco", "isr", "isr_matched_reco"):
         group = "matching" if kind.endswith("matched_reco") else "reco" if kind == "reco" else "gen"
         plot_multiplicity(directories[group], kind, values_by_sample, styles)
         for name in ("energy", "cos_theta", "phi"):
             plot_distribution(directories[group], kind, name, values_by_sample, styles)
-        if kind in ("isr", "fsr"):
+        if kind == "isr":
             for name in ("energy", "cos_theta"):
                 plot_efficiency(directories["efficiency"], kind, name, values_by_sample, styles)
     plot_total_isr_energy(directories["gen"], values_by_sample, styles)
     for name in ("nearest_angle", "energy_response"):
         plot_matching_validation(directories["matching"], name, values_by_sample, styles)
+    plot_energy_recovery(directories["efficiency"], values_by_sample, styles)
+    for name in ("total_energy", "matched_reco_total_energy", "unrecovered_energy"):
+        plot_sqrts_fraction(directories["efficiency"], name, values_by_sample, styles)
+    plot_mean_sqrts_fractions(directories["efficiency"], values_by_sample, styles)
     print(f"plots: {study_dir}")

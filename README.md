@@ -56,7 +56,7 @@ Run the recipes from the repository root:
 ```bash
 bash runs/prepare_data.sh
 bash runs/plot_checks.sh
-bash runs/plot_isr_fsr_photons.sh
+bash runs/plot_isr_photons.sh
 bash runs/train_bdt_pid_standard.sh
 bash runs/apply_bdt_pid_standard.sh
 ```
@@ -94,47 +94,61 @@ reco-check.py                   reconstruction-level validation
 rich.py                         RICH storage, dtype, and consistency study
 gen-reco-track-match-cut.py     matching efficiency and cut scan
 gen-reco-track-match-result.py  matched-track residuals
-isr-fsr-photons.py              generated ISR/FSR photons and reconstruction efficiency
+isr-photons.py                  generated ISR photons and reconstruction efficiency
 ```
 
 Plotting diagnostics and CSV summaries are written below
 `data/check/<sample-set>/`.
 
-The photon recipe reads `data/20260828_florian` and uses only its five
+The ISR recipe reads `data/20260828_florian` and uses only its five
 `photosFSR` samples: `Zee`, `Zmumu`, `Ztautau`, `ZKK`, and `Zpipi`.
-The `stable_gen_*` plots include every status-1 gen photon, with no energy cut,
-including the ultra-soft tail. The `reco_*` plots include every reconstructed
-`Photon` candidate. The ISR/FSR gen plots select stable photons with
-$E_\gamma \geq 0.1$ GeV and follow photon copies to the emitting particle:
-emission from beam-electron ancestors outside the hard-parent branch is ISR,
-while emission from the hard parent or its direct final-state daughters is
-FSR. The hard parent is the common parent of
-the selected final-state pair; in the hadron samples it is encoded as an
-electron. Hadron-decay photons are excluded from the ISR/FSR categories.
-
-The `isr_matched_reco_*` and `fsr_matched_reco_*` plots show the reconstructed
-side of one-to-one gen-to-`Photon` matches within 0.05 rad. Every category has
+The `stable_gen_*` plots include all gen particles with `GenPart_pdgId == 22`
+and `GenPart_status == 1`, with no energy cut. Gen energy comes from
+`GenPart_vector.fCoordinates.fT`. The `reco_*` plots use the
+`Photon_fourMomentum.fCoordinates` branch: energy is `fT`, and the angles
+come from `fX`, `fY`, and `fZ`. Both populations require a valid momentum
+direction. The `isr_*` plots select stable gen photons with
+$E_\gamma \geq 0.1$ GeV whose first non-photon ancestor is an electron
+outside the hard-parent ancestry. The hard parent is the common parent of
+the selected final-state pair. The `isr_matched_reco_*` plots show the reco
+side of matches to those selected gen ISR photons. Each population has
 multiplicity per event, $E_\gamma$, $\cos\theta_\gamma$, and $\phi_\gamma$
-plots. The efficiency denominator is the selected stable gen ISR or FSR
-photons with $E_\gamma \geq 0.1$ GeV; the numerator is the matched gen photons,
-binned in gen energy or gen $\cos\theta_\gamma$. No fiducial-angle cut is
-applied to the denominator. Additional ISR checks show the total selected gen
-ISR energy per event, the nearest gen-ISR-to-reco opening angle before the
-0.05 rad matching cut, and $E_{\mathrm{reco}}/E_{\mathrm{gen}}$ for matched ISR
-photons. The nearest angle is undefined for a gen ISR photon when its event
-has no reco `Photon` candidate, so that photon is absent from the angle plot.
-The direct `Photon`→`Part`→`SimPart`→`GenPart` link has partial coverage. A
-populated link that disagrees with an angular pair vetoes that pair; pairs
-without a link can still match by angle. The summary prints linked agreement
-and unverified match counts.
+plots. The FSR implementation is parked in `python/plot_fsr_photons.py`; it has
+no default recipe and does not produce plots during the ISR run.
 
-Plots are grouped under `plots/20260828_florian/isr_fsr_photons/`:
+Gen ISR photons are matched one to one to reco `Photon` candidates with an
+opening angle below 0.05 rad. A populated `Photon`→`Part`→`SimPart`→`GenPart`
+link that disagrees with an angular pair vetoes it; an absent link permits the
+angular match. ISR and FSR candidates share the one-to-one matching step, so
+one reco photon cannot be counted twice. Efficiency is matched gen ISR photons
+divided by selected gen ISR photons, binned in gen energy or gen
+$\cos\theta_\gamma$. No fiducial-angle cut is applied to the denominator.
+Matching checks also show the nearest
+opening angle before the matching cut and the reco-to-gen energy ratio for
+matched photons.
+
+The event energy plots compare the total selected gen ISR energy
+$E_{\mathrm{ISR}}^{\mathrm{gen}}$ with the total energy of reco photons matched
+to ISR, $E_{\mathrm{ISR}}^{\mathrm{reco}}$. In each bin of total gen ISR energy,
+the energy recovery plot shows
+$\sum E_{\mathrm{ISR}}^{\mathrm{reco}}/\sum E_{\mathrm{ISR}}^{\mathrm{gen}}$.
+The radiated, recovered, and difference distributions show
+$E_{\mathrm{ISR}}^{\mathrm{gen}}/\sqrt{s}$,
+$E_{\mathrm{ISR}}^{\mathrm{reco}}/\sqrt{s}$, and
+$(E_{\mathrm{ISR}}^{\mathrm{gen}}-E_{\mathrm{ISR}}^{\mathrm{reco}})/\sqrt{s}$
+per event, using `Event_cmEnergy` as $\sqrt{s}$ (91.25 GeV in these samples).
+The difference can be negative when reco energy exceeds gen energy; these
+fractions do not directly determine the reconstructed collision energy. A
+grouped bar plot shows the mean of each fraction per event in percent, making
+the overall scale visible despite the large zero-event peak in the distributions.
+
+Plots are grouped under `plots/20260828_florian/isr_photons/`:
 
 ```text
-01_gen/         stable gen and selected ISR/FSR distributions, including total ISR energy
+01_gen/         stable gen and selected ISR distributions
 02_reco/        all reco Photon distributions
-03_matching/    matched reco distributions and ISR matching checks
-04_efficiency/  ISR and FSR efficiencies versus gen energy and cos(theta)
+03_matching/    matched reco distributions and matching/energy checks
+04_efficiency/  ISR count efficiency and energy recovery relative to gen ISR and sqrt(s)
 ```
 
 ## BDT Classification

@@ -16,10 +16,10 @@ def main() -> None:
     parser.add_argument("-o", "--output", type=Path, help="plot output root (default: plots/<input directory>)")
     args = parser.parse_args()
 
-    from plot_isr_fsr_photons import plot_isr_fsr_photons
+    from plot_isr_photons import plot_isr_photons
 
     output_root = args.output or default_plot_root(PROJECT_ROOT, args.input)
-    plot_isr_fsr_photons(args.input, output_root)
+    plot_isr_photons(args.input, output_root)
 
 
 if __name__ == "__main__":
