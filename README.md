@@ -131,7 +131,8 @@ maps. The FSR-specific script is reserved for a later study.
 
 All stable gen photons and all reco photons enter the study. There is no gen
 energy threshold or fiducial-angle cut. ISR is divided into beam-collinear
-photons and the remaining non-collinear photons. Stable gen photons are
+photons and the remaining ISR photons (labeled "non-collinear ISR" in plots;
+there is no separate nonzero-transverse-momentum cut). Stable gen photons are
 partitioned into non-collinear ISR, beam-collinear ISR, FSR from the hard pair,
 and all other photons. The exact branch and ancestry rules are in `data.py`.
 Four-vectors must have finite, positive energy and nonzero momentum; invalid
@@ -139,10 +140,11 @@ records stop the run. None were found in these five samples.
 
 Energy, cos(theta), and phi use component stacks with the same event
 normalization. An exactly beam-directed photon has undefined phi; the stack
-**displays** it in the phi=0 bin, as the figure title states. That location is
+**displays** it in the phi=0 bin, as the axis label states. That location is
 not a physical angle measurement. Multiplicity plots overlay the total and
 component distributions because their histogram heights cannot be stacked to
-obtain the total multiplicity distribution.
+obtain the total multiplicity distribution. A component peak at multiplicity
+zero with height one means every event has zero photons of that component.
 
 All stable gen and reco photons compete in one closest-angle-first one-to-one
 match. The opening angle must be below 0.05 rad. A known truth association to
@@ -168,14 +170,16 @@ all ISR photons, including the beam-collinear component. Energy fractions use
 the per-event `Event_cmEnergy`; reco energies can exceed gen energies and are
 not clipped.
 
-Plots are grouped under `plots/20260828_florian/isr_photons/`:
+Plots are grouped under `plots/20260828_florian/isr_photons/`. Each stage has
+one directory per sample, with one axis per figure. The 2D maps use shared
+bins and color scales across samples.
 
 ```text
-01_gen/         stable gen and ISR distributions, component stacks, gen 2D maps
-02_reco/        reco photon distributions and 2D map
-03_matching/    matched gen/reco distributions and matching 2D maps
-04_efficiency/  1D/2D photon and ISR efficiencies, energy accounting,
-                and truth_linked/ companion results
+01_gen/<sample>/         stable gen and ISR distributions, component stacks, gen 2D maps
+02_reco/<sample>/        reco photon distributions and 2D map
+03_matching/<sample>/    matched gen/reco distributions and matching 2D maps
+04_efficiency/<sample>/  photon and ISR efficiencies and energy accounting
+04_efficiency/truth_linked/<sample>/  truth-linked companion results
 ```
 
 ## BDT Classification

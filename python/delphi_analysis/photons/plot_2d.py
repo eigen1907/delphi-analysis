@@ -7,7 +7,6 @@ import numpy as np
 from matplotlib.colors import LogNorm, Normalize
 from scipy.stats import beta
 
-from delphi_analysis.plot_utils import add_heatmap_label
 from .data import SAMPLES
 
 
@@ -52,13 +51,11 @@ def photon_counts(values: dict, e_bins: np.ndarray, cos_bins: np.ndarray) -> np.
 
 
 def draw_maps(output: Path, maps: dict, e_bins: np.ndarray, cos_bins: np.ndarray,
-              title: str, color_label: str, norm, empty_label: str) -> None:
-    fig, axes = plt.subplots(2, 3, figsize=(16, 9), sharex=True, sharey=True,
-                             layout="constrained")
+              color_label: str, norm, empty_label: str, coordinates: str) -> None:
     cmap = plt.get_cmap("viridis").copy()
     cmap.set_bad("#e4e4e4")
-    used_axes = []
-    for ax, sample in zip(axes.flat, SAMPLES):
+    for sample in SAMPLES:
+        fig, ax = plt.subplots(figsize=(11, 9), layout="constrained")
         values = maps[sample]
         mesh = ax.pcolormesh(e_bins, cos_bins, np.ma.masked_invalid(values.T),
                              cmap=cmap, norm=norm, shading="flat", rasterized=True)
@@ -66,22 +63,17 @@ def draw_maps(output: Path, maps: dict, e_bins: np.ndarray, cos_bins: np.ndarray
         ax.set_xlim(e_bins[0], e_bins[-1])
         ax.set_ylim(-1, 1)
         ax.set_yticks([-1, -0.5, 0, 0.5, 1])
-        ax.set_xlabel(r"$E_\gamma$ [GeV]", fontsize=13)
-        ax.set_ylabel(r"$\cos\theta_\gamma$", fontsize=13)
-        ax.tick_params(which="both", direction="out", top=False, right=False)
-        ax.tick_params(which="major", length=4, labelsize=10, labelbottom=True)
-        ax.tick_params(which="minor", length=2)
+        ax.set_xlabel(rf"$E_\gamma^{{\mathrm{{{coordinates}}}}}$ [GeV]")
+        ax.set_ylabel(rf"$\cos\theta_\gamma^{{\mathrm{{{coordinates}}}}}$")
         ax.grid(False)
-        add_heatmap_label(ax, sample, fontsize=12)
-        used_axes.append(ax)
-    for ax in list(axes.flat)[len(SAMPLES):]:
-        ax.set_visible(False)
-    colorbar = fig.colorbar(mesh, ax=used_axes, shrink=0.86, pad=0.025)
-    colorbar.set_label(color_label, fontsize=12)
-    colorbar.ax.tick_params(labelsize=10)
-    fig.suptitle(f"DELPHI Simulation · {title}\n{empty_label}", fontsize=14)
-    fig.savefig(output, dpi=150)
-    plt.close(fig)
+        ax.text(0.96, 0.94, sample, transform=ax.transAxes, ha="right", va="top",
+                color="white", bbox={"facecolor": "black", "edgecolor": "none", "alpha": 0.6})
+        colorbar = fig.colorbar(mesh, ax=ax, pad=0.025)
+        colorbar.set_label(f"{color_label}\nGray: {empty_label}")
+        destination = output.parent / sample
+        destination.mkdir(parents=True, exist_ok=True)
+        fig.savefig(destination / output.name, dpi=150)
+        plt.close(fig)
 
 
 def plot_maps(directories: dict[str, Path], values_by_sample: dict) -> None:
@@ -109,8 +101,9 @@ def plot_maps(directories: dict[str, Path], values_by_sample: dict) -> None:
         positive = np.concatenate([rate[rate > 0] for rate in rates.values()])
         norm = LogNorm(vmin=positive.min(), vmax=positive.max())
         maps = {sample: np.where(rate > 0, rate, np.nan) for sample, rate in rates.items()}
+        coordinates = "reco" if kind in ("reco", "matched_reco", "isr_matched_reco") else "gen"
         draw_maps(directories[destinations[kind]] / f"{kind}_energy_cos_theta.png", maps, e_bins, cos_bins,
-                  title, "Photons / event / bin", norm, "Gray: no photons")
+                  f"{title}\nper event / bin", norm, "no photons", coordinates)
 
     for name, gen_kind, matched_kind, output_dir in (
         ("photon", "stable_gen", "matched_gen", directories["efficiency"]),
@@ -139,14 +132,12 @@ def plot_maps(directories: dict[str, Path], values_by_sample: dict) -> None:
         if "truth_linked" in name:
             title += " · truth-linked"
         draw_maps(output_dir / f"{name}_efficiency_energy_cos_theta.png",
-                  efficiencies, e_bins, cos_bins, title, "Matching efficiency",
-                  Normalize(0, 1), "Gen coordinates · Gray: no gen photons")
+                  efficiencies, e_bins, cos_bins, f"{title}\nEfficiency",
+                  Normalize(0, 1), "no gen photons", "gen")
         draw_maps(output_dir / f"{name}_efficiency_cp_width_energy_cos_theta.png",
-                  widths, e_bins, cos_bins, f"{title} uncertainty",
-                  "68.27% Clopper–Pearson interval width", Normalize(0, 1),
-                  "Gen coordinates · Gray: no gen photons")
+                  widths, e_bins, cos_bins, f"{title}\n68.27% CP interval width",
+                  Normalize(0, 1), "no gen photons", "gen")
         maximum = max(hist.max() for hist in counts[gen_kind].values())
         draw_maps(output_dir / f"{name}_efficiency_denominator_energy_cos_theta.png",
-                  denominators, e_bins, cos_bins, f"{title} denominator",
-                  "Gen photons / bin", LogNorm(1, maximum),
-                  "Gen coordinates · Gray: no gen photons")
+                  denominators, e_bins, cos_bins, f"{POPULATIONS[gen_kind]}\nper bin",
+                  LogNorm(1, maximum), "no gen photons", "gen")
