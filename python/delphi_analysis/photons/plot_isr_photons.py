@@ -51,21 +51,22 @@ def plot_population(output, kind, name, values_by_sample, sample):
         energies = np.concatenate([v[kind][name] for v in values_by_sample.values()])
         bins = np.geomspace(10 ** np.floor(np.log10(energies.min())),
                             10 ** np.ceil(np.log10(energies.max())), 61)
-        xlabel = r'Photon energy $E_\gamma$ [GeV]'
+        xlabel = r'$E_\gamma$ [GeV]'
     elif name == 'cos_theta':
-        bins, xlabel = COS_BINS, r'Photon direction $\cos\theta_\gamma$'
+        bins, xlabel = COS_BINS, r'$\cos\theta_\gamma$'
     elif name == 'phi':
-        bins, xlabel = PHI_BINS, r'Photon azimuth $\phi_\gamma$ [rad]'
+        bins, xlabel = PHI_BINS, r'$\phi_\gamma$ [rad]'
     else:
         maximum = max(v[kind][name].max() for v in values_by_sample.values())
-        bins, xlabel = np.arange(-0.5, maximum + 1.5), r'Photon multiplicity per event, $N_\gamma$ (0 = none)'
+        bins, xlabel = np.arange(-0.5, maximum + 1.5), r'$N_\gamma$'
     population = values_by_sample[sample][kind]
     values = population[name]
+    label = POPULATIONS[kind]
     if name == 'phi' and np.any(np.isnan(values)):
-        xlabel += ' (undefined shown at 0)'
+        label += '\n(φ undef. → 0)'
         values = np.where(np.isnan(values), 0, values)
     n_events = len(population['multiplicity'])
-    counts = count_curve(ax, values, bins, n_events, 'C0', POPULATIONS[kind])
+    counts = count_curve(ax, values, bins, n_events, 'C0', label)
     peak = counts.max() / n_events
     if name == 'energy':
         ax.set_xscale('log')
@@ -76,7 +77,7 @@ def plot_population(output, kind, name, values_by_sample, sample):
         ax.set_ylim(top=peak * 5)
     else:
         ax.set_ylim(0, peak * 1.5)
-    ylabel = r'Fraction of events $P(N_\gamma)$' if name == 'multiplicity' else 'Mean photons per event per bin'
+    ylabel = r'$P(N_\gamma)$' if name == 'multiplicity' else 'Photons / event / bin'
     finish(ax, sample, xlabel, ylabel)
     fig.tight_layout()
     fig.savefig(output / f'{kind}_{name}.png', dpi=150)
@@ -98,21 +99,24 @@ def plot_stack(output, total_kind, name, values_by_sample, sample):
         energies = np.concatenate([v[total_kind][name] for v in values_by_sample.values()])
         bins = np.geomspace(10 ** np.floor(np.log10(energies.min())),
                             10 ** np.ceil(np.log10(energies.max())), 61)
-        xlabel = r'Photon energy $E_\gamma$ [GeV]'
+        xlabel = r'$E_\gamma$ [GeV]'
     elif name == 'cos_theta':
-        bins, xlabel = COS_BINS, r'Photon direction $\cos\theta_\gamma$'
+        bins, xlabel = COS_BINS, r'$\cos\theta_\gamma$'
     elif name == 'phi':
-        bins, xlabel = PHI_BINS, r'Photon azimuth $\phi_\gamma$ [rad] (undefined shown at 0)'
+        bins, xlabel = PHI_BINS, r'$\phi_\gamma$ [rad]'
     else:
         maximum = max(v[total_kind][name].max() for v in values_by_sample.values())
-        bins, xlabel = np.arange(-0.5, maximum + 1.5), r'Photon multiplicity per event, $N_\gamma$ (0 = none)'
+        bins, xlabel = np.arange(-0.5, maximum + 1.5), r'$N_\gamma$'
     n_events = len(values_by_sample[sample][total_kind]['multiplicity'])
     bottom = np.zeros(len(bins) - 1)
     for kind, color, hatch in COMPONENTS[total_kind]:
         values = values_by_sample[sample][kind][name]
+        undefined = name == 'phi' and np.any(np.isnan(values))
         if name == 'phi':
             values = np.where(np.isnan(values), 0, values)
         label = POPULATIONS[kind]
+        if undefined:
+            label += '\n(φ undef. → 0)'
         counts = np.histogram(values, bins=bins)[0]
         assert counts.sum() == len(values)
         if name == 'multiplicity':
@@ -141,7 +145,7 @@ def plot_stack(output, total_kind, name, values_by_sample, sample):
     if name in ('energy', 'cos_theta', 'phi'):
         ax.set_yscale('log')
         ax.set_ylim(top=max(0.1, bottom.max() * (100 if name == 'energy' else 5)))
-    ylabel = r'Fraction of events $P(N_\gamma)$' if name == 'multiplicity' else 'Mean photons per event per bin'
+    ylabel = r'$P(N_\gamma)$' if name == 'multiplicity' else 'Photons / event / bin'
     finish(ax, sample, xlabel, ylabel, 'upper center' if name == 'cos_theta' else 'upper right')
     fig.tight_layout()
     fig.savefig(output / f'{total_kind}_{name}.png', dpi=150)
@@ -169,9 +173,8 @@ def plot_efficiency(output, name, gen_kind, matched_kind, values, sample, e_bins
         ax.set_xscale('log')
     ax.set_xlim(bins[0], bins[-1])
     ax.set_ylim(0, 1.05)
-    xlabel = r'Generated photon energy $E_\gamma$ [GeV]' if name == 'energy' else r'Generated photon direction $\cos\theta_\gamma$'
-    denominator_name = 'stable gen photons' if gen_kind == 'stable_gen' else 'gen ISR photons'
-    finish(ax, sample, xlabel, f'Matched / {denominator_name}')
+    xlabel = r'$E_\gamma^{\mathrm{gen}}$ [GeV]' if name == 'energy' else r'$\cos\theta_\gamma^{\mathrm{gen}}$'
+    finish(ax, sample, xlabel, 'Efficiency')
     fig.tight_layout()
     prefix = 'photon' if gen_kind == 'stable_gen' else 'isr'
     fig.savefig(output / f'{prefix}_efficiency_vs_{name}.png', dpi=150)
@@ -189,7 +192,7 @@ def plot_energy(output, values_by_sample, sample, reco_key):
     ax.set_xscale('symlog', linthresh=1e-8)
     ax.set_yscale('log')
     ax.set_ylim(top=3)
-    finish(ax, sample, 'Total generated ISR energy per event [GeV]', 'Fraction of events per bin')
+    finish(ax, sample, r'$\sum E_\mathrm{ISR}^{\mathrm{gen}}$ [GeV]', 'Event fraction')
     fig.tight_layout()
     fig.savefig(output / 'isr_total_energy_per_event.png', dpi=150)
     plt.close(fig)
@@ -212,8 +215,8 @@ def plot_energy(output, values_by_sample, sample, reco_key):
     ax.errorbar(centers[valid], ratio[valid], yerr=errors[valid], color='C0', fmt='.', capsize=2)
     ax.set_xscale('symlog', linthresh=1e-8)
     ax.set_yscale('symlog', linthresh=0.1)
-    finish(ax, sample, 'Total generated ISR energy per event [GeV]',
-           r'$\sum E_{\mathrm{matched\ reco}} / \sum E_{\mathrm{gen\ ISR}}$')
+    finish(ax, sample, r'$\sum E_\mathrm{ISR}^{\mathrm{gen}}$ [GeV]',
+           r'$\sum E_\mathrm{reco} / \sum E_\mathrm{ISR}^\mathrm{gen}$')
     fig.tight_layout()
     fig.savefig(output / 'isr_energy_recovery_vs_total_gen_energy.png', dpi=150)
     plt.close(fig)
@@ -237,7 +240,7 @@ def plot_energy(output, values_by_sample, sample, reco_key):
         count_curve(ax, values, fraction_bins, len(values), 'C0', label)
         ax.set_yscale('log')
         ax.set_ylim(top=3)
-        finish(ax, sample, f'{label} energy / √s', 'Fraction of events per bin')
+        finish(ax, sample, 'Energy / √s', 'Event fraction')
         fig.tight_layout()
         fig.savefig(output / f'isr_{name}_fraction_of_sqrts.png', dpi=150)
         plt.close(fig)
@@ -251,7 +254,7 @@ def plot_energy(output, values_by_sample, sample, reco_key):
                color='C0', edgecolor='black', hatch=hatch, capsize=3, label=label)
     ax.set_xticks(range(3), ['Generated', 'Matched reco', 'Difference'])
     ax.set_ylim(top=ax.get_ylim()[1] * 1.5)
-    finish(ax, sample, 'ISR energy component', 'Mean energy / √s per event [%]')
+    finish(ax, sample, 'Energy component', 'Mean energy / √s [%]')
     fig.tight_layout()
     fig.savefig(output / 'isr_mean_energy_fractions_of_sqrts.png', dpi=150)
     plt.close(fig)
@@ -265,13 +268,14 @@ def plot_matching(output, values_by_sample, sample):
         bins = np.r_[0, np.geomspace(edge, np.nextafter(all_values.max(), np.inf), 61)]
         fig, ax = plt.subplots(figsize=FIGURE_SIZE)
         values = values_by_sample[sample]['matching'][name]
-        count_curve(ax, values, bins, len(values_by_sample[sample]['stable_gen']['multiplicity']), 'C0', 'Gen–reco pairs')
+        label = 'Gen photons' if name == 'nearest_angle' else 'Matched pairs'
+        count_curve(ax, values, bins, len(values_by_sample[sample]['stable_gen']['multiplicity']), 'C0', label)
         ax.set_xscale('symlog', linthresh=edge)
         ax.set_yscale('log')
         reference = MAX_ANGLE if name == 'nearest_angle' else 1
         ax.axvline(reference, color='black', linestyle='--')
-        xlabel = 'Nearest gen–reco opening angle [rad]' if name == 'nearest_angle' else r'$E_\gamma^{reco} / E_\gamma^{gen}$'
-        finish(ax, sample, xlabel, 'Mean photon pairs per event per bin')
+        xlabel = r'$\Delta\theta_{\min}$ [rad]' if name == 'nearest_angle' else r'$E_\gamma^{\mathrm{reco}} / E_\gamma^{\mathrm{gen}}$'
+        finish(ax, sample, xlabel, 'Photons / event / bin' if name == 'nearest_angle' else 'Pairs / event / bin')
         fig.tight_layout()
         fig.savefig(output / f'photon_{name}.png', dpi=150)
         plt.close(fig)

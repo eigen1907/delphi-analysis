@@ -140,7 +140,7 @@ records stop the run. None were found in these five samples.
 
 Energy, cos(theta), and phi use component stacks with the same event
 normalization. An exactly beam-directed photon has undefined phi; the stack
-**displays** it in the phi=0 bin, as the axis label states. That location is
+**displays** it in the phi=0 bin, as the legend states. That location is
 not a physical angle measurement. Multiplicity plots overlay the total and
 component distributions because their histogram heights cannot be stacked to
 obtain the total multiplicity distribution. A component peak at multiplicity

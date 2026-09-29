@@ -7,6 +7,7 @@ import numpy as np
 from matplotlib.colors import LogNorm, Normalize
 from scipy.stats import beta
 
+from delphi_analysis.plot_utils import add_delphi_label
 from .data import SAMPLES
 
 
@@ -51,7 +52,7 @@ def photon_counts(values: dict, e_bins: np.ndarray, cos_bins: np.ndarray) -> np.
 
 
 def draw_maps(output: Path, maps: dict, e_bins: np.ndarray, cos_bins: np.ndarray,
-              color_label: str, norm, empty_label: str, coordinates: str) -> None:
+              color_label: str, norm, empty_label: str) -> None:
     cmap = plt.get_cmap("viridis").copy()
     cmap.set_bad("#e4e4e4")
     for sample in SAMPLES:
@@ -63,13 +64,16 @@ def draw_maps(output: Path, maps: dict, e_bins: np.ndarray, cos_bins: np.ndarray
         ax.set_xlim(e_bins[0], e_bins[-1])
         ax.set_ylim(-1, 1)
         ax.set_yticks([-1, -0.5, 0, 0.5, 1])
-        ax.set_xlabel(rf"$E_\gamma^{{\mathrm{{{coordinates}}}}}$ [GeV]")
-        ax.set_ylabel(rf"$\cos\theta_\gamma^{{\mathrm{{{coordinates}}}}}$")
+        ax.set_xlabel(r"$E_\gamma$ [GeV]")
+        ax.set_ylabel(r"$\cos\theta_\gamma$")
         ax.grid(False)
         ax.text(0.96, 0.94, sample, transform=ax.transAxes, ha="right", va="top",
                 color="white", bbox={"facecolor": "black", "edgecolor": "none", "alpha": 0.6})
+        ax.text(0.03, 0.04, f"Gray: {empty_label}", transform=ax.transAxes,
+                bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.7})
         colorbar = fig.colorbar(mesh, ax=ax, pad=0.025)
-        colorbar.set_label(f"{color_label}\nGray: {empty_label}")
+        colorbar.set_label(color_label)
+        add_delphi_label(ax)
         destination = output.parent / sample
         destination.mkdir(parents=True, exist_ok=True)
         fig.savefig(destination / output.name, dpi=150)
@@ -93,7 +97,7 @@ def plot_maps(directories: dict[str, Path], values_by_sample: dict) -> None:
         }
         for kind in POPULATIONS
     }
-    for kind, title in POPULATIONS.items():
+    for kind in POPULATIONS:
         rates = {
             sample: hist / len(values_by_sample[sample]["stable_gen"]["multiplicity"])
             for sample, hist in counts[kind].items()
@@ -101,9 +105,8 @@ def plot_maps(directories: dict[str, Path], values_by_sample: dict) -> None:
         positive = np.concatenate([rate[rate > 0] for rate in rates.values()])
         norm = LogNorm(vmin=positive.min(), vmax=positive.max())
         maps = {sample: np.where(rate > 0, rate, np.nan) for sample, rate in rates.items()}
-        coordinates = "reco" if kind in ("reco", "matched_reco", "isr_matched_reco") else "gen"
         draw_maps(directories[destinations[kind]] / f"{kind}_energy_cos_theta.png", maps, e_bins, cos_bins,
-                  f"{title}\nper event / bin", norm, "no photons", coordinates)
+                  "Photons / event / bin", norm, "no photons")
 
     for name, gen_kind, matched_kind, output_dir in (
         ("photon", "stable_gen", "matched_gen", directories["efficiency"]),
@@ -128,16 +131,13 @@ def plot_maps(directories: dict[str, Path], values_by_sample: dict) -> None:
             widths[sample] = np.where(valid, upper - lower, np.nan)
             denominators[sample] = np.where(valid, denominator, np.nan)
 
-        title = "Photon matching" if name.startswith("photon") else "ISR matching"
-        if "truth_linked" in name:
-            title += " · truth-linked"
         draw_maps(output_dir / f"{name}_efficiency_energy_cos_theta.png",
-                  efficiencies, e_bins, cos_bins, f"{title}\nEfficiency",
-                  Normalize(0, 1), "no gen photons", "gen")
+                  efficiencies, e_bins, cos_bins, "Efficiency",
+                  Normalize(0, 1), "no gen photons")
         draw_maps(output_dir / f"{name}_efficiency_cp_width_energy_cos_theta.png",
-                  widths, e_bins, cos_bins, f"{title}\n68.27% CP interval width",
-                  Normalize(0, 1), "no gen photons", "gen")
+                  widths, e_bins, cos_bins, "68.27% CP width",
+                  Normalize(0, 1), "no gen photons")
         maximum = max(hist.max() for hist in counts[gen_kind].values())
         draw_maps(output_dir / f"{name}_efficiency_denominator_energy_cos_theta.png",
-                  denominators, e_bins, cos_bins, f"{POPULATIONS[gen_kind]}\nper bin",
-                  LogNorm(1, maximum), "no gen photons", "gen")
+                  denominators, e_bins, cos_bins, "Gen photons / bin",
+                  LogNorm(1, maximum), "no gen photons")
