@@ -61,12 +61,10 @@ def plot_population(output, kind, name, values_by_sample, sample):
         bins, xlabel = np.arange(-0.5, maximum + 1.5), r'$N_\gamma$'
     population = values_by_sample[sample][kind]
     values = population[name]
-    label = POPULATIONS[kind]
-    if name == 'phi' and np.any(np.isnan(values)):
-        label += '\n(φ undef. → 0)'
+    if name == 'phi':
         values = np.where(np.isnan(values), 0, values)
     n_events = len(population['multiplicity'])
-    counts = count_curve(ax, values, bins, n_events, 'C0', label)
+    counts = count_curve(ax, values, bins, n_events, 'C0', POPULATIONS[kind])
     peak = counts.max() / n_events
     if name == 'energy':
         ax.set_xscale('log')
@@ -77,8 +75,7 @@ def plot_population(output, kind, name, values_by_sample, sample):
         ax.set_ylim(top=peak * 5)
     else:
         ax.set_ylim(0, peak * 1.5)
-    ylabel = r'$P(N_\gamma)$' if name == 'multiplicity' else 'Photons / event / bin'
-    finish(ax, sample, xlabel, ylabel)
+    finish(ax, sample, xlabel, 'Normalized')
     fig.tight_layout()
     fig.savefig(output / f'{kind}_{name}.png', dpi=150)
     plt.close(fig)
@@ -111,12 +108,9 @@ def plot_stack(output, total_kind, name, values_by_sample, sample):
     bottom = np.zeros(len(bins) - 1)
     for kind, color, hatch in COMPONENTS[total_kind]:
         values = values_by_sample[sample][kind][name]
-        undefined = name == 'phi' and np.any(np.isnan(values))
         if name == 'phi':
             values = np.where(np.isnan(values), 0, values)
         label = POPULATIONS[kind]
-        if undefined:
-            label += '\n(φ undef. → 0)'
         counts = np.histogram(values, bins=bins)[0]
         assert counts.sum() == len(values)
         if name == 'multiplicity':
@@ -145,8 +139,7 @@ def plot_stack(output, total_kind, name, values_by_sample, sample):
     if name in ('energy', 'cos_theta', 'phi'):
         ax.set_yscale('log')
         ax.set_ylim(top=max(0.1, bottom.max() * (100 if name == 'energy' else 5)))
-    ylabel = r'$P(N_\gamma)$' if name == 'multiplicity' else 'Photons / event / bin'
-    finish(ax, sample, xlabel, ylabel, 'upper center' if name == 'cos_theta' else 'upper right')
+    finish(ax, sample, xlabel, 'Normalized', 'upper center' if name == 'cos_theta' else 'upper right')
     fig.tight_layout()
     fig.savefig(output / f'{total_kind}_{name}.png', dpi=150)
     plt.close(fig)
@@ -192,7 +185,7 @@ def plot_energy(output, values_by_sample, sample, reco_key):
     ax.set_xscale('symlog', linthresh=1e-8)
     ax.set_yscale('log')
     ax.set_ylim(top=3)
-    finish(ax, sample, r'$\sum E_\mathrm{ISR}^{\mathrm{gen}}$ [GeV]', 'Event fraction')
+    finish(ax, sample, r'$\sum E_\mathrm{ISR}^{\mathrm{gen}}$ [GeV]', 'Normalized')
     fig.tight_layout()
     fig.savefig(output / 'isr_total_energy_per_event.png', dpi=150)
     plt.close(fig)
@@ -240,7 +233,7 @@ def plot_energy(output, values_by_sample, sample, reco_key):
         count_curve(ax, values, fraction_bins, len(values), 'C0', label)
         ax.set_yscale('log')
         ax.set_ylim(top=3)
-        finish(ax, sample, 'Energy / √s', 'Event fraction')
+        finish(ax, sample, 'Energy / √s', 'Normalized')
         fig.tight_layout()
         fig.savefig(output / f'isr_{name}_fraction_of_sqrts.png', dpi=150)
         plt.close(fig)
@@ -275,7 +268,7 @@ def plot_matching(output, values_by_sample, sample):
         reference = MAX_ANGLE if name == 'nearest_angle' else 1
         ax.axvline(reference, color='black', linestyle='--')
         xlabel = r'$\Delta\theta_{\min}$ [rad]' if name == 'nearest_angle' else r'$E_\gamma^{\mathrm{reco}} / E_\gamma^{\mathrm{gen}}$'
-        finish(ax, sample, xlabel, 'Photons / event / bin' if name == 'nearest_angle' else 'Pairs / event / bin')
+        finish(ax, sample, xlabel, 'Normalized')
         fig.tight_layout()
         fig.savefig(output / f'photon_{name}.png', dpi=150)
         plt.close(fig)

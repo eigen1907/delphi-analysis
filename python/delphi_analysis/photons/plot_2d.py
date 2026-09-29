@@ -52,7 +52,7 @@ def photon_counts(values: dict, e_bins: np.ndarray, cos_bins: np.ndarray) -> np.
 
 
 def draw_maps(output: Path, maps: dict, e_bins: np.ndarray, cos_bins: np.ndarray,
-              color_label: str, norm, empty_label: str) -> None:
+              color_label: str, norm) -> None:
     cmap = plt.get_cmap("viridis").copy()
     cmap.set_bad("#e4e4e4")
     for sample in SAMPLES:
@@ -69,8 +69,6 @@ def draw_maps(output: Path, maps: dict, e_bins: np.ndarray, cos_bins: np.ndarray
         ax.grid(False)
         ax.text(0.96, 0.94, sample, transform=ax.transAxes, ha="right", va="top",
                 color="white", bbox={"facecolor": "black", "edgecolor": "none", "alpha": 0.6})
-        ax.text(0.03, 0.04, f"Gray: {empty_label}", transform=ax.transAxes,
-                bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.7})
         colorbar = fig.colorbar(mesh, ax=ax, pad=0.025)
         colorbar.set_label(color_label)
         mh.label.exp_label(exp="DELPHI", llabel="Simulation",
@@ -107,7 +105,7 @@ def plot_maps(directories: dict[str, Path], values_by_sample: dict) -> None:
         norm = LogNorm(vmin=positive.min(), vmax=positive.max())
         maps = {sample: np.where(rate > 0, rate, np.nan) for sample, rate in rates.items()}
         draw_maps(directories[destinations[kind]] / f"{kind}_energy_cos_theta.png", maps, e_bins, cos_bins,
-                  "Photons / event / bin", norm, "no photons")
+                  "Photons / event / bin", norm)
 
     for name, gen_kind, matched_kind, output_dir in (
         ("photon", "stable_gen", "matched_gen", directories["efficiency"]),
@@ -134,11 +132,11 @@ def plot_maps(directories: dict[str, Path], values_by_sample: dict) -> None:
 
         draw_maps(output_dir / f"{name}_efficiency_energy_cos_theta.png",
                   efficiencies, e_bins, cos_bins, "Efficiency",
-                  Normalize(0, 1), "no gen photons")
+                  Normalize(0, 1))
         draw_maps(output_dir / f"{name}_efficiency_cp_width_energy_cos_theta.png",
                   widths, e_bins, cos_bins, "68.27% CP width",
-                  Normalize(0, 1), "no gen photons")
+                  Normalize(0, 1))
         maximum = max(hist.max() for hist in counts[gen_kind].values())
         draw_maps(output_dir / f"{name}_efficiency_denominator_energy_cos_theta.png",
                   denominators, e_bins, cos_bins, "Gen photons / bin",
-                  LogNorm(1, maximum), "no gen photons")
+                  LogNorm(1, maximum))

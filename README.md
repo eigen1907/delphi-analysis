@@ -139,12 +139,14 @@ Four-vectors must have finite, positive energy and nonzero momentum; invalid
 records stop the run. None were found in these five samples.
 
 Energy, cos(theta), and phi use component stacks with the same event
-normalization. An exactly beam-directed photon has undefined phi; the stack
-**displays** it in the phi=0 bin, as the legend states. That location is
-not a physical angle measurement. Multiplicity plots overlay the total and
-component distributions because their histogram heights cannot be stacked to
-obtain the total multiplicity distribution. A component peak at multiplicity
-zero with height one means every event has zero photons of that component.
+normalization. The 1D `Normalized` axis means bin count divided by the number
+of events; energy and angle distributions need not sum to one. An exactly
+beam-directed photon has undefined phi; the plots display it in the phi=0 bin.
+That location is not a physical angle measurement. Multiplicity plots overlay
+the total and component distributions because their histogram heights cannot
+be stacked to obtain the total multiplicity distribution. A component peak
+at multiplicity zero with height one means every event has zero photons of
+that component.
 
 All stable gen and reco photons compete in one closest-angle-first one-to-one
 match. The opening angle must be below 0.05 rad. A known truth association to
