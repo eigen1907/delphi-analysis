@@ -129,59 +129,52 @@ The recipe reads the five Florian `photosFSR` samples: `Zee`, `Zmumu`,
 `plot_isr_photons.py` makes 1D figures, and `plot_2d.py` makes energy–angle
 maps. The FSR-specific script is reserved for a later study.
 
-All stable gen photons and all reco photons enter the study. There is no gen
-energy threshold or fiducial-angle cut. The plots label beam-collinear ISR as
-"Beam ISR" and the remaining ISR as "Non-beam ISR"; there is no separate
-nonzero-transverse-momentum cut. Stable gen photons are partitioned into these
-two ISR categories, FSR from the hard pair, and Others. The exact branch and
-ancestry rules are in `data.py`.
-Four-vectors must have finite, positive energy and nonzero momentum; invalid
-records stop the run. None were found in these five samples.
+Stable gen photons have `GenPart_pdgId == 22` and `GenPart_status == 1`;
+reco photons use `Photon_fourMomentum`. Gen ancestry divides stable photons
+into Non-beam ISR, Beam ISR, FSR, and Others. Beam ISR has zero transverse
+momentum and a direct parent from the incoming parentless electron or
+positron. Non-beam ISR is the remaining ISR. The exact ancestry rules are in
+`data.py`. There is no gen energy threshold, fiducial-angle cut, or matching
+energy cut. Invalid photon four-vectors stop the run rather than being removed.
 
-Energy, cos(theta), and phi use component stacks with the same event
-normalization. The 1D `Normalized` axis means bin count divided by the number
-of events; energy and angle distributions need not sum to one. An exactly
-beam-directed photon has undefined phi; the plots display it in the phi=0 bin.
-That location is not a physical angle measurement. Multiplicity plots overlay
-the total and component distributions because their histogram heights cannot
-be stacked to obtain the total multiplicity distribution. A component peak
-at multiplicity zero with height one means every event has zero photons of
-that component.
+The stable-gen energy, cos(theta), and phi distributions stack the four origin
+categories. Multiplicity shows their separate event distributions and the
+total; these cannot be stacked into the total multiplicity distribution.
+Photon-coordinate histograms show `Nγ / bin per event` (bin count divided by
+the number of events), while multiplicity uses `Event fraction`. A beam-directed
+photon has undefined phi and is displayed in the phi=0 bin solely for plotting.
 
-All stable gen and reco photons compete in one closest-angle-first one-to-one
-match. The opening angle must be below 0.05 rad. A known truth association to
-another gen particle vetoes the pair; an absent association permits angular
-matching. No energy compatibility cut is applied. The `truth_linked/` companion
-figures contain only matched pairs whose stored association resolves to the
-same gen photon. Their denominators remain inclusive, so the companion figures
-also depend on truth-association completeness.
+The three matching methods are:
 
-Inclusive photon and ISR efficiencies use matched gen photons over all gen
-photons of that population, with gen coordinates in both numerator and
-denominator. The 1D plots show 68.27% Clopper–Pearson intervals. The 2D maps
-include the denominator and interval width, with empty denominator bins shown
-gray. These efficiencies include detector acceptance. The beam-collinear
-records are included in the denominators.
+1. **Truth only:** Follow `Photon_partIdx → Part_simIdx → SimPart_genIdx` to a
+   stable gen photon. No opening-angle requirement is applied.
+2. **Angle only:** Match all stable gen photons against all reco photons by
+   closest-first, one-to-one 3D opening angle below 0.03 rad, ignoring truth
+   links.
+3. **Truth + angle:** Assign direct truth pairs first. For unmatched stable
+   gen photons, use the same angular rule with reco photons whose truth link is
+   absent (`< 0`). A reco photon linked to a different gen particle is not an
+   angular fallback candidate.
 
-The inclusive angular match can associate very soft beam-collinear records
-with unrelated forward reco photons. In these samples, 225 such pairs have no
-truth association. Therefore the angular-associated reco energy is a matching
-diagnostic, not a validated physical ISR energy recovery. The `truth_linked/`
-companion results expose this difference. Total gen ISR energy always includes
-all ISR photons, including the beam-collinear component. Energy fractions use
-the per-event `Event_cmEnergy`; reco energies can exceed gen energies and are
-not clipped.
+Efficiency plots use two denominators: all gen ISR photons (including Beam
+ISR) and Non-beam ISR photons. In each case the numerator is the matched gen
+ISR subset from each method, binned by gen energy or gen cos(theta). All
+efficiencies include detector acceptance and have 68.27% Clopper–Pearson
+intervals. The pooled opening-angle scan in `03_matching/` shows how the
+direct-link and angle-only pair counts change with the cut. At 0.03 rad,
+6,525/6,757 (96.6%) directly linked ISR pairs lie within the cut. An absent
+truth link does not prove an angular pair is incorrect.
 
-Plots are grouped under `plots/20260828_florian/isr_photons/`. Each stage has
-one directory per sample, with one axis per figure. The 2D maps use shared
-bins and color scales across samples.
+Plots are grouped under `plots/20260828_florian/isr_photons/`. Each sample has
+one axis per figure. The 2D energy–cos(theta) maps appear only in stages
+01–03, with shared bins and color scales across samples.
 
 ```text
-01_gen/<sample>/         stable gen and ISR distributions, component stacks, gen 2D maps
+01_gen/<sample>/         stable gen distributions and 2D map
 02_reco/<sample>/        reco photon distributions and 2D map
-03_matching/<sample>/    matched gen/reco distributions and matching 2D maps
-04_efficiency/<sample>/  photon and ISR efficiencies and energy accounting
-04_efficiency/truth_linked/<sample>/  truth-linked companion results
+03_matching/<sample>/    matched gen ISR distributions and three 2D maps
+03_matching/             pooled ISR opening-angle cut scan
+04_efficiency/<sample>/  all-ISR and Non-beam-ISR efficiencies vs energy and cos(theta)
 ```
 
 ## BDT Classification

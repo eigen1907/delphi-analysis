@@ -1,4 +1,4 @@
-"""Photon definitions and one shared gen–reco match for the Florian samples."""
+"""Photon definitions and three gen–reco matches for the Florian samples."""
 from pathlib import Path
 
 import numpy as np
@@ -6,17 +6,19 @@ import uproot
 
 SAMPLES = ("Zee", "Zmumu", "Ztautau", "ZKK", "Zpipi")
 TARGET_PDG = {"Zee": 11, "Zmumu": 13, "Ztautau": 15, "ZKK": 321, "Zpipi": 211}
-MAX_ANGLE = 0.05  # Opening angle in radians; no energy requirement in matching.
+MAX_ANGLE = 0.03  # 3D opening angle in radians; no energy requirement.
+SCAN_MAX_ANGLE = 0.10
+MATCH_METHODS = ("truth", "angle", "hybrid")
 POPULATIONS = (
     "stable_gen", "reco", "isr", "collinear_isr", "noncollinear_isr", "fsr", "others",
-    "matched_gen", "matched_reco", "isr_matched_gen", "isr_matched_reco",
-    "truth_matched_gen", "isr_truth_matched_gen",
+    *(f"isr_matched_gen_{method}" for method in MATCH_METHODS),
+    *(f"nonbeam_isr_matched_gen_{method}" for method in MATCH_METHODS),
 )
 GEN_P4 = tuple(f"GenPart_vector.fCoordinates.f{axis}" for axis in "XYZT")
 RECO_P4 = tuple(f"Photon_fourMomentum.fCoordinates.f{axis}" for axis in "XYZT")
 BRANCHES = (
     "GenPart_pdgId", "GenPart_status", "GenPart_parentIdx", *GEN_P4, *RECO_P4,
-    "Photon_partIdx", "Part_simIdx", "SimPart_genIdx", "Event_cmEnergy",
+    "Photon_partIdx", "Part_simIdx", "SimPart_genIdx",
 )
 
 
@@ -61,21 +63,17 @@ def linked_gen_index(reco_index, photon_parts, part_sims, sim_gens):
     return sim_gens[sim]
 
 
-def match_photons(gen_unit, reco_unit, gen_indices, reco_links):
-    """Closest-angle-first, one to one; known disagreeing truth links veto pairs."""
-    angles = np.arccos(np.clip(gen_unit @ reco_unit.T, -1.0, 1.0))
-    gen_rows, reco_rows = np.where(angles < MAX_ANGLE)
-    candidates = sorted(
-        (angles[g, r], g, r) for g, r in zip(gen_rows, reco_rows, strict=True)
-        if reco_links[r] < 0 or reco_links[r] == gen_indices[g]
-    )
-    matched = {}
-    used_reco = set()
-    for _, gen, reco in candidates:
+def angle_matches(angles, initial, reco_allowed, cut):
+    """Add closest-angle-first one-to-one pairs to existing matches."""
+    matched = initial.copy()
+    used_reco = set(matched.values())
+    gen_rows, reco_rows = np.where(angles < cut)
+    for _, gen, reco in sorted((angles[g, r], g, r) for g, r in zip(gen_rows, reco_rows, strict=True)
+                               if reco_allowed[r]):
         if gen not in matched and reco not in used_reco:
             matched[gen] = reco
             used_reco.add(reco)
-    return matched, angles
+    return matched
 
 
 def record(values, photons):
@@ -86,10 +84,7 @@ def record(values, photons):
 
 def read_sample(input_root: Path, sample: str):
     values = {kind: {name: [] for name in ("multiplicity", "energy", "cos_theta", "phi")} for kind in POPULATIONS}
-    values["events"] = {name: [] for name in ("isr_energy", "collinear_energy", "matched_reco_energy", "truth_reco_energy", "cm_energy")}
-    values["matching"] = {name: [] for name in ("nearest_angle", "energy_response")}
-    n_linked = 0
-    n_no_reco = 0
+    values["angle_scan"] = {name: [] for name in ("truth", "same_link", "no_link", "wrong_link", "beam_no_link")}
     directory = input_root / f"20260828_100kTest_{sample}_photosFSR" / "final_root"
     paths = sorted(directory.glob("job_*/nanoaod.root"))
     if not paths:
@@ -129,43 +124,47 @@ def read_sample(input_root: Path, sample: str):
                                      branches["Part_simIdx"][event], branches["SimPart_genIdx"][event])
                     for index in range(len(reco))
                 ], dtype=int)
-                matched, angles = match_photons(gen_unit, reco_unit, gen_indices, reco_links)
-                gen_rows = np.array(list(matched), dtype=int)
-                reco_rows = np.array(list(matched.values()), dtype=int)
-                isr_matched = isr[gen_rows]
-                truth_matched = reco_links[reco_rows] >= 0
+                angles = np.arccos(np.clip(gen_unit @ reco_unit.T, -1.0, 1.0))
+                gen_by_index = {index: row for row, index in enumerate(gen_indices)}
+                truth = {gen_by_index[link]: row for row, link in enumerate(reco_links) if link in gen_by_index}
+                angle = angle_matches(angles, {}, np.ones(len(reco), dtype=bool), MAX_ANGLE)
+                hybrid = angle_matches(angles, truth, reco_links < 0, MAX_ANGLE)
+                matched = {"truth": truth, "angle": angle, "hybrid": hybrid}
                 for kind, rows in (
                     ("stable_gen", gen), ("reco", reco), ("isr", gen[isr]),
                     ("collinear_isr", gen[collinear]), ("noncollinear_isr", gen[isr & ~collinear]),
                     ("fsr", gen[fsr]), ("others", gen[others]),
-                    ("matched_gen", gen[gen_rows]), ("matched_reco", reco[reco_rows]),
-                    ("isr_matched_gen", gen[gen_rows[isr_matched]]),
-                    ("isr_matched_reco", reco[reco_rows[isr_matched]]),
-                    ("truth_matched_gen", gen[gen_rows[truth_matched]]),
-                    ("isr_truth_matched_gen", gen[gen_rows[isr_matched & truth_matched]]),
                 ):
                     record(values[kind], rows)
-                totals = values["events"]
-                totals["isr_energy"].append(gen[isr, 0].sum())
-                totals["collinear_energy"].append(gen[collinear, 0].sum())
-                totals["matched_reco_energy"].append(reco[reco_rows[isr_matched], 0].sum())
-                totals["truth_reco_energy"].append(reco[reco_rows[isr_matched & truth_matched], 0].sum())
-                totals["cm_energy"].append(branches["Event_cmEnergy"][event])
-                if len(reco):
-                    values["matching"]["nearest_angle"].extend(angles.min(axis=1))
-                else:
-                    n_no_reco += len(gen)
-                values["matching"]["energy_response"].extend(reco[reco_rows, 0] / gen[gen_rows, 0])
-                n_linked += np.count_nonzero(reco_links[reco_rows] >= 0)
+                for method, pairs in matched.items():
+                    rows = np.array(list(pairs), dtype=int)
+                    record(values[f"isr_matched_gen_{method}"], gen[rows[isr[rows]]])
+                    record(values[f"nonbeam_isr_matched_gen_{method}"], gen[rows[isr[rows] & ~collinear[rows]]])
+                scan = values["angle_scan"]
+                scan["truth"].extend(angles[g, r] for g, r in truth.items() if isr[g])
+                for g, r in angle_matches(angles, {}, np.ones(len(reco), dtype=bool), SCAN_MAX_ANGLE).items():
+                    if not isr[g]:
+                        continue
+                    if reco_links[r] == gen_indices[g]:
+                        name = "same_link"
+                    elif reco_links[r] < 0:
+                        name = "no_link"
+                        if collinear[g]:
+                            scan["beam_no_link"].append(angles[g, r])
+                    else:
+                        name = "wrong_link"
+                    scan[name].append(angles[g, r])
     for population in values.values():
         for name in population:
             population[name] = np.asarray(population[name])
-    n_events = len(values["events"]["cm_energy"])
+    n_events = len(values["stable_gen"]["multiplicity"])
     print(
         f"{sample}: events={n_events}, stable={len(values['stable_gen']['energy'])}, "
         f"ISR={len(values['isr']['energy'])}, collinear={len(values['collinear_isr']['energy'])}, "
         f"FSR={len(values['fsr']['energy'])}, others={len(values['others']['energy'])}, "
-        f"matched photons={len(values['matched_gen']['energy'])}, matched ISR={len(values['isr_matched_gen']['energy'])}, "
-        f"matched with truth link={n_linked}, gen in events with no reco={n_no_reco}", flush=True,
+        f"ISR matched (truth/angle/hybrid)="
+        f"{len(values['isr_matched_gen_truth']['energy'])}/"
+        f"{len(values['isr_matched_gen_angle']['energy'])}/"
+        f"{len(values['isr_matched_gen_hybrid']['energy'])}", flush=True,
     )
     return values
