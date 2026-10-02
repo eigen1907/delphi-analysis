@@ -137,16 +137,29 @@ positron. Non-beam ISR is the remaining ISR. The exact ancestry rules are in
 `data.py`. There is no gen energy threshold, fiducial-angle cut, or matching
 energy cut. Invalid photon four-vectors stop the run rather than being removed.
 
-The 1D energy, cos(theta), and phi distributions stack the four stable-gen
-origin categories and overlay all reco photon candidates as black points with
-Poisson error bars. Gen and reco use the same bins and are divided by the same
-number of events. This compares populations; reco candidates need not match
-the gen photons underneath them. Multiplicity shows the separate gen-origin
-event distributions, the total gen distribution, and reco points. The origin
-distributions cannot be stacked into the total multiplicity distribution.
+Stage 01 stacks the four stable-gen origin categories in the 1D energy,
+cos(theta), and phi distributions. Stage 02 removes Beam ISR from the gen
+stack and gen total. Both stages overlay the same set of **all** reco photon
+candidates as black points with Poisson error bars. Gen and reco use the same
+bins within each stage and are divided by the same number of events. This
+compares populations; reco candidates need not match the gen photons
+underneath them. Multiplicity shows the separate gen-origin event
+distributions, the gen total, and reco points. The origin distributions cannot
+be stacked into the total multiplicity distribution.
 Photon-coordinate histograms show `Nγ / bin per event` (bin count divided by
 the number of events), while multiplicity uses `Event fraction`. A photon with
 undefined phi is displayed in the phi=0 bin solely for plotting.
+
+Each stage also shows the event-by-event energy ratio
+`R_E = (sum of all reco photon energies) / (sum of selected stable-gen photon energies)`.
+Stage 01 includes Beam ISR in the gen sum; stage 02 excludes it. Positive
+ratios use common logarithmic bins across all samples and both stages, and
+defined events with no reco photons appear as a separate marker at `R_E = 0`.
+The ratio axis is linear near zero and logarithmic above one. Events
+with zero gen energy have an undefined ratio; their count is printed on each
+plot and they are excluded from the ratio histogram. All fractions use the
+full sample event count. The ratio can exceed one and is not a matched-photon
+energy recovery or reconstruction efficiency.
 
 The three matching methods are:
 
@@ -164,7 +177,7 @@ Efficiency plots use two denominators: all gen ISR photons (including Beam
 ISR) and Non-beam ISR photons. In each case the numerator is the matched gen
 ISR subset from each method, binned by gen energy or gen cos(theta). All
 efficiencies include detector acceptance and have 68.27% Clopper–Pearson
-intervals. The pooled opening-angle scan in `02_matching/` shows how the
+intervals. The pooled opening-angle scan in `03_matching/` shows how the
 direct-link and angle-only pair counts change with the cut. At 0.03 rad,
 6,525/6,757 (96.6%) directly linked ISR pairs lie within the cut, and angle
 matching associates 3 Beam ISR photons to reco candidates with no gen link.
@@ -174,16 +187,17 @@ an angular pair is incorrect. Efficiency plots use symmetric-log axes near
 zero to show small values without excluding any photons.
 
 Plots are grouped under `plots/20260828_florian/isr_photons/`. Each sample has
-one axis per 1D figure. The gen and reco 2D energy–cos(theta) maps share a
-two-panel figure, common bins, and one color scale across the five samples.
-Matched-gen 2D maps in stage 02 also use common bins and per-method color
-scales across samples.
+one axis per 1D figure. The gen and reco 2D energy–cos(theta) maps in stages
+01 and 02 share a two-panel figure, common bins, and one color scale across
+the five samples within each stage. Matched-gen 2D maps in stage 03 also use
+common bins and per-method color scales across samples.
 
 ```text
-01_gen_reco/<sample>/    gen/reco overlays and two-panel 2D map
-02_matching/<sample>/    matched gen ISR distributions and three 2D maps
-02_matching/             pooled ISR opening-angle cut scan
-03_efficiency/<sample>/  all-ISR and Non-beam-ISR efficiencies vs energy and cos(theta)
+01_gen_reco/<sample>/              gen/reco overlays, 2D map, event energy ratio
+02_gen_reco_wo_beamISR/<sample>/  same with Beam ISR removed from gen
+03_matching/<sample>/              matched gen ISR distributions and three 2D maps
+03_matching/                       pooled ISR opening-angle cut scan
+04_efficiency/<sample>/            all-ISR and Non-beam-ISR efficiencies vs energy and cos(theta)
 ```
 
 ## BDT Classification

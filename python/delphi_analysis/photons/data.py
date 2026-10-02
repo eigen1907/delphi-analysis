@@ -10,7 +10,8 @@ MAX_ANGLE = 0.03  # 3D opening angle in radians; no energy requirement.
 SCAN_MAX_ANGLE = 0.10
 MATCH_METHODS = ("truth", "angle", "hybrid")
 POPULATIONS = (
-    "stable_gen", "reco", "isr", "collinear_isr", "noncollinear_isr", "fsr", "others",
+    "stable_gen", "stable_gen_wo_beam", "reco", "isr", "collinear_isr",
+    "noncollinear_isr", "fsr", "others",
     *(f"isr_matched_gen_{method}" for method in MATCH_METHODS),
     *(f"nonbeam_isr_matched_gen_{method}" for method in MATCH_METHODS),
 )
@@ -78,12 +79,14 @@ def angle_matches(angles, initial, reco_allowed, cut):
 
 def record(values, photons):
     values["multiplicity"].append(len(photons))
+    values["energy_sum"].append(photons[:, 0].sum())
     for column, name in enumerate(("energy", "cos_theta", "phi")):
         values[name].extend(photons[:, column])
 
 
 def read_sample(input_root: Path, sample: str):
-    values = {kind: {name: [] for name in ("multiplicity", "energy", "cos_theta", "phi")} for kind in POPULATIONS}
+    values = {kind: {name: [] for name in ("multiplicity", "energy_sum", "energy", "cos_theta", "phi")}
+              for kind in POPULATIONS}
     values["angle_scan"] = {name: [] for name in ("truth", "same_link", "no_link", "wrong_link", "beam_no_link")}
     directory = input_root / f"20260828_100kTest_{sample}_photosFSR" / "final_root"
     paths = sorted(directory.glob("job_*/nanoaod.root"))
@@ -131,7 +134,8 @@ def read_sample(input_root: Path, sample: str):
                 hybrid = angle_matches(angles, truth, reco_links < 0, MAX_ANGLE)
                 matched = {"truth": truth, "angle": angle, "hybrid": hybrid}
                 for kind, rows in (
-                    ("stable_gen", gen), ("reco", reco), ("isr", gen[isr]),
+                    ("stable_gen", gen), ("stable_gen_wo_beam", gen[~collinear]),
+                    ("reco", reco), ("isr", gen[isr]),
                     ("collinear_isr", gen[collinear]), ("noncollinear_isr", gen[isr & ~collinear]),
                     ("fsr", gen[fsr]), ("others", gen[others]),
                 ):

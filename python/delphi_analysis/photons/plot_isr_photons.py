@@ -81,13 +81,15 @@ COMPONENTS = (
 )
 
 
-def plot_gen_reco(output, name, values_by_sample, sample):
+def plot_gen_reco(output, name, values_by_sample, sample, gen_kind):
     bins, xlabel = plot_bins(name, [v[kind][name] for v in values_by_sample.values()
-                                     for kind in ('stable_gen', 'reco')])
+                                     for kind in (gen_kind, 'reco')])
     fig, ax = plt.subplots(figsize=FIGURE_SIZE)
     n_events = len(values_by_sample[sample]['stable_gen']['multiplicity'])
     bottom = np.zeros(len(bins) - 1)
     for kind, color, hatch in COMPONENTS:
+        if gen_kind == 'stable_gen_wo_beam' and kind == 'collinear_isr':
+            continue
         values = values_by_sample[sample][kind][name]
         if name == 'phi':
             values = np.nan_to_num(values, nan=0)
@@ -108,11 +110,12 @@ def plot_gen_reco(output, name, values_by_sample, sample):
                         fmt='none', color=color, linewidth=0.8, capsize=1)
             bottom += heights
     if name == 'multiplicity':
-        total = count_curve(ax, values_by_sample[sample]['stable_gen'][name], bins,
-                            n_events, '0.4', 'Stable gen total')
+        total_label = 'Stable gen total' if gen_kind == 'stable_gen' else 'Gen total (no Beam ISR)'
+        total = count_curve(ax, values_by_sample[sample][gen_kind][name], bins,
+                            n_events, '0.4', total_label)
         peak = total.max() / n_events
     else:
-        total_values = values_by_sample[sample]['stable_gen'][name]
+        total_values = values_by_sample[sample][gen_kind][name]
         if name == 'phi':
             total_values = np.nan_to_num(total_values, nan=0)
         assert np.allclose(bottom * n_events, np.histogram(total_values, bins=bins)[0])
@@ -124,10 +127,11 @@ def plot_gen_reco(output, name, values_by_sample, sample):
     assert reco_counts.sum() == len(reco)
     centers = np.sqrt(bins[:-1] * bins[1:]) if name == 'energy' else (bins[:-1] + bins[1:]) / 2
     shown = reco_counts > 0
+    reco_label = 'Reco photons (all)' if gen_kind == 'stable_gen_wo_beam' else POPULATIONS['reco']
     ax.errorbar(centers[shown], reco_counts[shown] / n_events,
                 yerr=np.sqrt(reco_counts[shown]) / n_events,
                 fmt='o', color='black', markersize=4, capsize=2, linewidth=1,
-                zorder=5, label=POPULATIONS['reco'])
+                zorder=5, label=reco_label)
     peak = max(peak, reco_counts.max() / n_events)
     set_population_scale(ax, name, peak)
     if name == 'energy':
@@ -139,6 +143,42 @@ def plot_gen_reco(output, name, values_by_sample, sample):
            2 if name == 'energy' else 1)
     fig.tight_layout()
     fig.savefig(output / f'gen_reco_{name}.png', dpi=150)
+    plt.close(fig)
+
+
+def event_energy_ratio(values, gen_kind):
+    gen_energy = values[gen_kind]['energy_sum']
+    defined = gen_energy > 0
+    return values['reco']['energy_sum'][defined] / gen_energy[defined], np.count_nonzero(~defined)
+
+
+def plot_energy_ratio(output, values, sample, gen_kind, bins):
+    ratio, undefined = event_energy_ratio(values, gen_kind)
+    n_events = len(values['stable_gen']['multiplicity'])
+    zero = np.count_nonzero(ratio == 0)
+    positive = ratio[ratio > 0]
+    counts = np.histogram(positive, bins=bins)[0]
+    assert counts.sum() == len(positive)
+    centers = np.sqrt(bins[:-1] * bins[1:])
+    shown = counts > 0
+    fig, ax = plt.subplots(figsize=FIGURE_SIZE)
+    ax.stairs(counts / n_events, bins, color='black', linewidth=1.8, label=r'$R_E>0$')
+    ax.errorbar(centers[shown], counts[shown] / n_events,
+                yerr=np.sqrt(counts[shown]) / n_events,
+                fmt='o', color='black', markersize=3, capsize=1.5, linewidth=0.8)
+    ax.errorbar(0, zero / n_events, yerr=np.sqrt(zero) / n_events,
+                fmt='s', color='C0', markersize=6, capsize=2, label=r'$R_E=0$')
+    ax.set_xscale('symlog', linthresh=1, linscale=3)
+    ax.set_xlim(-0.15, bins[-1])
+    ax.set_yscale('log')
+    ax.set_ylim(0.5 / n_events, 2)
+    population = 'stable gen' if gen_kind == 'stable_gen' else 'gen without Beam ISR'
+    legend_title = (f'{sample}\nAll reco / {population}\n'
+                    f'Undefined (Gen $E_\\gamma=0$): {undefined:,}')
+    finish(ax, legend_title, r'$R_E = \sum E_\gamma^\mathrm{reco} / \sum E_\gamma^\mathrm{gen}$',
+           'Event fraction', 'upper right')
+    fig.tight_layout()
+    fig.savefig(output / 'gen_reco_energy_ratio.png', dpi=150)
     plt.close(fig)
 
 
@@ -217,20 +257,30 @@ def plot_isr_photons(input_root: Path, output_root: Path):
     mh.style.use(mh.styles.CMS)
     study = output_root / 'isr_photons'
     directories = {name: study / folder for name, folder in (
-        ('gen_reco', '01_gen_reco'), ('matching', '02_matching'),
-        ('efficiency', '03_efficiency'),
+        ('gen_reco', '01_gen_reco'), ('wo_beam', '02_gen_reco_wo_beamISR'),
+        ('matching', '03_matching'), ('efficiency', '04_efficiency'),
     )}
     for directory in directories.values():
         directory.mkdir(parents=True, exist_ok=True)
     values = {sample: read_sample(input_root, sample) for sample in SAMPLES}
     e_bins = energy_bins(values)
+    ratios = [event_energy_ratio(v, kind)[0] for v in values.values()
+              for kind in ('stable_gen', 'stable_gen_wo_beam')]
+    positive_ratios = np.concatenate([ratio[ratio > 0] for ratio in ratios])
+    ratio_low = 10 ** np.floor(np.log10(positive_ratios.min()))
+    ratio_high = 10 ** np.ceil(np.log10(positive_ratios.max()))
+    decades = int(np.ceil(np.log10(ratio_high / ratio_low)))
+    ratio_bins = np.geomspace(ratio_low, ratio_high, 5 * decades + 1)
     for sample in SAMPLES:
         sample_dirs = {name: directory / sample for name, directory in directories.items()}
         for directory in sample_dirs.values():
             directory.mkdir(parents=True, exist_ok=True)
         for name in ('multiplicity', 'energy', 'cos_theta', 'phi'):
-            plot_gen_reco(sample_dirs['gen_reco'], name, values, sample)
+            plot_gen_reco(sample_dirs['gen_reco'], name, values, sample, 'stable_gen')
+            plot_gen_reco(sample_dirs['wo_beam'], name, values, sample, 'stable_gen_wo_beam')
             plot_matched_isr(sample_dirs['matching'], name, values, sample)
+        plot_energy_ratio(sample_dirs['gen_reco'], values[sample], sample, 'stable_gen', ratio_bins)
+        plot_energy_ratio(sample_dirs['wo_beam'], values[sample], sample, 'stable_gen_wo_beam', ratio_bins)
         for name in ('energy', 'cos_theta'):
             plot_efficiency(sample_dirs['efficiency'], name, 'isr', 'isr_matched_gen',
                             'all_isr', values[sample], sample, e_bins)
