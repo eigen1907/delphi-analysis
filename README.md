@@ -174,8 +174,16 @@ direct-link and angle-only pair counts change with the cut. At 0.03 rad,
 matching associates 3 Beam ISR photons to reco candidates with no gen link.
 At 0.05 rad those numbers are 6,737/6,757 (99.7%) and 225. The Beam no-link
 scan curve is part of the total no-link curve; an absent link does not prove
-an angular pair is incorrect. Efficiency plots use symmetric-log axes near
-zero to show small values without excluding any photons.
+an angular pair is incorrect.
+
+Energy distributions use a logarithmic energy axis to show their wide range.
+Stage 01 uses a logarithmic count axis to show Beam ISR and low-rate tails;
+stage 02 uses a linear count axis. Stage 03 uses a logarithmic count axis for
+matched energy and a linear one for the angular distributions. Multiplicity
+and efficiency also use a linear vertical axis. Efficiency plots extend to
+0.30 (energy) or 0.08 (cos(theta)), including all plotted Clopper–Pearson
+intervals. The efficiency energy axis remains symmetric-log; the matching cut
+scan and 2D map color scales remain logarithmic.
 
 Plots are grouped under `plots/20260828_florian/isr_photons/`. Each sample has
 one axis per 1D figure. Matched-gen 2D energy–cos(theta) maps in stage 03 use

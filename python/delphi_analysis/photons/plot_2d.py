@@ -1,4 +1,4 @@
-"""Energy–angle maps for gen, reco, and matched ISR photons."""
+"""Energy–angle maps for matched ISR photons."""
 
 from pathlib import Path
 

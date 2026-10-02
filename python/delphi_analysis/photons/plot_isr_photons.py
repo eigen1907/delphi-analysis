@@ -68,14 +68,14 @@ def plot_bins(name, arrays):
     return np.arange(-0.5, maximum + 1.5), r'$N_\gamma$'
 
 
-def set_population_scale(ax, name, peak):
+def set_population_scale(ax, name, peak, log_y):
     if name == 'energy':
         ax.set_xscale('log')
-    if name in ('energy', 'cos_theta', 'phi'):
+    if log_y:
         ax.set_yscale('log')
         ax.set_ylim(top=peak * (100 if name == 'energy' else 5))
     else:
-        ax.set_ylim(0, peak * 1.5)
+        ax.set_ylim(0, peak * (1.8 if name == 'phi' else 1.3))
 
 
 COMPONENTS = (
@@ -137,8 +137,9 @@ def plot_gen_reco(output, name, values_by_sample, sample, gen_kind):
                 fmt='o', color='black', markersize=6, capsize=2, linewidth=1,
                 zorder=5, label=reco_label)
     peak = max(peak, reco_counts.max() / n_events)
-    set_population_scale(ax, name, peak)
-    if name == 'energy':
+    log_y = gen_kind == 'stable_gen' and name != 'multiplicity'
+    set_population_scale(ax, name, peak, log_y)
+    if name == 'energy' and log_y:
         ax.set_ylim(top=peak * 50)
     if name == 'multiplicity':
         ax.set_ylim(0, 1.05)
@@ -162,7 +163,7 @@ def plot_matched_isr(output, name, values_by_sample, sample):
             values = np.nan_to_num(values, nan=0)
         counts = count_curve(ax, values, bins, n_events, f'C{index}', METHOD_LABELS[method])
         peak = max(peak, counts.max() / n_events)
-    set_population_scale(ax, name, peak)
+    set_population_scale(ax, name, peak, name == 'energy')
     finish(ax, sample, xlabel, 'Event fraction' if name == 'multiplicity' else COUNT_LABEL)
     fig.tight_layout()
     fig.savefig(output / f'isr_matched_gen_{name}.png', dpi=150)
@@ -191,11 +192,9 @@ def plot_efficiency(output, name, gen_kind, matched_prefix, filename, values, sa
     if name == 'energy':
         ax.set_xscale('symlog', linthresh=0.1)
     ax.set_xlim(bins[0], bins[-1])
-    ax.set_yscale('symlog', linthresh=0.01)
-    ax.set_yticks([0, 0.01, 0.1, 1])
-    ax.set_ylim(0, 1.05)
+    ax.set_ylim(0, 0.30 if name == 'energy' else 0.08)
     xlabel = r'$E_\gamma^{\mathrm{gen}}$ [GeV]' if name == 'energy' else r'$\cos\theta_\gamma^{\mathrm{gen}}$'
-    finish(ax, sample, xlabel, 'Efficiency', 'upper left' if name == 'energy' else 'upper right')
+    finish(ax, sample, xlabel, 'Efficiency', 'upper left')
     fig.tight_layout()
     fig.savefig(output / f'{filename}_efficiency_vs_{name}.png', dpi=150)
     plt.close(fig)
