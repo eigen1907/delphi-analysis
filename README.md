@@ -137,12 +137,16 @@ positron. Non-beam ISR is the remaining ISR. The exact ancestry rules are in
 `data.py`. There is no gen energy threshold, fiducial-angle cut, or matching
 energy cut. Invalid photon four-vectors stop the run rather than being removed.
 
-The stable-gen energy, cos(theta), and phi distributions stack the four origin
-categories. Multiplicity shows their separate event distributions and the
-total; these cannot be stacked into the total multiplicity distribution.
+The 1D energy, cos(theta), and phi distributions stack the four stable-gen
+origin categories and overlay all reco photon candidates as black points with
+Poisson error bars. Gen and reco use the same bins and are divided by the same
+number of events. This compares populations; reco candidates need not match
+the gen photons underneath them. Multiplicity shows the separate gen-origin
+event distributions, the total gen distribution, and reco points. The origin
+distributions cannot be stacked into the total multiplicity distribution.
 Photon-coordinate histograms show `Nγ / bin per event` (bin count divided by
-the number of events), while multiplicity uses `Event fraction`. A beam-directed
-photon has undefined phi and is displayed in the phi=0 bin solely for plotting.
+the number of events), while multiplicity uses `Event fraction`. A photon with
+undefined phi is displayed in the phi=0 bin solely for plotting.
 
 The three matching methods are:
 
@@ -160,7 +164,7 @@ Efficiency plots use two denominators: all gen ISR photons (including Beam
 ISR) and Non-beam ISR photons. In each case the numerator is the matched gen
 ISR subset from each method, binned by gen energy or gen cos(theta). All
 efficiencies include detector acceptance and have 68.27% Clopper–Pearson
-intervals. The pooled opening-angle scan in `03_matching/` shows how the
+intervals. The pooled opening-angle scan in `02_matching/` shows how the
 direct-link and angle-only pair counts change with the cut. At 0.03 rad,
 6,525/6,757 (96.6%) directly linked ISR pairs lie within the cut, and angle
 matching associates 3 Beam ISR photons to reco candidates with no gen link.
@@ -170,15 +174,16 @@ an angular pair is incorrect. Efficiency plots use symmetric-log axes near
 zero to show small values without excluding any photons.
 
 Plots are grouped under `plots/20260828_florian/isr_photons/`. Each sample has
-one axis per figure. The 2D energy–cos(theta) maps appear only in stages
-01–03, with shared bins and color scales across samples.
+one axis per 1D figure. The gen and reco 2D energy–cos(theta) maps share a
+two-panel figure, common bins, and one color scale across the five samples.
+Matched-gen 2D maps in stage 02 also use common bins and per-method color
+scales across samples.
 
 ```text
-01_gen/<sample>/         stable gen distributions and 2D map
-02_reco/<sample>/        reco photon distributions and 2D map
-03_matching/<sample>/    matched gen ISR distributions and three 2D maps
-03_matching/             pooled ISR opening-angle cut scan
-04_efficiency/<sample>/  all-ISR and Non-beam-ISR efficiencies vs energy and cos(theta)
+01_gen_reco/<sample>/    gen/reco overlays and two-panel 2D map
+02_matching/<sample>/    matched gen ISR distributions and three 2D maps
+02_matching/             pooled ISR opening-angle cut scan
+03_efficiency/<sample>/  all-ISR and Non-beam-ISR efficiencies vs energy and cos(theta)
 ```
 
 ## BDT Classification

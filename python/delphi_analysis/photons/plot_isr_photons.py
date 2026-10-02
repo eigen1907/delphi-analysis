@@ -42,10 +42,11 @@ def count_curve(ax, values, bins, n_events, color, label):
     return counts
 
 
-def finish(ax, sample, xlabel, ylabel, legend_loc='upper right'):
+def finish(ax, sample, xlabel, ylabel, legend_loc='upper right', legend_columns=1):
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
-    ax.legend(title=sample, loc=legend_loc, framealpha=1, edgecolor='none')
+    ax.legend(title=sample, loc=legend_loc, ncol=legend_columns,
+              framealpha=1, edgecolor='none')
     ax.grid(alpha=0.2)
     mh.label.exp_label(exp='DELPHI', llabel='Simulation',
                        rlabel='LEP 1 (91.2 GeV)', loc=0, ax=ax)
@@ -74,28 +75,15 @@ def set_population_scale(ax, name, peak):
         ax.set_ylim(0, peak * 1.5)
 
 
-def plot_reco(output, name, values_by_sample, sample):
-    bins, xlabel = plot_bins(name, [v['reco'][name] for v in values_by_sample.values()])
-    fig, ax = plt.subplots(figsize=FIGURE_SIZE)
-    values = values_by_sample[sample]['reco'][name]
-    n_events = len(values_by_sample[sample]['reco']['multiplicity'])
-    counts = count_curve(ax, np.nan_to_num(values, nan=0) if name == 'phi' else values,
-                         bins, n_events, 'C0', POPULATIONS['reco'])
-    set_population_scale(ax, name, counts.max() / n_events)
-    finish(ax, sample, xlabel, 'Event fraction' if name == 'multiplicity' else COUNT_LABEL)
-    fig.tight_layout()
-    fig.savefig(output / f'reco_{name}.png', dpi=150)
-    plt.close(fig)
-
-
 COMPONENTS = (
     ('noncollinear_isr', 'C0', '..'), ('collinear_isr', 'C1', '///'),
     ('fsr', 'C2', '\\\\'), ('others', 'C3', 'xx'),
 )
 
 
-def plot_stable_gen(output, name, values_by_sample, sample):
-    bins, xlabel = plot_bins(name, [v['stable_gen'][name] for v in values_by_sample.values()])
+def plot_gen_reco(output, name, values_by_sample, sample):
+    bins, xlabel = plot_bins(name, [v[kind][name] for v in values_by_sample.values()
+                                     for kind in ('stable_gen', 'reco')])
     fig, ax = plt.subplots(figsize=FIGURE_SIZE)
     n_events = len(values_by_sample[sample]['stable_gen']['multiplicity'])
     bottom = np.zeros(len(bins) - 1)
@@ -121,7 +109,7 @@ def plot_stable_gen(output, name, values_by_sample, sample):
             bottom += heights
     if name == 'multiplicity':
         total = count_curve(ax, values_by_sample[sample]['stable_gen'][name], bins,
-                            n_events, 'black', 'Total')
+                            n_events, '0.4', 'Stable gen total')
         peak = total.max() / n_events
     else:
         total_values = values_by_sample[sample]['stable_gen'][name]
@@ -129,13 +117,28 @@ def plot_stable_gen(output, name, values_by_sample, sample):
             total_values = np.nan_to_num(total_values, nan=0)
         assert np.allclose(bottom * n_events, np.histogram(total_values, bins=bins)[0])
         peak = bottom.max()
+    reco = values_by_sample[sample]['reco'][name]
+    if name == 'phi':
+        reco = np.nan_to_num(reco, nan=0)
+    reco_counts = np.histogram(reco, bins=bins)[0]
+    assert reco_counts.sum() == len(reco)
+    centers = np.sqrt(bins[:-1] * bins[1:]) if name == 'energy' else (bins[:-1] + bins[1:]) / 2
+    shown = reco_counts > 0
+    ax.errorbar(centers[shown], reco_counts[shown] / n_events,
+                yerr=np.sqrt(reco_counts[shown]) / n_events,
+                fmt='o', color='black', markersize=4, capsize=2, linewidth=1,
+                zorder=5, label=POPULATIONS['reco'])
+    peak = max(peak, reco_counts.max() / n_events)
     set_population_scale(ax, name, peak)
+    if name == 'energy':
+        ax.set_ylim(top=peak * 50)
     if name == 'multiplicity':
         ax.set_ylim(0, 1.05)
     finish(ax, sample, xlabel, 'Event fraction' if name == 'multiplicity' else COUNT_LABEL,
-           'upper center' if name == 'cos_theta' else 'upper right')
+           'upper left' if name == 'energy' else 'upper center' if name == 'cos_theta' else 'upper right',
+           2 if name == 'energy' else 1)
     fig.tight_layout()
-    fig.savefig(output / f'stable_gen_{name}.png', dpi=150)
+    fig.savefig(output / f'gen_reco_{name}.png', dpi=150)
     plt.close(fig)
 
 
@@ -214,8 +217,8 @@ def plot_isr_photons(input_root: Path, output_root: Path):
     mh.style.use(mh.styles.CMS)
     study = output_root / 'isr_photons'
     directories = {name: study / folder for name, folder in (
-        ('gen', '01_gen'), ('reco', '02_reco'), ('matching', '03_matching'),
-        ('efficiency', '04_efficiency'),
+        ('gen_reco', '01_gen_reco'), ('matching', '02_matching'),
+        ('efficiency', '03_efficiency'),
     )}
     for directory in directories.values():
         directory.mkdir(parents=True, exist_ok=True)
@@ -226,8 +229,7 @@ def plot_isr_photons(input_root: Path, output_root: Path):
         for directory in sample_dirs.values():
             directory.mkdir(parents=True, exist_ok=True)
         for name in ('multiplicity', 'energy', 'cos_theta', 'phi'):
-            plot_stable_gen(sample_dirs['gen'], name, values, sample)
-            plot_reco(sample_dirs['reco'], name, values, sample)
+            plot_gen_reco(sample_dirs['gen_reco'], name, values, sample)
             plot_matched_isr(sample_dirs['matching'], name, values, sample)
         for name in ('energy', 'cos_theta'):
             plot_efficiency(sample_dirs['efficiency'], name, 'isr', 'isr_matched_gen',
