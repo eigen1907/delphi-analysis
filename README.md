@@ -126,16 +126,18 @@ bash runs/photons/plot_isr_photons.sh
 The recipe reads the five Florian `photosFSR` samples: `Zee`, `Zmumu`,
 `Ztautau`, `ZKK`, and `Zpipi`. The code lives in
 `python/delphi_analysis/photons/`: `data.py` reads and classifies photons,
-`plot_isr_photons.py` makes 1D figures, and `plot_2d.py` makes energy–angle
-maps. The FSR-specific script is reserved for a later study.
+`plot_isr_photons.py` makes 1D figures, and `plot_2d.py` makes matched-ISR
+energy–angle maps. The FSR-specific script is reserved for a later study.
 
 Stable gen photons have `GenPart_pdgId == 22` and `GenPart_status == 1`;
-reco photons use `Photon_fourMomentum`. Gen ancestry divides stable photons
-into Non-beam ISR, Beam ISR, FSR, and Others. Beam ISR has zero transverse
-momentum and a direct parent from the incoming parentless electron or
-positron. Non-beam ISR is the remaining ISR. The exact ancestry rules are in
-`data.py`. There is no gen energy threshold, fiducial-angle cut, or matching
-energy cut. Invalid photon four-vectors stop the run rather than being removed.
+reco photon candidates use `Photon_fourMomentum`. The `Photon` collection
+contains neutral electromagnetic calorimeter candidates, not just gen-linked
+photons. Gen ancestry divides stable photons into Non-beam ISR, Beam ISR, FSR,
+and Others. Beam ISR has zero transverse momentum and a direct parent from the
+incoming parentless electron or positron. Non-beam ISR is the remaining ISR.
+The exact ancestry rules are in `data.py`. There is no gen energy threshold,
+fiducial-angle cut, or matching energy cut. Invalid photon four-vectors stop
+the run rather than being removed.
 
 Stage 01 stacks the four stable-gen origin categories in the 1D energy,
 cos(theta), and phi distributions. Stage 02 removes Beam ISR from the gen
@@ -149,17 +151,6 @@ be stacked into the total multiplicity distribution.
 Photon-coordinate histograms show `Nγ / bin per event` (bin count divided by
 the number of events), while multiplicity uses `Event fraction`. A photon with
 undefined phi is displayed in the phi=0 bin solely for plotting.
-
-Each stage also shows the event-by-event energy ratio
-`R_E = (sum of all reco photon energies) / (sum of selected stable-gen photon energies)`.
-Stage 01 includes Beam ISR in the gen sum; stage 02 excludes it. Positive
-ratios use common logarithmic bins across all samples and both stages, and
-defined events with no reco photons appear as a separate marker at `R_E = 0`.
-The ratio axis is linear near zero and logarithmic above one. Events
-with zero gen energy have an undefined ratio; their count is printed on each
-plot and they are excluded from the ratio histogram. All fractions use the
-full sample event count. The ratio can exceed one and is not a matched-photon
-energy recovery or reconstruction efficiency.
 
 The three matching methods are:
 
@@ -187,14 +178,12 @@ an angular pair is incorrect. Efficiency plots use symmetric-log axes near
 zero to show small values without excluding any photons.
 
 Plots are grouped under `plots/20260828_florian/isr_photons/`. Each sample has
-one axis per 1D figure. The gen and reco 2D energy–cos(theta) maps in stages
-01 and 02 share a two-panel figure, common bins, and one color scale across
-the five samples within each stage. Matched-gen 2D maps in stage 03 also use
+one axis per 1D figure. Matched-gen 2D energy–cos(theta) maps in stage 03 use
 common bins and per-method color scales across samples.
 
 ```text
-01_gen_reco/<sample>/              gen/reco overlays, 2D map, event energy ratio
-02_gen_reco_wo_beamISR/<sample>/  same with Beam ISR removed from gen
+01_gen_reco/<sample>/              gen/reco 1D overlays
+02_gen_reco_wo_beamISR/<sample>/  gen/reco 1D overlays without Beam ISR in gen
 03_matching/<sample>/              matched gen ISR distributions and three 2D maps
 03_matching/                       pooled ISR opening-angle cut scan
 04_efficiency/<sample>/            all-ISR and Non-beam-ISR efficiencies vs energy and cos(theta)

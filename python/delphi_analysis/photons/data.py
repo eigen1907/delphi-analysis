@@ -79,13 +79,12 @@ def angle_matches(angles, initial, reco_allowed, cut):
 
 def record(values, photons):
     values["multiplicity"].append(len(photons))
-    values["energy_sum"].append(photons[:, 0].sum())
     for column, name in enumerate(("energy", "cos_theta", "phi")):
         values[name].extend(photons[:, column])
 
 
 def read_sample(input_root: Path, sample: str):
-    values = {kind: {name: [] for name in ("multiplicity", "energy_sum", "energy", "cos_theta", "phi")}
+    values = {kind: {name: [] for name in ("multiplicity", "energy", "cos_theta", "phi")}
               for kind in POPULATIONS}
     values["angle_scan"] = {name: [] for name in ("truth", "same_link", "no_link", "wrong_link", "beam_no_link")}
     directory = input_root / f"20260828_100kTest_{sample}_photosFSR" / "final_root"
