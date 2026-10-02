@@ -162,8 +162,12 @@ ISR subset from each method, binned by gen energy or gen cos(theta). All
 efficiencies include detector acceptance and have 68.27% Clopper–Pearson
 intervals. The pooled opening-angle scan in `03_matching/` shows how the
 direct-link and angle-only pair counts change with the cut. At 0.03 rad,
-6,525/6,757 (96.6%) directly linked ISR pairs lie within the cut. An absent
-truth link does not prove an angular pair is incorrect.
+6,525/6,757 (96.6%) directly linked ISR pairs lie within the cut, and angle
+matching associates 3 Beam ISR photons to reco candidates with no gen link.
+At 0.05 rad those numbers are 6,737/6,757 (99.7%) and 225. The Beam no-link
+scan curve is part of the total no-link curve; an absent link does not prove
+an angular pair is incorrect. Efficiency plots use symmetric-log axes near
+zero to show small values without excluding any photons.
 
 Plots are grouped under `plots/20260828_florian/isr_photons/`. Each sample has
 one axis per figure. The 2D energy–cos(theta) maps appear only in stages

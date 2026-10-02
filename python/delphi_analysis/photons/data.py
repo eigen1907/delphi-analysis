@@ -142,6 +142,7 @@ def read_sample(input_root: Path, sample: str):
                     record(values[f"nonbeam_isr_matched_gen_{method}"], gen[rows[isr[rows] & ~collinear[rows]]])
                 scan = values["angle_scan"]
                 scan["truth"].extend(angles[g, r] for g, r in truth.items() if isr[g])
+                # Closest-first pairs below 0.10 rad are unchanged by a tighter cut.
                 for g, r in angle_matches(angles, {}, np.ones(len(reco), dtype=bool), SCAN_MAX_ANGLE).items():
                     if not isr[g]:
                         continue

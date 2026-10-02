@@ -130,6 +130,8 @@ def plot_stable_gen(output, name, values_by_sample, sample):
         assert np.allclose(bottom * n_events, np.histogram(total_values, bins=bins)[0])
         peak = bottom.max()
     set_population_scale(ax, name, peak)
+    if name == 'multiplicity':
+        ax.set_ylim(0, 1.05)
     finish(ax, sample, xlabel, 'Event fraction' if name == 'multiplicity' else COUNT_LABEL,
            'upper center' if name == 'cos_theta' else 'upper right')
     fig.tight_layout()
@@ -182,7 +184,7 @@ def plot_efficiency(output, name, gen_kind, matched_prefix, filename, values, sa
     ax.set_yticks([0, 0.01, 0.1, 1])
     ax.set_ylim(0, 1.05)
     xlabel = r'$E_\gamma^{\mathrm{gen}}$ [GeV]' if name == 'energy' else r'$\cos\theta_\gamma^{\mathrm{gen}}$'
-    finish(ax, sample, xlabel, 'Efficiency')
+    finish(ax, sample, xlabel, 'Efficiency', 'upper left' if name == 'energy' else 'upper right')
     fig.tight_layout()
     fig.savefig(output / f'{filename}_efficiency_vs_{name}.png', dpi=150)
     plt.close(fig)
@@ -192,17 +194,17 @@ def plot_angle_scan(output, values_by_sample):
     cuts = np.linspace(0.001, SCAN_MAX_ANGLE, 100)
     fig, ax = plt.subplots(figsize=FIGURE_SIZE)
     for name, color, label in (
-        ('truth', 'C0', 'MC-linked ISR'),
-        ('no_link', 'C1', 'Angle: no link'),
-        ('wrong_link', 'C2', 'Angle: other gen link'),
-        ('beam_no_link', 'C3', 'Angle: Beam ISR, no link'),
+        ('truth', 'C0', 'Truth'),
+        ('no_link', 'C1', 'No gen link'),
+        ('wrong_link', 'C2', 'Other gen'),
+        ('beam_no_link', 'C3', 'Beam subset'),
     ):
         angles = np.sort(np.concatenate([v['angle_scan'][name] for v in values_by_sample.values()]))
         ax.plot(cuts, np.searchsorted(angles, cuts), color=color, label=label)
     ax.axvline(MAX_ANGLE, color='black', linestyle='--', label=f'{MAX_ANGLE:g} rad cut')
     ax.set_yscale('log')
     ax.set_xlim(0, SCAN_MAX_ANGLE)
-    finish(ax, '5 PHOTOS samples', 'Opening-angle cut [rad]', 'ISR pairs', 'lower left')
+    finish(ax, '5 samples', 'Opening-angle cut [rad]', 'ISR pairs', 'lower left')
     fig.tight_layout()
     fig.savefig(output / 'isr_opening_angle_cut_scan.png', dpi=150)
     plt.close(fig)
