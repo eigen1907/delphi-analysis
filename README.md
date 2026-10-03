@@ -142,10 +142,10 @@ the run rather than being removed.
 Stage 01 stacks the four stable-gen origin categories in the 1D energy,
 cos(theta), and phi distributions. Stage 02 removes Beam ISR from the gen
 stack and gen total. Both stages overlay the same set of **all** reco photon
-candidates as black points with Poisson error bars. Gen and reco use the same
-bins within each stage and are divided by the same number of events. This
-compares populations; reco candidates need not match the gen photons
-underneath them. Multiplicity shows the separate gen-origin event
+candidates as black points with Poisson error bars. Corresponding figures in
+both stages use the same bins, with gen and reco divided by the same number of
+events. This compares populations; reco candidates need not match the gen
+photons underneath them. Multiplicity shows the separate gen-origin event
 distributions, the gen total, and reco points. The origin distributions cannot
 be stacked into the total multiplicity distribution.
 Photon-coordinate histograms show `Nγ / bin per event` (bin count divided by
@@ -176,16 +176,17 @@ At 0.05 rad those numbers are 6,737/6,757 (99.7%) and 225. The Beam no-link
 scan curve is part of the total no-link curve; an absent link does not prove
 an angular pair is incorrect.
 
-Figures with a log axis or color scale also have a fully linear version with
-`_linear.png` appended to the filename. The original scales remain: log energy
-axes for energy distributions, a log count axis in stage 01 and for matched
-energy, a symmetric-log energy axis for efficiency, and log scales for the
-opening-angle scan count and 2D map colors. Figures already linear have no
-duplicate. Linear energy plots use 1 GeV bins for 1D distributions and
-efficiency, and 2 GeV bins for 2D maps; their ranges include every plotted
-photon. Linear efficiency plots show 0–1.05 so the Clopper–Pearson intervals
-in sparse high-energy bins remain visible. Since energy bin widths differ,
-`Nγ / bin per event` heights should be compared only within the same scale.
+Stages 01 and 02 use the same scales: `gen_reco_energy.png` has log energy and
+count axes, while the cos(theta) and phi defaults have log count axes. Their
+`_linear.png` counterparts have only linear axes; for example,
+`02_gen_reco_wo_beamISR/Zee/gen_reco_energy_linear.png`. Multiplicity is already
+linear in both stages. Other figures with a log axis or color scale also have a
+fully linear `_linear.png` version. Linear energy plots use 1 GeV bins for 1D
+distributions and efficiency, and 2 GeV bins for 2D maps; their ranges include
+every plotted photon. Linear efficiency plots show 0–1.05 so the
+Clopper–Pearson intervals in sparse high-energy bins remain visible. Since
+energy bin widths differ, `Nγ / bin per event` heights should be compared only
+within the same scale.
 
 Plots are grouped under `plots/20260828_florian/isr_photons/`. Each sample has
 one axis per 1D figure. Matched-gen 2D energy–cos(theta) maps in stage 03 use

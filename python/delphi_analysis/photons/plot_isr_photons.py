@@ -88,7 +88,7 @@ COMPONENTS = (
 
 def plot_gen_reco(output, name, values_by_sample, sample, gen_kind, linear=False):
     bins, xlabel = plot_bins(name, [v[kind][name] for v in values_by_sample.values()
-                                     for kind in (gen_kind, 'reco')], linear)
+                                     for kind in ('stable_gen', 'reco')], linear)
     fig, ax = plt.subplots(figsize=FIGURE_SIZE)
     n_events = len(values_by_sample[sample]['stable_gen']['multiplicity'])
     bottom = np.zeros(len(bins) - 1)
@@ -133,13 +133,12 @@ def plot_gen_reco(output, name, values_by_sample, sample, gen_kind, linear=False
     assert reco_counts.sum() == len(reco)
     centers = np.sqrt(bins[:-1] * bins[1:]) if name == 'energy' and not linear else (bins[:-1] + bins[1:]) / 2
     shown = reco_counts > 0
-    reco_label = 'Reco photons (all)' if gen_kind == 'stable_gen_wo_beam' else POPULATIONS['reco']
     ax.errorbar(centers[shown], reco_counts[shown] / n_events,
                 yerr=np.sqrt(reco_counts[shown]) / n_events,
                 fmt='o', color='black', markersize=6, capsize=2, linewidth=1,
-                zorder=5, label=reco_label)
+                zorder=5, label=POPULATIONS['reco'])
     peak = max(peak, reco_counts.max() / n_events)
-    log_y = not linear and gen_kind == 'stable_gen' and name != 'multiplicity'
+    log_y = not linear and name != 'multiplicity'
     set_population_scale(ax, name, peak, log_y, linear)
     if name == 'energy' and log_y:
         ax.set_ylim(top=peak * 50)
@@ -252,8 +251,8 @@ def plot_isr_photons(input_root: Path, output_root: Path):
             plot_matched_isr(sample_dirs['matching'], name, values, sample)
             if name != 'multiplicity':
                 plot_gen_reco(sample_dirs['gen_reco'], name, values, sample, 'stable_gen', True)
-            if name == 'energy':
                 plot_gen_reco(sample_dirs['wo_beam'], name, values, sample, 'stable_gen_wo_beam', True)
+            if name == 'energy':
                 plot_matched_isr(sample_dirs['matching'], name, values, sample, True)
         for name in ('energy', 'cos_theta'):
             plot_efficiency(sample_dirs['efficiency'], name, 'isr', 'isr_matched_gen',
