@@ -5,7 +5,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import mplhep as mh
 import numpy as np
-from matplotlib.colors import LogNorm
+from matplotlib.colors import LogNorm, Normalize
 
 from .data import SAMPLES
 
@@ -39,6 +39,16 @@ def energy_bins(values_by_sample: dict) -> np.ndarray:
     return np.append(edges, high) if high > end else edges
 
 
+def linear_energy_bins(values_by_sample: dict) -> np.ndarray:
+    energies = np.concatenate([
+        values[kind]["energy"]
+        for values in values_by_sample.values()
+        for kind in ("isr_matched_gen_truth", "isr_matched_gen_angle", "isr_matched_gen_hybrid")
+    ])
+    high = 10 * np.ceil(energies.max() / 10)
+    return np.arange(0, high + 2, 2)
+
+
 def photon_counts(values: dict, e_bins: np.ndarray, cos_bins: np.ndarray) -> np.ndarray:
     energy = np.asarray(values["energy"])
     cosine = np.asarray(values["cos_theta"])
@@ -47,14 +57,16 @@ def photon_counts(values: dict, e_bins: np.ndarray, cos_bins: np.ndarray) -> np.
     return counts
 
 
-def draw_maps(output: Path, maps: dict, e_bins: np.ndarray, cos_bins: np.ndarray, norm: LogNorm) -> None:
+def draw_maps(output: Path, maps: dict, e_bins: np.ndarray, cos_bins: np.ndarray,
+              norm: Normalize, linear: bool = False) -> None:
     cmap = plt.get_cmap("viridis").copy()
     cmap.set_bad("#e4e4e4")
     for sample in SAMPLES:
         fig, ax = plt.subplots(figsize=(11, 9), layout="constrained")
         mesh = ax.pcolormesh(e_bins, cos_bins, np.ma.masked_invalid(maps[sample].T),
                              cmap=cmap, norm=norm, shading="flat", rasterized=True)
-        ax.set_xscale("log")
+        if not linear:
+            ax.set_xscale("log")
         ax.set_xlim(e_bins[0], e_bins[-1])
         ax.set_ylim(-1, 1)
         ax.set_yticks([-1, -0.5, 0, 0.5, 1])
@@ -73,18 +85,25 @@ def draw_maps(output: Path, maps: dict, e_bins: np.ndarray, cos_bins: np.ndarray
 
 
 def plot_maps(directories: dict[str, Path], values_by_sample: dict) -> None:
-    e_bins = energy_bins(values_by_sample)
+    log_bins = energy_bins(values_by_sample)
+    linear_bins = linear_energy_bins(values_by_sample)
     cos_bins = np.linspace(-1, 1, 21)
     for kind, stage in (
         ("isr_matched_gen_truth", "matching"),
         ("isr_matched_gen_angle", "matching"),
         ("isr_matched_gen_hybrid", "matching"),
     ):
-        rates = {
-            sample: photon_counts(values[kind], e_bins, cos_bins) / len(values["stable_gen"]["multiplicity"])
-            for sample, values in values_by_sample.items()
-        }
-        positive = np.concatenate([rate[rate > 0] for rate in rates.values()])
-        norm = LogNorm(vmin=positive.min(), vmax=positive.max())
-        maps = {sample: np.where(rate > 0, rate, np.nan) for sample, rate in rates.items()}
-        draw_maps(directories[stage] / f"{kind}_energy_cos_theta.png", maps, e_bins, cos_bins, norm)
+        for e_bins, suffix, linear in ((log_bins, "", False), (linear_bins, "_linear", True)):
+            rates = {
+                sample: photon_counts(values[kind], e_bins, cos_bins) / len(values["stable_gen"]["multiplicity"])
+                for sample, values in values_by_sample.items()
+            }
+            if linear:
+                norm = Normalize(vmin=0, vmax=max(rate.max() for rate in rates.values()))
+                maps = rates
+            else:
+                positive = np.concatenate([rate[rate > 0] for rate in rates.values()])
+                norm = LogNorm(vmin=positive.min(), vmax=positive.max())
+                maps = {sample: np.where(rate > 0, rate, np.nan) for sample, rate in rates.items()}
+            draw_maps(directories[stage] / f"{kind}_energy_cos_theta{suffix}.png",
+                      maps, e_bins, cos_bins, norm, linear)

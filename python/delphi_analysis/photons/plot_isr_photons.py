@@ -55,9 +55,11 @@ def finish(ax, sample, xlabel, ylabel, legend_loc='upper right', legend_columns=
                        rlabel='LEP 1 (91.2 GeV)', loc=0, ax=ax)
 
 
-def plot_bins(name, arrays):
+def plot_bins(name, arrays, linear=False):
     if name == 'energy':
         values = np.concatenate(arrays)
+        if linear:
+            return np.arange(0, 10 * np.ceil(values.max() / 10) + 1), r'$E_\gamma$ [GeV]'
         return (np.geomspace(10 ** np.floor(np.log10(values.min())),
                             10 ** np.ceil(np.log10(values.max())), 61), r'$E_\gamma$ [GeV]')
     if name == 'cos_theta':
@@ -68,8 +70,8 @@ def plot_bins(name, arrays):
     return np.arange(-0.5, maximum + 1.5), r'$N_\gamma$'
 
 
-def set_population_scale(ax, name, peak, log_y):
-    if name == 'energy':
+def set_population_scale(ax, name, peak, log_y, linear=False):
+    if name == 'energy' and not linear:
         ax.set_xscale('log')
     if log_y:
         ax.set_yscale('log')
@@ -84,9 +86,9 @@ COMPONENTS = (
 )
 
 
-def plot_gen_reco(output, name, values_by_sample, sample, gen_kind):
+def plot_gen_reco(output, name, values_by_sample, sample, gen_kind, linear=False):
     bins, xlabel = plot_bins(name, [v[kind][name] for v in values_by_sample.values()
-                                     for kind in (gen_kind, 'reco')])
+                                     for kind in (gen_kind, 'reco')], linear)
     fig, ax = plt.subplots(figsize=FIGURE_SIZE)
     n_events = len(values_by_sample[sample]['stable_gen']['multiplicity'])
     bottom = np.zeros(len(bins) - 1)
@@ -129,7 +131,7 @@ def plot_gen_reco(output, name, values_by_sample, sample, gen_kind):
         reco = np.nan_to_num(reco, nan=0)
     reco_counts = np.histogram(reco, bins=bins)[0]
     assert reco_counts.sum() == len(reco)
-    centers = np.sqrt(bins[:-1] * bins[1:]) if name == 'energy' else (bins[:-1] + bins[1:]) / 2
+    centers = np.sqrt(bins[:-1] * bins[1:]) if name == 'energy' and not linear else (bins[:-1] + bins[1:]) / 2
     shown = reco_counts > 0
     reco_label = 'Reco photons (all)' if gen_kind == 'stable_gen_wo_beam' else POPULATIONS['reco']
     ax.errorbar(centers[shown], reco_counts[shown] / n_events,
@@ -137,23 +139,24 @@ def plot_gen_reco(output, name, values_by_sample, sample, gen_kind):
                 fmt='o', color='black', markersize=6, capsize=2, linewidth=1,
                 zorder=5, label=reco_label)
     peak = max(peak, reco_counts.max() / n_events)
-    log_y = gen_kind == 'stable_gen' and name != 'multiplicity'
-    set_population_scale(ax, name, peak, log_y)
+    log_y = not linear and gen_kind == 'stable_gen' and name != 'multiplicity'
+    set_population_scale(ax, name, peak, log_y, linear)
     if name == 'energy' and log_y:
         ax.set_ylim(top=peak * 50)
     if name == 'multiplicity':
         ax.set_ylim(0, 1.05)
     finish(ax, sample, xlabel, 'Event fraction' if name == 'multiplicity' else COUNT_LABEL,
-           'upper left' if name == 'energy' else 'upper center' if name == 'cos_theta' else 'upper right',
+           'upper right' if name == 'energy' and linear else 'upper left' if name == 'energy'
+           else 'upper center' if name == 'cos_theta' else 'upper right',
            2 if name == 'energy' else 1)
     fig.tight_layout()
-    fig.savefig(output / f'gen_reco_{name}.png', dpi=150)
+    fig.savefig(output / f'gen_reco_{name}{"_linear" if linear else ""}.png', dpi=150)
     plt.close(fig)
 
 
-def plot_matched_isr(output, name, values_by_sample, sample):
+def plot_matched_isr(output, name, values_by_sample, sample, linear=False):
     keys = [f'isr_matched_gen_{method}' for method in MATCH_METHODS]
-    bins, xlabel = plot_bins(name, [v[key][name] for v in values_by_sample.values() for key in keys])
+    bins, xlabel = plot_bins(name, [v[key][name] for v in values_by_sample.values() for key in keys], linear)
     fig, ax = plt.subplots(figsize=FIGURE_SIZE)
     n_events = len(values_by_sample[sample]['stable_gen']['multiplicity'])
     peak = 0
@@ -163,18 +166,18 @@ def plot_matched_isr(output, name, values_by_sample, sample):
             values = np.nan_to_num(values, nan=0)
         counts = count_curve(ax, values, bins, n_events, f'C{index}', METHOD_LABELS[method])
         peak = max(peak, counts.max() / n_events)
-    set_population_scale(ax, name, peak, name == 'energy')
+    set_population_scale(ax, name, peak, name == 'energy' and not linear, linear)
     finish(ax, sample, xlabel, 'Event fraction' if name == 'multiplicity' else COUNT_LABEL)
     fig.tight_layout()
-    fig.savefig(output / f'isr_matched_gen_{name}.png', dpi=150)
+    fig.savefig(output / f'isr_matched_gen_{name}{"_linear" if linear else ""}.png', dpi=150)
     plt.close(fig)
 
 
-def plot_efficiency(output, name, gen_kind, matched_prefix, filename, values, sample, e_bins):
+def plot_efficiency(output, name, gen_kind, matched_prefix, filename, values, sample, e_bins, linear=False):
     bins = e_bins if name == 'energy' else np.linspace(-1, 1, 21)
     denominator = np.histogram(values[gen_kind][name], bins=bins)[0]
     assert denominator.sum() == len(values[gen_kind][name])
-    centers = np.sqrt(bins[:-1] * bins[1:]) if name == 'energy' else (bins[:-1] + bins[1:]) / 2
+    centers = np.sqrt(bins[:-1] * bins[1:]) if name == 'energy' and not linear else (bins[:-1] + bins[1:]) / 2
     valid = denominator > 0
     fig, ax = plt.subplots(figsize=FIGURE_SIZE)
     for index, method in enumerate(MATCH_METHODS):
@@ -189,18 +192,21 @@ def plot_efficiency(output, name, gen_kind, matched_prefix, filename, values, sa
         ax.errorbar(centers[valid], ratio[valid],
                     yerr=[ratio[valid] - lower[valid], upper[valid] - ratio[valid]],
                     fmt='.', color=color, markersize=4, capsize=2, linewidth=0.8)
-    if name == 'energy':
+    if name == 'energy' and not linear:
         ax.set_xscale('symlog', linthresh=0.1)
     ax.set_xlim(bins[0], bins[-1])
-    ax.set_ylim(0, 0.30 if name == 'energy' else 0.08)
+    if linear:
+        ax.set_ylim(0, 1.05)
+    else:
+        ax.set_ylim(0, 0.30 if name == 'energy' else 0.08)
     xlabel = r'$E_\gamma^{\mathrm{gen}}$ [GeV]' if name == 'energy' else r'$\cos\theta_\gamma^{\mathrm{gen}}$'
     finish(ax, sample, xlabel, 'Efficiency', 'upper left')
     fig.tight_layout()
-    fig.savefig(output / f'{filename}_efficiency_vs_{name}.png', dpi=150)
+    fig.savefig(output / f'{filename}_efficiency_vs_{name}{"_linear" if linear else ""}.png', dpi=150)
     plt.close(fig)
 
 
-def plot_angle_scan(output, values_by_sample):
+def plot_angle_scan(output, values_by_sample, linear=False):
     cuts = np.linspace(0.001, SCAN_MAX_ANGLE, 100)
     fig, ax = plt.subplots(figsize=FIGURE_SIZE)
     for name, color, label in (
@@ -212,11 +218,15 @@ def plot_angle_scan(output, values_by_sample):
         angles = np.sort(np.concatenate([v['angle_scan'][name] for v in values_by_sample.values()]))
         ax.plot(cuts, np.searchsorted(angles, cuts), color=color, label=label)
     ax.axvline(MAX_ANGLE, color='black', linestyle='--', label=f'{MAX_ANGLE:g} rad cut')
-    ax.set_yscale('log')
+    if not linear:
+        ax.set_yscale('log')
+    else:
+        ax.set_ylim(bottom=0)
     ax.set_xlim(0, SCAN_MAX_ANGLE)
-    finish(ax, '5 samples', 'Opening-angle cut [rad]', 'ISR pairs', 'lower left')
+    finish(ax, '5 samples', 'Opening-angle cut [rad]', 'ISR pairs',
+           'center' if linear else 'lower left')
     fig.tight_layout()
-    fig.savefig(output / 'isr_opening_angle_cut_scan.png', dpi=150)
+    fig.savefig(output / f'isr_opening_angle_cut_scan{"_linear" if linear else ""}.png', dpi=150)
     plt.close(fig)
 
 
@@ -231,6 +241,7 @@ def plot_isr_photons(input_root: Path, output_root: Path):
         directory.mkdir(parents=True, exist_ok=True)
     values = {sample: read_sample(input_root, sample) for sample in SAMPLES}
     e_bins = energy_bins(values)
+    linear_e_bins = plot_bins('energy', [v['stable_gen']['energy'] for v in values.values()], True)[0]
     for sample in SAMPLES:
         sample_dirs = {name: directory / sample for name, directory in directories.items()}
         for directory in sample_dirs.values():
@@ -239,11 +250,22 @@ def plot_isr_photons(input_root: Path, output_root: Path):
             plot_gen_reco(sample_dirs['gen_reco'], name, values, sample, 'stable_gen')
             plot_gen_reco(sample_dirs['wo_beam'], name, values, sample, 'stable_gen_wo_beam')
             plot_matched_isr(sample_dirs['matching'], name, values, sample)
+            if name != 'multiplicity':
+                plot_gen_reco(sample_dirs['gen_reco'], name, values, sample, 'stable_gen', True)
+            if name == 'energy':
+                plot_gen_reco(sample_dirs['wo_beam'], name, values, sample, 'stable_gen_wo_beam', True)
+                plot_matched_isr(sample_dirs['matching'], name, values, sample, True)
         for name in ('energy', 'cos_theta'):
             plot_efficiency(sample_dirs['efficiency'], name, 'isr', 'isr_matched_gen',
                             'all_isr', values[sample], sample, e_bins)
             plot_efficiency(sample_dirs['efficiency'], name, 'noncollinear_isr',
                             'nonbeam_isr_matched_gen', 'nonbeam_isr', values[sample], sample, e_bins)
+            if name == 'energy':
+                plot_efficiency(sample_dirs['efficiency'], name, 'isr', 'isr_matched_gen',
+                                'all_isr', values[sample], sample, linear_e_bins, True)
+                plot_efficiency(sample_dirs['efficiency'], name, 'noncollinear_isr',
+                                'nonbeam_isr_matched_gen', 'nonbeam_isr', values[sample], sample, linear_e_bins, True)
     plot_angle_scan(directories['matching'], values)
+    plot_angle_scan(directories['matching'], values, True)
     plot_maps(directories, values)
     print(f'plots: {study}')
