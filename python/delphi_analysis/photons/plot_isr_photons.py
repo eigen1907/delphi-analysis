@@ -1,11 +1,10 @@
-"""The same Gen-unit truth study for photons, ISR, and ISR without beam photons."""
+"""Gen-photon reconstruction, recovered energy, and reco-linked Sim diagnostics."""
 import json
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import mplhep as mh
 import numpy as np
-from matplotlib.colors import LogNorm, Normalize
 from matplotlib.ticker import MaxNLocator
 from scipy.stats import beta
 
@@ -13,9 +12,6 @@ from .data import POPULATIONS, SAMPLES, read_sample
 
 FIGURE_SIZE = (11, 9)
 COVERAGE = 0.6826894921370859
-COUNT_LABEL = r'$N_\gamma$ / bin per event'
-COS_BINS = np.linspace(-1, 1, 41)
-TOPOLOGIES = ('no_sim', 'direct', 'shower')
 
 
 def clopper_pearson(numerator, denominator):
@@ -54,6 +50,8 @@ def count_plot(path, sample, entries, bins, normalization, xlabel, ylabel, label
     fig, ax = plt.subplots(figsize=FIGURE_SIZE)
     ax.stairs(counts / normalization, bins, color='C0', label=label)
     centers = np.sqrt(bins[:-1] * bins[1:]) if xscale == 'log' else (bins[:-1] + bins[1:]) / 2
+    if xscale == 'symlog' and not linear:
+        centers[0] = 0  # The first bin contains only unmatched photons with ratio zero.
     shown = counts > 0
     ax.errorbar(centers[shown], counts[shown] / normalization,
                 yerr=np.sqrt(counts[shown]) / normalization,
@@ -63,7 +61,7 @@ def count_plot(path, sample, entries, bins, normalization, xlabel, ylabel, label
         ax.set_ylim(top=counts.max() / normalization * 10)
         ax.set_xscale(xscale)
         if xscale == 'symlog':
-            ax.set_xscale('symlog', linthresh=0.001)  # Display scale only, never an angle cut.
+            ax.set_xscale('symlog', linthresh=bins[1])  # Keep zero visible; display scale only.
     else:
         ax.set_ylim(0, 1.4 * (counts + np.sqrt(counts)).max() / normalization)
     ax.set_xlim(bins[0], bins[-1])
@@ -72,117 +70,111 @@ def count_plot(path, sample, entries, bins, normalization, xlabel, ylabel, label
     finish(fig, ax, path, sample, xlabel, ylabel)
 
 
-def fraction_plot(path, sample, coordinates, bins, numerators, denominators, labels, linear):
+def efficiency_plot(path, sample, coordinates, bins, numerator, denominator, linear):
     fig, ax = plt.subplots(figsize=FIGURE_SIZE)
     centers = np.sqrt(bins[:-1] * bins[1:]) if coordinates == 'energy' and not linear else (bins[:-1] + bins[1:]) / 2
-    for index, (numerator, denominator, label) in enumerate(zip(numerators, denominators, labels, strict=True)):
-        assert np.all(numerator <= denominator)
-        shown = denominator > 0
-        ratio = np.divide(numerator, denominator, out=np.full(len(denominator), np.nan), where=shown)
-        lower, upper = clopper_pearson(numerator, denominator)
-        ax.stairs(ratio, bins, baseline=None, color=f'C{index}', label=label)
-        ax.errorbar(centers[shown], ratio[shown],
-                    yerr=[ratio[shown] - lower[shown], upper[shown] - ratio[shown]],
-                    fmt='o', color=f'C{index}', markersize=4, capsize=2, linewidth=0.8)
+    assert np.all(numerator <= denominator)
+    shown = denominator > 0
+    ratio = np.divide(numerator, denominator, out=np.full(len(denominator), np.nan), where=shown)
+    lower, upper = clopper_pearson(numerator, denominator)
+    ax.stairs(ratio, bins, baseline=None, color='C0', label='Gen → Reco')
+    ax.errorbar(centers[shown], ratio[shown],
+                yerr=[ratio[shown] - lower[shown], upper[shown] - ratio[shown]],
+                fmt='o', color='C0', markersize=4, capsize=2, linewidth=0.8)
     if coordinates == 'energy' and not linear:
         ax.set_xscale('log')
     ax.set_xlim(bins[0], bins[-1])
-    ax.set_ylim(0, 1.45 if len(labels) > 1 else 1.25)
+    ax.set_ylim(0, 1.25)
     ax.set_yticks(np.linspace(0, 1, 6))
     xlabel = r'$E_\gamma^{\rm gen}$ [GeV]' if coordinates == 'energy' else r'$\cos\theta_\gamma^{\rm gen}$'
-    finish(fig, ax, path, sample, xlabel, 'Fraction' if len(labels) > 1 else 'Efficiency')
+    finish(fig, ax, path, sample, xlabel, 'Efficiency')
 
 
-def map_plot(path, sample, entries, bins, normalization, xlabel, ylabel, colorlabel, linear, energy_axis=False):
-    counts = np.histogram2d(*entries, bins=bins)[0]
-    assert counts.sum() == len(entries[0]), 'Map must retain every selected Gen photon'
-    rates = counts / normalization
-    norm = Normalize(vmin=0, vmax=rates.max()) if linear else LogNorm(vmin=rates[rates > 0].min(), vmax=rates.max())
+def recovery_profile(path, sample, coordinates, ratios, bins, xlabel, linear):
+    """Unweighted mean ratio per Gen photon, including unmatched zeros, with SEM."""
+    counts = np.histogram(coordinates, bins=bins)[0]
+    sums = np.histogram(coordinates, bins=bins, weights=ratios)[0]
+    squares = np.histogram(coordinates, bins=bins, weights=ratios ** 2)[0]
+    assert counts.sum() == len(ratios)
+    mean = np.divide(sums, counts, out=np.full(len(counts), np.nan), where=counts > 0)
+    measured = counts > 1
+    sem = np.sqrt(np.maximum(squares[measured] - sums[measured] ** 2 / counts[measured], 0)
+                  / (counts[measured] * (counts[measured] - 1)))
+    centers = (bins[:-1] + bins[1:]) / 2 if linear else np.sqrt(bins[:-1] * bins[1:])
     fig, ax = plt.subplots(figsize=FIGURE_SIZE)
-    mesh = ax.pcolormesh(*bins, rates.T if linear else np.ma.masked_equal(rates.T, 0),
-                         cmap='viridis', norm=norm, shading='flat', rasterized=True)
-    fig.colorbar(mesh, ax=ax, pad=0.025).set_label(colorlabel)
-    if energy_axis and not linear:
+    ax.stairs(mean, bins, baseline=None, color='C0', label='All gen (unmatched = 0)')
+    ax.plot(centers[counts > 0], mean[counts > 0], 'o', color='C0', markersize=4)
+    ax.errorbar(centers[measured], mean[measured], yerr=sem, fmt='none', color='C0', capsize=2)
+    if not linear:
         ax.set_xscale('log')
-    if not energy_axis:
-        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-        ax.yaxis.set_major_locator(MaxNLocator(integer=True))
-    ax.set_xlim(bins[0][0], bins[0][-1])
-    ax.set_ylim(bins[1][0], bins[1][-1])
-    finish(fig, ax, path, sample, xlabel, ylabel)
+    ax.set_xlim(bins[0], bins[-1])
+    ax.set_ylim(bottom=0)
+    finish(fig, ax, path, sample, xlabel, r'$\langle\sum E^{\rm reco}/E_\gamma^{\rm gen}\rangle$')
 
 
-def plot_population(output, sample, pop, all_populations, n_events):
-    """Seventeen requested plots, plus fully linear versions of logarithmic ones."""
+def species_plot(path, sample, links, linear):
+    codes = links['mass_code']
+    groups = (codes == 21, np.abs(codes) == 2, (codes != 21) & (np.abs(codes) != 2))
+    bottom = np.zeros(3)
+    fig, ax = plt.subplots(figsize=FIGURE_SIZE)
+    for index, (selected, label) in enumerate(((links['depth'] == 0, 'Direct'), (links['depth'] > 0, 'Descendant'))):
+        counts = np.array([np.count_nonzero(group & selected) for group in groups])
+        ax.bar(np.arange(3), counts / len(codes), bottom=bottom, label=label,
+               color=f'C{index}', hatch='' if index == 0 else '//')
+        bottom += counts / len(codes)
+    counts = np.array([np.count_nonzero(group) for group in groups])
+    ax.errorbar(np.arange(3), bottom, yerr=np.sqrt(counts) / len(codes), fmt='o', color='black', capsize=2)
+    ax.set_xticks(np.arange(3), (r'$\gamma$', r'$e^\pm$', 'Other'))
+    if not linear:
+        ax.set_yscale('log')
+        ax.set_ylim(top=10)
+    else:
+        ax.set_ylim(0, 1.4)
+    finish(fig, ax, path, sample, 'Linked Sim species', 'Reco fraction')
+
+
+def plot_population(output, sample, pop, links, all_populations, all_links):
+    """Nine observables; logarithmic figures also have fully linear siblings."""
     energies = np.concatenate([other['energy'] for other in all_populations])
-    log_energy = log_bins(energies, 6)
     efficiency_energy = log_bins(energies, 3)
     linear_energy = np.arange(0, 10 * np.ceil(energies.max() / 10) + 1)
-    with_sim, with_reco = pop['sim_count'] > 0, pop['reco_count'] > 0
+    with_reco = pop['reco_count'] > 0
     n_gen = len(pop['energy'])
-    assert np.all(~with_reco | with_sim)
-    assert np.isin(pop['topology'], [0, 1, 2]).all()
     for linear in (False, True):
         suffix = '_linear' if linear else ''
-        e_bins = linear_energy if linear else log_energy
-        count_plot(output / f'gen_energy{suffix}.png', sample, pop['energy'], e_bins, n_events,
-                   r'$E_\gamma^{\rm gen}$ [GeV]', COUNT_LABEL, 'Gen', linear, 'log')
-        count_plot(output / f'gen_cos_theta{suffix}.png', sample, pop['cos_theta'], COS_BINS, n_events,
-                   r'$\cos\theta_\gamma^{\rm gen}$', COUNT_LABEL, 'Gen', linear)
-        map_plot(output / f'gen_energy_cos_theta{suffix}.png', sample,
-                 (pop['energy'], pop['cos_theta']), (e_bins, COS_BINS), n_events,
-                 r'$E_\gamma^{\rm gen}$ [GeV]', r'$\cos\theta_\gamma^{\rm gen}$', COUNT_LABEL, linear, True)
         for coordinates, bins in (('energy', linear_energy if linear else efficiency_energy),
                                   ('cos_theta', np.linspace(-1, 1, 21))):
             if coordinates == 'cos_theta' and linear:
-                continue  # These fraction/efficiency figures already have only linear axes.
+                continue  # Both cos(theta) figures already have only linear axes.
             gen_counts = np.histogram(pop[coordinates], bins=bins)[0]
-            sim_counts = np.histogram(pop[coordinates][with_sim], bins=bins)[0]
             reco_counts = np.histogram(pop[coordinates][with_reco], bins=bins)[0]
-            assert gen_counts.sum() == n_gen and sim_counts.sum() == with_sim.sum() and reco_counts.sum() == with_reco.sum()
-            valid = sim_counts > 0
-            assert np.allclose(sim_counts[valid] / gen_counts[valid] * reco_counts[valid] / sim_counts[valid],
-                               reco_counts[valid] / gen_counts[valid])
-            topology = [np.histogram(pop[coordinates][pop['topology'] == code], bins=bins)[0] for code in range(3)]
-            assert np.array_equal(np.sum(topology, axis=0), gen_counts)
-            fraction_plot(output / f'topology_fraction_vs_{coordinates}{suffix}.png', sample,
-                          coordinates, bins, topology, [gen_counts] * 3, TOPOLOGIES, linear)
-            for name, numerator, denominator, label in (
-                ('gen_to_sim', sim_counts, gen_counts, 'Gen → Sim'),
-                ('sim_to_reco', reco_counts, sim_counts, 'Sim → Reco'),
-                ('gen_to_reco', reco_counts, gen_counts, 'Gen → Reco'),
-            ):
-                fraction_plot(output / f'{name}_efficiency_vs_{coordinates}{suffix}.png', sample,
-                              coordinates, bins, [numerator], [denominator], [label], linear)
-        multiplicity_bins = []
-        for field, filename, xlabel in (
-            ('sim_gamma_count', 'sim_gamma_multiplicity', r'$N_\gamma^{\rm Sim}$'),
-            ('reco_count', 'reco_gamma_multiplicity', r'$N_\gamma^{\rm reco}$'),
-        ):
-            bins = np.arange(-0.5, max(other[field].max() for other in all_populations) + 1.5)
-            multiplicity_bins.append(bins)
-            count_plot(output / f'{filename}{suffix}.png', sample, pop[field], bins, n_gen,
-                       xlabel, 'Gen fraction', 'Gen', linear)
-        map_plot(output / f'sim_vs_reco_multiplicity{suffix}.png', sample,
-                 (pop['sim_gamma_count'], pop['reco_count']), multiplicity_bins, n_gen,
-                 r'$N_\gamma^{\rm Sim}$', r'$N_\gamma^{\rm reco}$', 'Gen fraction', linear)
+            assert gen_counts.sum() == n_gen and reco_counts.sum() == with_reco.sum()
+            efficiency_plot(output / f'gen_to_reco_efficiency_vs_{coordinates}{suffix}.png', sample,
+                            coordinates, bins, reco_counts, gen_counts, linear)
+            xlabel = r'$E_\gamma^{\rm gen}$ [GeV]' if coordinates == 'energy' else r'$\cos\theta_\gamma^{\rm gen}$'
+            recovery_profile(output / f'energy_recovery_vs_{coordinates}{suffix}.png', sample,
+                             pop[coordinates], pop['summed_ratio'], bins, xlabel, linear or coordinates == 'cos_theta')
+        bins = np.arange(-0.5, max(other['reco_count'].max() for other in all_populations) + 1.5)
+        count_plot(output / f'reco_gamma_multiplicity{suffix}.png', sample, pop['reco_count'], bins, n_gen,
+                   r'$N_\gamma^{\rm reco}$ / gen', 'Gen fraction', 'All gen', linear)
         for field, filename, xlabel in (
             ('leading_ratio', 'leading_energy_response', r'$E_{\rm leading}^{\rm reco}/E_\gamma^{\rm gen}$'),
             ('summed_ratio', 'summed_energy_response', r'$\sum E_\gamma^{\rm reco}/E_\gamma^{\rm gen}$'),
-            ('opening_angle', 'angular_response', r'$\Delta\theta$ [rad]'),
         ):
-            entries = pop[field][with_reco]
+            entries = pop[field] if field == 'summed_ratio' else pop[field][with_reco]
             all_entries = np.concatenate([other[field][other['reco_count'] > 0] for other in all_populations])
             assert np.all(np.isfinite(entries))
-            if field == 'opening_angle':
-                bins = np.linspace(0, np.pi, 81) if linear else np.r_[0, np.geomspace(1e-8, np.pi, 81)]
-                xscale = 'symlog'
-            else:
-                assert np.all(entries > 0)
-                bins = np.linspace(0, np.nextafter(all_entries.max(), np.inf), 81) if linear else log_bins(all_entries, 6)
-                xscale = 'log'
-            count_plot(output / f'{filename}{suffix}.png', sample, entries, bins, with_reco.sum(),
-                       xlabel, 'Fraction / bin', 'Matched gen', linear, xscale)
+            bins = np.linspace(0, np.nextafter(all_entries.max(), np.inf), 81) if linear else log_bins(all_entries, 6)
+            summed = field == 'summed_ratio'
+            if summed and not linear:
+                bins = np.r_[0, bins]
+            count_plot(output / f'{filename}{suffix}.png', sample, entries, bins,
+                       n_gen if summed else with_reco.sum(), xlabel, 'Gen fraction / bin',
+                       'All gen (unmatched = 0)' if summed else 'Matched gen', linear, 'symlog' if summed else 'log')
+        depth_bins = np.arange(-0.5, max(other['depth'].max() for other in all_links) + 1.5)
+        count_plot(output / f'linked_sim_depth{suffix}.png', sample, links['depth'], depth_bins, len(links['depth']),
+                   'Sim ancestry depth', 'Reco fraction', 'Truth-associated reco', linear)
+        species_plot(output / f'linked_sim_species{suffix}.png', sample, links, linear)
 
 
 def write_summary(output, values):
@@ -191,23 +183,31 @@ def write_summary(output, values):
         populations = {}
         for name, pop in values_sample['populations'].items():
             n_gen = len(pop['energy'])
-            n_sim, n_reco = int(np.count_nonzero(pop['sim_count'])), int(np.count_nonzero(pop['reco_count']))
-            efficiencies = {}
-            for label, numerator, denominator in (
-                ('gen_to_sim', n_sim, n_gen), ('sim_to_reco', n_reco, n_sim), ('gen_to_reco', n_reco, n_gen),
-            ):
-                lower, upper = clopper_pearson(np.array([numerator]), np.array([denominator]))
-                efficiencies[label] = dict(numerator=numerator, denominator=denominator,
-                                          efficiency=numerator / denominator if denominator else None,
-                                          lower=float(lower[0]) if denominator else None,
-                                          upper=float(upper[0]) if denominator else None)
+            matched = pop['reco_count'] > 0
+            n_reco = int(matched.sum())
+            lower, upper = clopper_pearson(np.array([n_reco]), np.array([n_gen]))
+            links = values_sample['linked_sim'][name]
+            codes, counts = np.unique(links['mass_code'], return_counts=True)
+            ratio = pop['summed_ratio']
             populations[name] = dict(
                 gen_photons=n_gen,
-                topology=dict(zip(TOPOLOGIES, map(int, np.bincount(pop['topology'], minlength=3)), strict=True)),
-                efficiency_68_percent_cp=efficiencies,
-                sim_gamma_descendants=int(pop['sim_gamma_count'].sum()),
+                gen_to_reco_efficiency_68_percent_cp=dict(numerator=n_reco, denominator=n_gen,
+                    efficiency=n_reco / n_gen, lower=float(lower[0]), upper=float(upper[0])),
                 associated_reco_candidates=int(pop['reco_count'].sum()),
                 gen_with_multiple_reco=int(np.count_nonzero(pop['reco_count'] > 1)),
+                energy_recovery=dict(mean_all_gen=float(ratio.mean()), mean_matched_gen=float(ratio[matched].mean()),
+                    matched_quantiles_16_50_84=np.quantile(ratio[matched], [0.16, 0.5, 0.84]).tolist(),
+                    gen_with_ratio_above_one=int(np.count_nonzero(ratio > 1)), max_ratio=float(ratio.max()),
+                    total_gen_energy_GeV=float(pop['energy'].sum()),
+                    total_associated_reco_energy_GeV=float(np.sum(pop['energy'] * ratio)),
+                    ratio_of_total_energies=float(np.sum(pop['energy'] * ratio) / pop['energy'].sum())),
+                linked_sim=dict(direct=int(np.count_nonzero(links['depth'] == 0)),
+                    descendant=int(np.count_nonzero(links['depth'] > 0)),
+                    nonterminal=int(np.count_nonzero(links['has_children'])),
+                    mass_codes=dict(zip(map(str, codes), map(int, counts), strict=True)),
+                    depth_counts=np.bincount(links['depth']).tolist()),
+                saved_lineage_diagnostic=dict(gen_with_lineage=int(np.count_nonzero(pop['sim_count'])),
+                    gen_with_secondary_sim=int(np.count_nonzero(pop['descendant_count']))),
             )
         summary[sample] = dict(events=values_sample['events'], association=values_sample['association'], populations=populations)
     (output / 'study_summary.json').write_text(json.dumps(summary, indent=2, allow_nan=False) + '\n')
@@ -219,9 +219,11 @@ def plot_isr_photons(input_root: Path, output_root: Path):
     values = {sample: read_sample(input_root, sample) for sample in SAMPLES}
     for population in POPULATIONS:
         all_populations = [values[sample]['populations'][population] for sample in SAMPLES]
+        all_links = [values[sample]['linked_sim'][population] for sample in SAMPLES]
         for sample in SAMPLES:
             output = study / population / sample
             output.mkdir(parents=True, exist_ok=True)
-            plot_population(output, sample, values[sample]['populations'][population], all_populations, values[sample]['events'])
+            plot_population(output, sample, values[sample]['populations'][population],
+                            values[sample]['linked_sim'][population], all_populations, all_links)
     write_summary(study, values)
     print(f'plots: {study}')
