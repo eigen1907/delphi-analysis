@@ -18,9 +18,10 @@ POPULATIONS = {
     "noncollinear_isr": "Non-beam ISR",
     "fsr": "FSR",
     "others": "Others",
-    "isr_matched_gen_truth": "Truth match",
+    "isr_matched_gen_truth": "Truth ancestry",
+    "isr_matched_gen_direct": "Direct truth",
     "isr_matched_gen_angle": "Opening angle match",
-    "isr_matched_gen_hybrid": "Truth + angle fallback",
+    "isr_matched_gen_recovery": "Truth + geometry",
 }
 
 
@@ -43,7 +44,7 @@ def linear_energy_bins(values_by_sample: dict) -> np.ndarray:
     energies = np.concatenate([
         values[kind]["energy"]
         for values in values_by_sample.values()
-        for kind in ("isr_matched_gen_truth", "isr_matched_gen_angle", "isr_matched_gen_hybrid")
+        for kind in ("isr_matched_gen_truth",)
     ])
     high = 10 * np.ceil(energies.max() / 10)
     return np.arange(0, high + 2, 2)
@@ -90,8 +91,6 @@ def plot_maps(directories: dict[str, Path], values_by_sample: dict) -> None:
     cos_bins = np.linspace(-1, 1, 21)
     for kind, stage in (
         ("isr_matched_gen_truth", "matching"),
-        ("isr_matched_gen_angle", "matching"),
-        ("isr_matched_gen_hybrid", "matching"),
     ):
         for e_bins, suffix, linear in ((log_bins, "", False), (linear_bins, "_linear", True)):
             rates = {

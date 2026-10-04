@@ -1,4 +1,5 @@
-"""Generator, reco, matching, and ISR-efficiency plots for the Florian samples."""
+"""Truth-associated ISR efficiency, response, and geometric cross-checks."""
+import json
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -15,9 +16,10 @@ COVERAGE = 0.6826894921370859
 FIGURE_SIZE = (11, 9)
 COUNT_LABEL = r'$N_\gamma$ / bin per event'
 METHOD_LABELS = {
-    'truth': 'Truth only',
+    'direct': 'Direct truth',
+    'truth': 'Truth ancestry',
     'angle': f'Angle only (< {MAX_ANGLE:g} rad)',
-    'hybrid': f'Truth + angle (< {MAX_ANGLE:g} rad)',
+    'recovery': f'Truth + geometry (< {MAX_ANGLE:g} rad)',
 }
 
 
@@ -153,39 +155,46 @@ def plot_gen_reco(output, name, values_by_sample, sample, gen_kind, linear=False
     plt.close(fig)
 
 
-def plot_matched_isr(output, name, values_by_sample, sample, linear=False):
-    keys = [f'isr_matched_gen_{method}' for method in MATCH_METHODS]
+def plot_matched_isr(output, name, values_by_sample, sample, linear=False, methods=('truth',)):
+    keys = [f'isr_matched_gen_{method}' for method in methods]
     bins, xlabel = plot_bins(name, [v[key][name] for v in values_by_sample.values() for key in keys], linear)
     fig, ax = plt.subplots(figsize=FIGURE_SIZE)
     n_events = len(values_by_sample[sample]['stable_gen']['multiplicity'])
     peak = 0
-    for index, method in enumerate(MATCH_METHODS):
+    for index, method in enumerate(methods):
         values = values_by_sample[sample][f'isr_matched_gen_{method}'][name]
         if name == 'phi':
             values = np.nan_to_num(values, nan=0)
         counts = count_curve(ax, values, bins, n_events, f'C{index}', METHOD_LABELS[method])
         peak = max(peak, counts.max() / n_events)
     set_population_scale(ax, name, peak, name == 'energy' and not linear, linear)
-    finish(ax, sample, xlabel, 'Event fraction' if name == 'multiplicity' else COUNT_LABEL)
+    columns = 2 if len(methods) > 1 and name != 'multiplicity' else 1
+    if columns == 2 and (linear or name != 'energy'):
+        ax.set_ylim(0, peak * 1.7)
+    finish(ax, sample, xlabel, 'Event fraction' if name == 'multiplicity' else COUNT_LABEL,
+           'upper center' if columns == 2 else 'upper right', columns)
     fig.tight_layout()
     fig.savefig(output / f'isr_matched_gen_{name}{"_linear" if linear else ""}.png', dpi=150)
     plt.close(fig)
 
 
-def plot_efficiency(output, name, gen_kind, matched_prefix, filename, values, sample, e_bins, linear=False):
+def plot_efficiency(output, name, gen_kind, matched_prefix, filename, values, sample, e_bins,
+                    linear=False, methods=('truth',)):
     bins = e_bins if name == 'energy' else np.linspace(-1, 1, 21)
     denominator = np.histogram(values[gen_kind][name], bins=bins)[0]
     assert denominator.sum() == len(values[gen_kind][name])
     centers = np.sqrt(bins[:-1] * bins[1:]) if name == 'energy' and not linear else (bins[:-1] + bins[1:]) / 2
     valid = denominator > 0
     fig, ax = plt.subplots(figsize=FIGURE_SIZE)
-    for index, method in enumerate(MATCH_METHODS):
+    interval_high = 0
+    for index, method in enumerate(methods):
         selected = values[f'{matched_prefix}_{method}'][name]
         numerator = np.histogram(selected, bins=bins)[0]
         assert numerator.sum() == len(selected)
         assert np.all(numerator <= denominator)
         ratio = np.divide(numerator, denominator, out=np.full(len(denominator), np.nan), where=valid)
         lower, upper = clopper_pearson(numerator, denominator)
+        interval_high = max(interval_high, upper[valid].max())
         color = f'C{index}'
         ax.stairs(ratio, bins, color=color, linewidth=1.8, label=METHOD_LABELS[method])
         ax.errorbar(centers[valid], ratio[valid],
@@ -194,12 +203,12 @@ def plot_efficiency(output, name, gen_kind, matched_prefix, filename, values, sa
     if name == 'energy' and not linear:
         ax.set_xscale('symlog', linthresh=0.1)
     ax.set_xlim(bins[0], bins[-1])
-    if linear:
-        ax.set_ylim(0, 1.05)
-    else:
-        ax.set_ylim(0, 0.30 if name == 'energy' else 0.08)
+    top = 1.05 if linear else min(1.05, max(0.30 if name == 'energy' else 0.08, 1.1 * interval_high))
+    if len(methods) > 1:
+        top = max(top, 1.4 * interval_high)
+    ax.set_ylim(0, top)
     xlabel = r'$E_\gamma^{\mathrm{gen}}$ [GeV]' if name == 'energy' else r'$\cos\theta_\gamma^{\mathrm{gen}}$'
-    finish(ax, sample, xlabel, 'Efficiency', 'upper left')
+    finish(ax, sample, xlabel, 'Efficiency', 'upper left', 2 if len(methods) > 1 else 1)
     fig.tight_layout()
     fig.savefig(output / f'{filename}_efficiency_vs_{name}{"_linear" if linear else ""}.png', dpi=150)
     plt.close(fig)
@@ -209,9 +218,9 @@ def plot_angle_scan(output, values_by_sample, linear=False):
     cuts = np.linspace(0.001, SCAN_MAX_ANGLE, 100)
     fig, ax = plt.subplots(figsize=FIGURE_SIZE)
     for name, color, label in (
-        ('truth', 'C0', 'Truth'),
-        ('no_link', 'C1', 'No gen link'),
-        ('wrong_link', 'C2', 'Other gen'),
+        ('same_link', 'C0', 'Correct origin'),
+        ('no_link', 'C1', 'Unassociated'),
+        ('wrong_link', 'C2', 'Other origin'),
         ('beam_no_link', 'C3', 'Beam subset'),
     ):
         angles = np.sort(np.concatenate([v['angle_scan'][name] for v in values_by_sample.values()]))
@@ -222,19 +231,102 @@ def plot_angle_scan(output, values_by_sample, linear=False):
     else:
         ax.set_ylim(bottom=0)
     ax.set_xlim(0, SCAN_MAX_ANGLE)
-    finish(ax, '5 samples', 'Opening-angle cut [rad]', 'ISR pairs',
-           'center' if linear else 'lower left')
+    finish(ax, '5 samples', 'Opening-angle cut [rad]', 'Angular ISR pairs',
+           'center' if linear else 'lower right')
     fig.tight_layout()
     fig.savefig(output / f'isr_opening_angle_cut_scan{"_linear" if linear else ""}.png', dpi=150)
     plt.close(fig)
 
 
+def plot_angle_validation(output, values_by_sample):
+    cuts = np.linspace(0.001, SCAN_MAX_ANGLE, 100)
+    scan = {name: np.sort(np.concatenate([v['angle_scan'][name] for v in values_by_sample.values()]))
+            for name in ('truth', 'same_link', 'wrong_link')}
+    correct = np.searchsorted(scan['same_link'], cuts)
+    known = correct + np.searchsorted(scan['wrong_link'], cuts)
+    truth = np.searchsorted(scan['truth'], cuts)
+    fig, ax = plt.subplots(figsize=FIGURE_SIZE)
+    for index, (numerator, denominator, label) in enumerate((
+        (correct, known, 'Known-pair purity'),
+        (truth, np.full(len(cuts), len(scan['truth'])), 'Truth-pair acceptance'),
+    )):
+        valid = denominator > 0
+        ratio = numerator[valid] / denominator[valid]
+        lower, upper = clopper_pearson(numerator[valid], denominator[valid])
+        ax.plot(cuts[valid], ratio, color=f'C{index}', label=label)
+        ax.fill_between(cuts[valid], lower, upper, color=f'C{index}', alpha=0.2)
+    ax.axvline(MAX_ANGLE, color='black', linestyle='--', label=f'{MAX_ANGLE:g} rad cut')
+    ax.set_xlim(0, SCAN_MAX_ANGLE)
+    ax.set_ylim(0, 1.05)
+    finish(ax, '5 samples', 'Opening-angle cut [rad]', 'Fraction', 'lower right')
+    fig.tight_layout()
+    fig.savefig(output / 'isr_opening_angle_validation.png', dpi=150)
+    plt.close(fig)
+
+
+def write_summary(output, values_by_sample):
+    summary = {}
+    for sample, values in values_by_sample.items():
+        scan = values['angle_scan']
+        at_cut = {name: int(np.count_nonzero(angles < MAX_ANGLE)) for name, angles in scan.items()}
+        response = values['response']
+        n_truth = len(values['isr_matched_gen_truth']['energy'])
+        assert np.count_nonzero(response['reco_count']) == n_truth
+        assert response['reco_count'].sum() == len(response['gen_energy'])
+        assert len(response['group_gen_energy']) == n_truth
+        association = {name: int(counts.sum()) for name, counts in values['association_counts'].items()}
+        assert sum(association.values()) == len(values['reco']['energy'])
+        efficiencies = {}
+        for name, gen_kind, prefix in (
+            ('all_isr', 'isr', 'isr_matched_gen'),
+            ('nonbeam_isr', 'noncollinear_isr', 'nonbeam_isr_matched_gen'),
+        ):
+            n = len(values[f'{prefix}_truth']['energy'])
+            total = len(values[gen_kind]['energy'])
+            lower, upper = clopper_pearson(np.array([n]), np.array([total]))
+            efficiencies[name] = dict(numerator=n, denominator=total, efficiency=n / total,
+                                      lower=float(lower[0]), upper=float(upper[0]))
+        nonbeam = values['noncollinear_isr']
+        summary[sample] = {
+            'events': len(values['stable_gen']['multiplicity']),
+            'gen_isr': len(values['isr']['energy']),
+            'beam_isr': len(values['collinear_isr']['energy']),
+            'matched_unique_gen': {method: len(values[f'isr_matched_gen_{method}']['energy'])
+                                   for method in MATCH_METHODS},
+            'efficiency_68_percent_cp': efficiencies,
+            'reco_association': association,
+            'split_gen_isr': int(np.count_nonzero(response['reco_count'] > 1)),
+            'max_reco_per_gen_isr': int(response['reco_count'].max()),
+            'pair_energy_residual': {
+                name: float(function((response['reco_energy'] - response['gen_energy']) / response['gen_energy']))
+                for name, function in (('min', np.min), ('median', np.median), ('max', np.max))
+            },
+            'max_sim_parent_steps': int(response['depth'].max()),
+            'angular_pairs_at_0_03_rad': at_cut,
+            'known_pair_purity_at_cut': at_cut['same_link'] / (at_cut['same_link'] + at_cut['wrong_link']),
+            'truth_pair_acceptance_at_cut': at_cut['truth'] / len(scan['truth']),
+            'generator_sqrt_s': [float(values['generator']['sqrt_s'].min()), float(values['generator']['sqrt_s'].max())],
+            'metadata_cm_energy': [float(values['generator']['metadata_cm_energy'].min()), float(values['generator']['metadata_cm_energy'].max())],
+            'nonbeam_soft_forward_fractions': {
+                'energy_below_0_1_GeV': float(np.mean(nonbeam['energy'] < 0.1)),
+                'energy_below_1_GeV': float(np.mean(nonbeam['energy'] < 1)),
+                'abs_cos_theta_above_0_9': float(np.mean(np.abs(nonbeam['cos_theta']) > 0.9)),
+                'abs_cos_theta_above_0_99': float(np.mean(np.abs(nonbeam['cos_theta']) > 0.99)),
+            },
+        }
+    (output / 'study_summary.json').write_text(json.dumps(summary, indent=2) + '\n')
+
+
 def plot_isr_photons(input_root: Path, output_root: Path):
+    from .plot_generator import plot_generator
+    from .plot_response import plot_response
+
     mh.style.use(mh.styles.CMS)
     study = output_root / 'isr_photons'
     directories = {name: study / folder for name, folder in (
         ('gen_reco', '01_gen_reco'), ('wo_beam', '02_gen_reco_wo_beamISR'),
         ('matching', '03_matching'), ('efficiency', '04_efficiency'),
+        ('geometric', '05_geometric_matching'),
     )}
     for directory in directories.values():
         directory.mkdir(parents=True, exist_ok=True)
@@ -249,22 +341,37 @@ def plot_isr_photons(input_root: Path, output_root: Path):
             plot_gen_reco(sample_dirs['gen_reco'], name, values, sample, 'stable_gen')
             plot_gen_reco(sample_dirs['wo_beam'], name, values, sample, 'stable_gen_wo_beam')
             plot_matched_isr(sample_dirs['matching'], name, values, sample)
+            plot_matched_isr(sample_dirs['geometric'], name, values, sample, methods=MATCH_METHODS)
             if name != 'multiplicity':
                 plot_gen_reco(sample_dirs['gen_reco'], name, values, sample, 'stable_gen', True)
                 plot_gen_reco(sample_dirs['wo_beam'], name, values, sample, 'stable_gen_wo_beam', True)
             if name == 'energy':
                 plot_matched_isr(sample_dirs['matching'], name, values, sample, True)
+                plot_matched_isr(sample_dirs['geometric'], name, values, sample, True, MATCH_METHODS)
         for name in ('energy', 'cos_theta'):
             plot_efficiency(sample_dirs['efficiency'], name, 'isr', 'isr_matched_gen',
                             'all_isr', values[sample], sample, e_bins)
             plot_efficiency(sample_dirs['efficiency'], name, 'noncollinear_isr',
                             'nonbeam_isr_matched_gen', 'nonbeam_isr', values[sample], sample, e_bins)
+            for gen_kind, prefix, filename in (
+                ('isr', 'isr_matched_gen', 'all_isr'),
+                ('noncollinear_isr', 'nonbeam_isr_matched_gen', 'nonbeam_isr'),
+            ):
+                plot_efficiency(sample_dirs['geometric'], name, gen_kind, prefix, filename,
+                                values[sample], sample, e_bins, methods=MATCH_METHODS)
+                if name == 'energy':
+                    plot_efficiency(sample_dirs['geometric'], name, gen_kind, prefix, filename,
+                                    values[sample], sample, linear_e_bins, True, MATCH_METHODS)
             if name == 'energy':
                 plot_efficiency(sample_dirs['efficiency'], name, 'isr', 'isr_matched_gen',
                                 'all_isr', values[sample], sample, linear_e_bins, True)
                 plot_efficiency(sample_dirs['efficiency'], name, 'noncollinear_isr',
                                 'nonbeam_isr_matched_gen', 'nonbeam_isr', values[sample], sample, linear_e_bins, True)
-    plot_angle_scan(directories['matching'], values)
-    plot_angle_scan(directories['matching'], values, True)
+        plot_response(sample_dirs['matching'], values[sample], sample)
+    plot_angle_scan(directories['geometric'], values)
+    plot_angle_scan(directories['geometric'], values, True)
+    plot_angle_validation(directories['geometric'], values)
     plot_maps(directories, values)
+    plot_generator(study, values)
+    write_summary(study, values)
     print(f'plots: {study}')
