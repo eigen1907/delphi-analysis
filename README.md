@@ -111,7 +111,7 @@ reco-check.py                   reconstruction-level validation
 rich.py                         RICH storage, dtype, and consistency study
 gen-reco-track-match-cut.py     matching efficiency and cut scan
 gen-reco-track-match-result.py  matched-track residuals
-isr-photons.py                  photon topology and Gen–Sim–Reco truth efficiencies
+isr-photons.py                  Gen-photon reconstruction and associated energy response
 ```
 
 Plotting diagnostics and CSV summaries are written below
@@ -132,7 +132,8 @@ plots/20260828_florian/photon_study/
   01_gamma/<sample>/       all stable Gen photons (PDG 22, status 1)
   02_ISR/<sample>/         stable ISR, including Beam ISR
   03_noBeamISR/<sample>/   stable ISR excluding Beam ISR
-  study_summary.json      event, topology, association, and efficiency counts
+  study_summary.json      efficiency, energy response, and truth-link diagnostics
+  manual_audit/           preserved event trees and manual review
 ```
 
 The existing ISR ancestry definition is unchanged: the first non-photon ancestor
@@ -141,58 +142,71 @@ has exactly zero px and py and a direct, parentless incoming electron/positron
 parent. No energy, fiducial-angle, or angular-matching cut is applied.
 Previous results remain under `plots/20260828_florian/isr_photons/`.
 
-**One Gen photon is the analysis unit.** For every saved SimPart, follow
-`SimPart_genIdx`, or, when negative, trace parents through
-`SimPart_originVtxIdx → SimVtx_incomingIdx` to the first valid Gen anchor.
-For reco candidates, enter this graph via `Photon_partIdx → Part_simIdx`.
-Any Sim species can carry the reco association; several reco fragments count
-as just one reconstructed Gen photon. Angular matching is neither run nor used.
-
-Topology is operational and mutually exclusive:
-
-- **no_sim:** no identifiable saved Sim lineage.
-- **direct:** saved lineage, but no secondary Sim descendants.
-- **shower:** at least one saved secondary Sim descendant, of any species.
-
-Here `shower` means stored secondary activity; it does not identify a particular
-conversion/shower process or prove a detector energy deposit. Sim γ multiplicity
-counts **secondary photons only**, excluding directly Gen-linked anchors.
-`SimPart_pdgId` contains DELPHI mass codes: photons are code **21**, not PDG 22
-([SKELANA manual, printed page 42](https://opendata.cern/record/80502/files/skelana.pdf#page=44)).
-A conversion with only electron descendants is still shower topology even when
-its secondary Sim γ count is zero.
-
-Let G be selected Gen photons, S those with saved Sim lineage, and R those with
-at least one associated reco Photon:
+**One stable Gen photon is the analysis unit.** Associate each Reco Photon via
+`Photon_partIdx → Part_simIdx → SimPart_genIdx`; when the latter is negative,
+trace Sim parents through `SimPart_originVtxIdx → SimVtx_incomingIdx`.
+Stop at the **first Gen anchor**, even when it has an earlier Gen parent.
+Associate the candidate only if that origin is a selected stable Gen photon.
+Direct and descendant Sim links are equally valid; the linked Sim need not be
+a photon or a terminal node. There is no angular fallback. Candidates without
+usable truth remain unresolved; valid origins outside stable photons are counted
+separately in the summary.
 
 ```text
-Gen → Sim = N(S)/N(G)
-Sim → Reco = N(R)/N(S)   conditional, still counted per Gen photon
-Gen → Reco = N(R)/N(G)
+Gen → Reco = N(Gen photons with >=1 associated Reco Photon) / N(selected Gen photons)
+Energy recovery per Gen photon = sum(associated Reco Photon energies) / E_gen
 ```
 
-All three use the same **Gen E and Gen cos(theta)** bins, with 68.27%
-Clopper–Pearson intervals. The code checks topology coverage, `R ⊆ S ⊆ G`,
-and binwise central-value closure `εGR = εGS × εSR`. Empty denominators are
-undefined, not zero. The three ratios are correlated.
+Several reco candidates count as **one efficiency success**, while all their
+energies enter the sum. Unmatched photons have recovery **zero**, not an undefined
+value. Leading response uses the highest-energy candidate and is conditional on
+successful reconstruction. Recovery ratios are not clipped at one.
 
-Every group has Gen energy/cos(theta)/2D distributions, topology fractions,
-separate GS/SR/GR efficiencies, Sim-γ/reco multiplicities and their 2D correlation,
-and leading/summed energy ratios and leading-reco opening angle. Response
-uses only matched Gen photons; leading means highest reco energy. Multiplicity
-is normalized to all Gen photons, response to matched Gen photons, and Gen
-spectra to events. Count plots have sqrt(N) errors. All ranges retain all entries.
-Logarithmic figures have fully linear `_linear.png` siblings; cos(theta)
-fraction/efficiency figures are already linear. The angular-response symlog
-transition at 0.001 rad is only a display scale. CMS style, default font sizes,
-11×9 figures, DELPHI Simulation, and bold sample legends are retained.
+Each sample/population has the same nine observables:
 
-In these samples every stable Gen photon has a saved Sim anchor, so GS=100%
-and SR=GR. This is **saved-lineage coverage, not detector transport efficiency**.
-Beam ISR has no stored secondary descendants or associated reco candidates.
-Candidates without stored truth remain unassociated; the summary reports them.
-The saved schema cannot separate transport, acceptance, or missing-association
-causes, and no detector-interaction position is inferred from `SimVtx_position`.
+| Plots | Meaning |
+| --- | --- |
+| `gen_to_reco_efficiency_vs_{energy,cos_theta}` | Gen-unit success fraction, 68.27% Clopper–Pearson intervals |
+| `summed_energy_response` | Recovery distribution over all Gen photons, including unmatched zeros |
+| `energy_recovery_vs_{energy,cos_theta}` | Unweighted mean recovery per Gen photon, including zeros; standard error of the mean |
+| `leading_energy_response` | Highest-energy reco response among matched Gen photons |
+| `reco_gamma_multiplicity` | Reco candidates per Gen photon, including zero |
+| `linked_sim_depth` | Parent steps from the reco-linked Sim to its first Gen anchor; zero is direct |
+| `linked_sim_species` | Linked Sim species, stacked as direct/descendant |
+
+The last two are normalized per associated **Reco Photon**; the other distributions
+are normalized per Gen photon (leading response per matched Gen photon). Count
+errors are sqrt(N). Empty efficiency/profile bins are undefined. A singleton
+profile bin has no estimable standard error. Energy plots share binning across
+samples within each population: about three bins/decade, or 1 GeV for linear
+figures; cos(theta) uses 20 bins. Histograms retain all entries and tails.
+Logarithmic figures retain fully linear `_linear.png` siblings (16 files per
+sample/population). Summed response uses a linear interval at zero followed by
+a logarithmic x-axis; its first bin contains unmatched zeros only. Linear response
+histograms span the full tail and may merge the central response into a broad bin.
+CMS style, default font sizes, 11×9 figures, DELPHI Simulation, and bold sample
+legends are retained.
+
+Sim coverage and saved-secondary counts remain summary diagnostics. Separate
+GS/SR efficiencies, topology fractions, Sim-gamma multiplicity/correlation,
+standalone Gen spectra/maps, and angular response plots are removed. Every stable
+photon in these samples has a saved Sim anchor; this is **saved-lineage coverage,
+not detector transport efficiency**. `SimPart_pdgId` stores DELPHI mass codes
+(gamma=21, electron/positron=±2), not PDG IDs. Beam ISR has no associated reco.
+
+**Energy attribution is a limitation of this truth record.** A single `Part_simIdx`
+does not provide the energy contribution of every Sim particle to a reco candidate.
+Very soft Gen photons can be linked to much more energetic candidates (audited ISR:
+0.000891 GeV Gen → 1.100 GeV reco). The observable is therefore **associated reco
+energy response**, not proof that this energy came exclusively from that photon.
+Large tails can dominate arithmetic means; matched 16/50/84% quantiles and the
+ratio of total associated reco to total Gen energy are also saved in the summary.
+No energy-consistency cut is silently applied. Missing truth links and incomplete
+saved trees prevent separating transport, acceptance, and association failures:
+362,929 of 573,796 reco candidates have no usable Part→Sim link. Thus the efficiency
+measures saved truth-associated reconstruction, rather than proving all physically
+reconstructed photons have been identified. `study_notes.txt` records validation
+results and the two extreme-response event examples.
 
 For an event-level truth audit, run:
 
