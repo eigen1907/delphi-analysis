@@ -194,6 +194,20 @@ Candidates without stored truth remain unassociated; the summary reports them.
 The saved schema cannot separate transport, acceptance, or missing-association
 causes, and no detector-interaction position is inferred from `SimVtx_position`.
 
+For an event-level truth audit, run:
+
+```bash
+bash runs/photons/dump_truth_trees.sh
+```
+
+This saves ten event dumps (two per sample) and a selection index in
+`plots/20260828_florian/photon_study/manual_audit/`. Each dump includes the full
+Gen record, the full stored Sim tree, resolved Gen origins, and every reco Photon
+association. A baseline and a targeted topology case are selected per sample;
+there are no energy or angular cuts. The script checks parent vertices, tree
+coverage, Gen anchors, and agreement between forward and backward lineage tracing.
+`REVIEW.txt` in that output folder records the manual review of the selected events.
+
 ## BDT Classification
 
 The classifier uses `xgboost.XGBClassifier`. Four classes are assigned fixed labels:
