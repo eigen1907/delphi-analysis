@@ -26,7 +26,7 @@ def plot_generator(output_root: Path, values_by_sample: dict):
             widths = np.diff(bins)
             centers = np.sqrt(bins[:-1] * bins[1:]) if name == 'x_gamma' and not linear else (bins[:-1] + bins[1:]) / 2
             for sample, values in values_by_sample.items():
-                destination = output_root / '01_gen_reco' / sample
+                destination = output_root / sample
                 destination.mkdir(parents=True, exist_ok=True)
                 fig, ax = plt.subplots(figsize=FIGURE_SIZE)
                 n_events = len(values['stable_gen']['multiplicity'])

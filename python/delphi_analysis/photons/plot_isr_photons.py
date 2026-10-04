@@ -88,73 +88,6 @@ COMPONENTS = (
 )
 
 
-def plot_gen_reco(output, name, values_by_sample, sample, gen_kind, linear=False):
-    bins, xlabel = plot_bins(name, [v[kind][name] for v in values_by_sample.values()
-                                     for kind in ('stable_gen', 'reco')], linear)
-    fig, ax = plt.subplots(figsize=FIGURE_SIZE)
-    n_events = len(values_by_sample[sample]['stable_gen']['multiplicity'])
-    bottom = np.zeros(len(bins) - 1)
-    for kind, color, hatch in COMPONENTS:
-        if gen_kind == 'stable_gen_wo_beam' and kind == 'collinear_isr':
-            continue
-        values = values_by_sample[sample][kind][name]
-        if name == 'phi':
-            values = np.nan_to_num(values, nan=0)
-        label = POPULATIONS[kind]
-        counts = np.histogram(values, bins=bins)[0]
-        assert counts.sum() == len(values)
-        if name == 'multiplicity':
-            count_curve(ax, values, bins, n_events, color, label)
-        else:
-            heights = counts / n_events
-            ax.stairs(bottom + heights, bins, baseline=bottom, fill=True,
-                      facecolor=color, edgecolor=color, hatch=hatch,
-                      alpha=0.75, label=label)
-            shown = counts > 0
-            centers = ((bins[:-1] + bins[1:]) / 2)[shown]
-            ax.errorbar(centers, (bottom + heights)[shown],
-                        yerr=np.sqrt((bottom * n_events + counts)[shown]) / n_events,
-                        fmt='none', color=color, linewidth=0.8, capsize=1)
-            bottom += heights
-    if name == 'multiplicity':
-        total_label = 'Stable gen total' if gen_kind == 'stable_gen' else 'Gen total (no Beam ISR)'
-        total = count_curve(ax, values_by_sample[sample][gen_kind][name], bins,
-                            n_events, 'black', total_label, linewidth=3, markersize=5,
-                            linestyle='--')
-        peak = total.max() / n_events
-    else:
-        total_values = values_by_sample[sample][gen_kind][name]
-        if name == 'phi':
-            total_values = np.nan_to_num(total_values, nan=0)
-        assert np.allclose(bottom * n_events, np.histogram(total_values, bins=bins)[0])
-        peak = bottom.max()
-    reco = values_by_sample[sample]['reco'][name]
-    if name == 'phi':
-        reco = np.nan_to_num(reco, nan=0)
-    reco_counts = np.histogram(reco, bins=bins)[0]
-    assert reco_counts.sum() == len(reco)
-    centers = np.sqrt(bins[:-1] * bins[1:]) if name == 'energy' and not linear else (bins[:-1] + bins[1:]) / 2
-    shown = reco_counts > 0
-    ax.errorbar(centers[shown], reco_counts[shown] / n_events,
-                yerr=np.sqrt(reco_counts[shown]) / n_events,
-                fmt='o', color='black', markersize=6, capsize=2, linewidth=1,
-                zorder=5, label=POPULATIONS['reco'])
-    peak = max(peak, reco_counts.max() / n_events)
-    log_y = not linear and name != 'multiplicity'
-    set_population_scale(ax, name, peak, log_y, linear)
-    if name == 'energy' and log_y:
-        ax.set_ylim(top=peak * 50)
-    if name == 'multiplicity':
-        ax.set_ylim(0, 1.05)
-    finish(ax, sample, xlabel, 'Event fraction' if name == 'multiplicity' else COUNT_LABEL,
-           'upper right' if name == 'energy' and linear else 'upper left' if name == 'energy'
-           else 'upper center' if name == 'cos_theta' else 'upper right',
-           2 if name == 'energy' else 1)
-    fig.tight_layout()
-    fig.savefig(output / f'gen_reco_{name}{"_linear" if linear else ""}.png', dpi=150)
-    plt.close(fig)
-
-
 def plot_matched_isr(output, name, values_by_sample, sample, linear=False, methods=('truth',)):
     keys = [f'isr_matched_gen_{method}' for method in methods]
     bins, xlabel = plot_bins(name, [v[key][name] for v in values_by_sample.values() for key in keys], linear)
@@ -287,6 +220,33 @@ def write_summary(output, values_by_sample):
             efficiencies[name] = dict(numerator=n, denominator=total, efficiency=n / total,
                                       lower=float(lower[0]), upper=float(upper[0]))
         nonbeam = values['noncollinear_isr']
+        stage_summary = {}
+        for group, stage in values['stages'].items():
+            n_gen = len(stage['gen_energy'])
+            n_sim = int(np.count_nonzero(stage['sim_count']))
+            n_reco = int(np.count_nonzero(stage['reco_count']))
+            assert n_reco <= n_sim <= n_gen
+            stage_efficiencies = {}
+            for name, numerator, denominator in (
+                ('gen_to_sim', n_sim, n_gen), ('reco_given_sim', n_reco, n_sim),
+                ('gen_to_reco', n_reco, n_gen),
+            ):
+                lower, upper = clopper_pearson(np.array([numerator]), np.array([denominator]))
+                stage_efficiencies[name] = dict(
+                    numerator=numerator, denominator=denominator, efficiency=numerator / denominator,
+                    lower=float(lower[0]), upper=float(upper[0]))
+            closure = n_sim / n_gen * n_reco / n_sim - n_reco / n_gen
+            assert abs(closure) < 1e-12
+            stage_summary[group] = {
+                'gen_photons': n_gen, 'gen_with_sim': n_sim, 'gen_with_reco': n_reco,
+                'saved_sim_roots': int(stage['sim_root_count'].sum()),
+                'saved_sim_objects': int(stage['sim_count'].sum()),
+                'linked_reco_candidates': int(stage['reco_count'].sum()),
+                'gen_with_sim_descendants': int(np.count_nonzero(stage['sim_count'] > stage['sim_root_count'])),
+                'gen_with_multiple_reco': int(np.count_nonzero(stage['reco_count'] > 1)),
+                'efficiency_68_percent_cp': stage_efficiencies,
+                'closure_residual': closure,
+            }
         summary[sample] = {
             'events': len(values['stable_gen']['multiplicity']),
             'gen_isr': len(values['isr']['energy']),
@@ -313,6 +273,12 @@ def write_summary(output, values_by_sample):
                 'abs_cos_theta_above_0_9': float(np.mean(np.abs(nonbeam['cos_theta']) > 0.9)),
                 'abs_cos_theta_above_0_99': float(np.mean(np.abs(nonbeam['cos_theta']) > 0.99)),
             },
+            'gen_sim_reco': stage_summary,
+            'sim_bookkeeping': {
+                'missing_forward_link': int(values['sim_bookkeeping']['missing_forward_link'].sum()),
+                'forward_reverse_disagreement': int(values['sim_bookkeeping']['forward_reverse_disagreement'].sum()),
+                'root_p4_max_difference_GeV': float(values['sim_bookkeeping']['root_p4_max_difference'].max()),
+            },
         }
     (output / 'study_summary.json').write_text(json.dumps(summary, indent=2) + '\n')
 
@@ -320,17 +286,19 @@ def write_summary(output, values_by_sample):
 def plot_isr_photons(input_root: Path, output_root: Path):
     from .plot_generator import plot_generator
     from .plot_response import plot_response
+    from .plot_stages import plot_stages
 
     mh.style.use(mh.styles.CMS)
     study = output_root / 'isr_photons'
     directories = {name: study / folder for name, folder in (
-        ('gen_reco', '01_gen_reco'), ('wo_beam', '02_gen_reco_wo_beamISR'),
-        ('matching', '03_matching'), ('efficiency', '04_efficiency'),
-        ('geometric', '05_geometric_matching'),
+        ('stable', '01_gen_sim_reco'), ('isr', '02_gen_sim_reco_ISR'),
+        ('nonbeam', '03_gen_sim_reco_nobeamISR'), ('geometric', '04_geometric_matching'),
     )}
     for directory in directories.values():
         directory.mkdir(parents=True, exist_ok=True)
     values = {sample: read_sample(input_root, sample) for sample in SAMPLES}
+    for group in ('stable', 'isr', 'nonbeam'):
+        plot_stages(directories[group], values, group)
     e_bins = energy_bins(values)
     linear_e_bins = plot_bins('energy', [v['stable_gen']['energy'] for v in values.values()], True)[0]
     for sample in SAMPLES:
@@ -338,21 +306,10 @@ def plot_isr_photons(input_root: Path, output_root: Path):
         for directory in sample_dirs.values():
             directory.mkdir(parents=True, exist_ok=True)
         for name in ('multiplicity', 'energy', 'cos_theta', 'phi'):
-            plot_gen_reco(sample_dirs['gen_reco'], name, values, sample, 'stable_gen')
-            plot_gen_reco(sample_dirs['wo_beam'], name, values, sample, 'stable_gen_wo_beam')
-            plot_matched_isr(sample_dirs['matching'], name, values, sample)
             plot_matched_isr(sample_dirs['geometric'], name, values, sample, methods=MATCH_METHODS)
-            if name != 'multiplicity':
-                plot_gen_reco(sample_dirs['gen_reco'], name, values, sample, 'stable_gen', True)
-                plot_gen_reco(sample_dirs['wo_beam'], name, values, sample, 'stable_gen_wo_beam', True)
             if name == 'energy':
-                plot_matched_isr(sample_dirs['matching'], name, values, sample, True)
                 plot_matched_isr(sample_dirs['geometric'], name, values, sample, True, MATCH_METHODS)
         for name in ('energy', 'cos_theta'):
-            plot_efficiency(sample_dirs['efficiency'], name, 'isr', 'isr_matched_gen',
-                            'all_isr', values[sample], sample, e_bins)
-            plot_efficiency(sample_dirs['efficiency'], name, 'noncollinear_isr',
-                            'nonbeam_isr_matched_gen', 'nonbeam_isr', values[sample], sample, e_bins)
             for gen_kind, prefix, filename in (
                 ('isr', 'isr_matched_gen', 'all_isr'),
                 ('noncollinear_isr', 'nonbeam_isr_matched_gen', 'nonbeam_isr'),
@@ -362,16 +319,11 @@ def plot_isr_photons(input_root: Path, output_root: Path):
                 if name == 'energy':
                     plot_efficiency(sample_dirs['geometric'], name, gen_kind, prefix, filename,
                                     values[sample], sample, linear_e_bins, True, MATCH_METHODS)
-            if name == 'energy':
-                plot_efficiency(sample_dirs['efficiency'], name, 'isr', 'isr_matched_gen',
-                                'all_isr', values[sample], sample, linear_e_bins, True)
-                plot_efficiency(sample_dirs['efficiency'], name, 'noncollinear_isr',
-                                'nonbeam_isr_matched_gen', 'nonbeam_isr', values[sample], sample, linear_e_bins, True)
-        plot_response(sample_dirs['matching'], values[sample], sample)
+        plot_response(sample_dirs['isr'], values[sample], sample)
     plot_angle_scan(directories['geometric'], values)
     plot_angle_scan(directories['geometric'], values, True)
     plot_angle_validation(directories['geometric'], values)
-    plot_maps(directories, values)
-    plot_generator(study, values)
+    plot_maps({'matching': directories['isr']}, values)
+    plot_generator(directories['isr'], values)
     write_summary(study, values)
     print(f'plots: {study}')

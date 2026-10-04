@@ -17,8 +17,9 @@ POPULATIONS = (
 )
 GEN_P4 = tuple(f"GenPart_vector.fCoordinates.f{axis}" for axis in "XYZT")
 RECO_P4 = tuple(f"Photon_fourMomentum.fCoordinates.f{axis}" for axis in "XYZT")
+SIM_P4 = tuple(f"SimPart_fourMomentum.fCoordinates.f{axis}" for axis in "XYZT")
 BRANCHES = (
-    "GenPart_pdgId", "GenPart_status", "GenPart_parentIdx", *GEN_P4, *RECO_P4,
+    "GenPart_pdgId", "GenPart_status", "GenPart_parentIdx", "GenPart_simIdx", *GEN_P4, *RECO_P4, *SIM_P4,
     "Photon_partIdx", "Part_simIdx", "SimPart_genIdx", "SimPart_originVtxIdx",
     "SimVtx_incomingIdx", "Event_cmEnergy",
 )
@@ -55,29 +56,28 @@ def photon_origin(index, pdgs, parents, hard_parent, target_pdg):
     return "others"
 
 
-def linked_gen_indices(reco_index, photon_parts, part_sims, sim_gens, sim_vertices, vertex_incoming):
-    """Return direct Gen link, first Gen ancestor, and number of Sim parent steps.
+def first_gen_ancestor(sim, sim_gens, sim_vertices, vertex_incoming):
+    """Resolve a saved Sim object to its first Gen ancestor, without a species cut."""
+    for depth in range(len(sim_gens)):
+        gen = sim_gens[sim]
+        if gen >= 0:
+            return gen, depth
+        vertex = sim_vertices[sim]
+        if vertex < 0 or vertex_incoming[vertex] < 0:
+            return -1, depth
+        sim = vertex_incoming[vertex]
+    raise ValueError("Cycle in Sim ancestry")
 
-    Missing reco/Sim links return -1. Positive invalid indices fail rather than
-    being silently interpreted as missing truth. SimPart_pdgId is not used:
-    that branch stores DELPHI mass codes, not PDG IDs, in these samples.
-    """
+
+def linked_gen_indices(reco_index, photon_parts, part_sims, sim_gens, sim_links, sim_depths):
+    """Read direct and resolved origins for one reco Photon; missing links are -1."""
     part = photon_parts[reco_index]
     if part < 0:
         return -1, -1, -1
     sim = part_sims[part]
     if sim < 0:
         return -1, -1, -1
-    direct = sim_gens[sim]
-    for depth in range(len(sim_gens)):
-        gen = sim_gens[sim]
-        if gen >= 0:
-            return direct, gen, depth
-        vertex = sim_vertices[sim]
-        if vertex < 0 or vertex_incoming[vertex] < 0:
-            return direct, -1, depth
-        sim = vertex_incoming[vertex]
-    raise ValueError("Cycle in Sim ancestry")
+    return sim_gens[sim], sim_links[sim], sim_depths[sim]
 
 
 def angle_matches(angles, initial, reco_allowed, cut):
@@ -112,6 +112,15 @@ def read_sample(input_root: Path, sample: str):
         "no_sim", "unresolved_sim", "other_gen", "direct_isr", "descendant_isr",
     )}
     values["generator"] = {name: [] for name in ("sqrt_s", "metadata_cm_energy")}
+    stages = {group: {name: [] for name in (
+        "gen_energy", "gen_cos_theta", "gen_phi", "sim_count", "sim_root_count", "reco_count",
+        "gen_multiplicity", "sim_multiplicity", "reco_multiplicity",
+        "root_sim_energy", "root_sim_cos_theta", "root_sim_phi",
+        "reco_energy", "reco_cos_theta", "reco_phi",
+    )} for group in ("stable", "isr", "nonbeam")}
+    values["sim_bookkeeping"] = {name: [] for name in (
+        "missing_forward_link", "forward_reverse_disagreement", "root_p4_max_difference",
+    )}
     directory = input_root / f"20260828_100kTest_{sample}_photosFSR" / "final_root"
     paths = sorted(directory.glob("job_*/nanoaod.root"))
     if not paths:
@@ -151,10 +160,15 @@ def read_sample(input_root: Path, sample: str):
                     for row, index in enumerate(gen_indices)
                 ], dtype=bool)
                 others = origin == "others"
+                sim_gens = np.asarray(branches["SimPart_genIdx"][event])
+                sim_links, sim_depths = np.asarray([
+                    first_gen_ancestor(index, sim_gens, branches["SimPart_originVtxIdx"][event],
+                                       branches["SimVtx_incomingIdx"][event])
+                    for index in range(len(sim_gens))
+                ], dtype=int).reshape(-1, 2).T
                 direct_links, reco_links, depths = np.asarray([
                     linked_gen_indices(index, branches["Photon_partIdx"][event],
-                                       branches["Part_simIdx"][event], branches["SimPart_genIdx"][event],
-                                       branches["SimPart_originVtxIdx"][event], branches["SimVtx_incomingIdx"][event])
+                                       branches["Part_simIdx"][event], sim_gens, sim_links, sim_depths)
                     for index in range(len(reco))
                 ], dtype=int).reshape(-1, 3).T
                 angles = np.arccos(np.clip(gen_unit @ reco_unit.T, -1.0, 1.0))
@@ -164,6 +178,39 @@ def read_sample(input_root: Path, sample: str):
                 angle = angle_matches(angles, {}, np.ones(len(reco), dtype=bool), MAX_ANGLE)
                 recovery = angle_matches(angles, truth, reco_links < 0, MAX_ANGLE)
                 matched = {"direct": direct, "truth": truth, "angle": angle, "recovery": recovery}
+                sim_p4 = np.column_stack([branches[name][event] for name in SIM_P4])
+                root_mask = np.isin(sim_gens, gen_indices)
+                root_sim, _ = kinematics(sim_p4[root_mask])
+                root_gen_indices = sim_gens[root_mask]
+                sim_counts = np.array([np.count_nonzero(sim_links == g) for g in gen_indices])
+                root_counts = np.array([np.count_nonzero(sim_gens == g) for g in gen_indices])
+                reco_counts = np.array([np.count_nonzero(reco_links == g) for g in gen_indices])
+                assert np.all((reco_counts == 0) | (sim_counts > 0))
+                forward = np.asarray(branches["GenPart_simIdx"][event])[gen_indices]
+                present = forward >= 0
+                values["sim_bookkeeping"]["missing_forward_link"].append(np.count_nonzero(~present))
+                values["sim_bookkeeping"]["forward_reverse_disagreement"].append(
+                    np.count_nonzero(sim_gens[forward[present]] != gen_indices[present]))
+                values["sim_bookkeeping"]["root_p4_max_difference"].append(
+                    np.max(np.abs(sim_p4[root_mask] - all_gen_p4[root_gen_indices]), initial=0))
+                for group, selected in (
+                    ("stable", np.ones(len(gen), dtype=bool)),
+                    ("isr", isr), ("nonbeam", isr & ~collinear),
+                ):
+                    stage = stages[group]
+                    selected_indices = gen_indices[selected]
+                    selected_roots = np.isin(root_gen_indices, selected_indices)
+                    selected_reco = np.isin(reco_links, selected_indices)
+                    for column, name in enumerate(("energy", "cos_theta", "phi")):
+                        stage[f"gen_{name}"].extend(gen[selected, column])
+                        stage[f"root_sim_{name}"].extend(root_sim[selected_roots, column])
+                        stage[f"reco_{name}"].extend(reco[selected_reco, column])
+                    stage["sim_count"].extend(sim_counts[selected])
+                    stage["sim_root_count"].extend(root_counts[selected])
+                    stage["reco_count"].extend(reco_counts[selected])
+                    stage["gen_multiplicity"].append(np.count_nonzero(selected))
+                    stage["sim_multiplicity"].append(np.count_nonzero(sim_counts[selected]))
+                    stage["reco_multiplicity"].append(np.count_nonzero(reco_counts[selected]))
                 for kind, rows in (
                     ("stable_gen", gen), ("stable_gen_wo_beam", gen[~collinear]),
                     ("reco", reco), ("isr", gen[isr]),
@@ -213,6 +260,10 @@ def read_sample(input_root: Path, sample: str):
     for population in values.values():
         for name in population:
             population[name] = np.asarray(population[name])
+    values["stages"] = {
+        group: {name: np.asarray(entries) for name, entries in stage.items()}
+        for group, stage in stages.items()
+    }
     n_events = len(values["stable_gen"]["multiplicity"])
     print(
         f"{sample}: events={n_events}, stable={len(values['stable_gen']['energy'])}, "
