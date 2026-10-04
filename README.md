@@ -124,152 +124,174 @@ bash runs/photons/plot_isr_photons.sh
 ```
 
 The recipe reads the five Florian `photosFSR` samples: `Zee`, `Zmumu`,
-`Ztautau`, `ZKK`, and `Zpipi`. The code lives in
-`python/delphi_analysis/photons/`: `data.py` reads and classifies photons,
-`plot_isr_photons.py` makes the comparison and efficiency figures,
-`plot_2d.py` makes matched-ISR maps, and `plot_response.py` and
-`plot_generator.py` contain response and generator checks.
+`Ztautau`, `ZKK`, and `Zpipi` (449,999 events). Implementation is in
+`python/delphi_analysis/photons/`: `data.py` resolves origins,
+`plot_stages.py` draws the Gen–Sim–Reco decomposition,
+`plot_isr_photons.py` runs the study and geometric diagnostics, and
+`plot_response.py`, `plot_2d.py`, and `plot_generator.py` contain ISR checks.
 
-Stable gen photons have `GenPart_pdgId == 22` and `GenPart_status == 1`;
-reco photon candidates use `Photon_fourMomentum`. The `Photon` collection
-contains neutral electromagnetic calorimeter candidates, not just gen-linked
-photons. Gen ancestry divides stable photons into Non-beam ISR, Beam ISR, FSR,
-and Others. Beam ISR has zero transverse momentum and a direct parent from the
-incoming parentless electron or positron. Non-beam ISR is the remaining ISR.
-The exact ancestry rules are in `data.py`. There is no gen energy threshold,
-fiducial-angle cut, or matching energy cut. Invalid photon four-vectors stop
-the run rather than being removed.
+### Three photon groups
 
-Stage 01 stacks the four stable-gen origin categories in the 1D energy,
-cos(theta), and phi distributions. Stage 02 removes Beam ISR from the gen
-stack and gen total. Both stages overlay the same set of **all** reco photon
-candidates as black points with Poisson error bars. Corresponding figures in
-both stages use the same bins, with gen and reco divided by the same number of
-events. This compares populations; reco candidates need not match the gen
-photons underneath them. Multiplicity shows the separate gen-origin event
-distributions, the gen total, and reco points. The origin distributions cannot
-be stacked into the total multiplicity distribution.
-Photon-coordinate histograms show `Nγ / bin per event` (bin count divided by
-the number of events), while multiplicity uses `Event fraction`. A photon with
-undefined phi is displayed in the phi=0 bin solely for plotting.
-
-The nominal result is **truth-associated ISR reconstruction efficiency**:
-the fraction of gen ISR photons with at least one associated reco candidate.
-Follow `Photon_partIdx → Part_simIdx`. If `SimPart_genIdx` is negative, follow
-the Sim parent through `SimPart_originVtxIdx → SimVtx_incomingIdx`, repeating
-until the first valid Gen index. That first Gen particle must be a stable ISR
-photon. Direct links have ancestry depth zero; conversion and shower
-descendants can have positive depth. The link semantics are defined by the
-[NanoAOD producer](https://github.com/jingyucms/delphi-nanoaod/blob/706d1dcab7c5105e27087ff3aad1d6a8e8087e6a/delphi-nanoaod/src/nanoaod_writer.cpp#L892).
-`SimPart_pdgId` stores DELPHI mass codes in these files, so the study does not
-apply a PDG selection to it.
-
-Nominal matching has **no opening-angle or energy requirement**. A gen photon
-with multiple linked reco candidates counts once in the efficiency numerator.
-Reco candidates with no Sim association remain unassociated. The result thus
-measures reconstruction identifiable from the stored truth graph; it does not
-prove that every unassociated candidate is unrelated to ISR.
-Stage 04 uses all ISR and Non-beam ISR as separate denominators, with 68.27%
-Clopper–Pearson intervals. Both include detector acceptance.
-
-Stage 03 plots nominal matched-gen photons and truth response. Energy response,
-opening angle, and ancestry depth count every associated reco candidate;
-`isr_reco_descendants` counts each gen ISR once, including unmatched zeroes.
-The summed-energy residual uses the sum of all associated reco energies for
-each matched gen ISR. These candidate energies need not obey isolated-photon
-energy conservation because the collection and its single stored truth link
-can represent shower fragments and merged calorimeter deposits. Response
-plots retain their complete observed ranges.
-
-Angular matching is an auxiliary study in `05_geometric_matching/`:
-
-- **Direct truth:** only the immediate `SimPart_genIdx` link.
-- **Truth ancestry:** the nominal Sim-parent tracing above.
-- **Angle only:** closest-first, one-to-one matching of all stable gen photons
-  to all reco candidates, ignoring truth, with 3D opening angle < 0.03 rad.
-- **Truth + geometry:** keep nominal truth matches, then match unmatched gen
-  photons to reco candidates with no resolved Gen origin using the same angle
-  rule. Every candidate with a known Gen origin is excluded from this fallback.
-
-The angle-cut validation shows **known-pair purity**, correct-origin pairs
-divided by correct plus different-origin pairs among angle-selected ISR pairs
-with known truth. It also shows **truth-pair acceptance**, the fraction of all
-truth-associated reco–ISR pairs inside the cut. Unassociated pairs are shown
-separately in the count scan and are not assumed correct. These two fractions
-have different denominators. The nominal efficiency never uses the angle cut.
-
-Generator checks in stage 01 show `x_gamma = 2 E_gamma / sqrt(s)` and
-`|cos(theta)|`, split into Non-beam and Beam ISR. Their vertical axes are
-bin-width-normalized densities per event. `sqrt(s)` comes from the first two
-generator beam four-vectors, 91.186996 GeV in these samples; `Event_cmEnergy`
-instead stores 91.25 GeV and is retained only as metadata in the summary.
-The generator checks test the qualitative soft and forward enhancement of
-[QED shower emission](https://arxiv.org/abs/1410.3012). Beam ISR contains the
-[exactly collinear residual-radiation representatives](https://pythia.org/latest-manual/htmldoc/PDFSelection.html),
-so its photon count is not a resolved-emission prediction. No arbitrary `1/E`
-theory curve is overlaid. Precision agreement would require an independent
-reference such as [KKMC](https://arxiv.org/abs/hep-ph/9912214) with the same
-process and selections. The local Zee configuration is s-channel annihilation,
-not a full Bhabha sample.
-
-Stages 01 and 02 use the same scales: `gen_reco_energy.png` has log energy and
-count axes, while the cos(theta) and phi defaults have log count axes. Their
-`_linear.png` counterparts have only linear axes; for example,
-`02_gen_reco_wo_beamISR/Zee/gen_reco_energy_linear.png`. Multiplicity is already
-linear in both stages. Other figures with a log axis or color scale also have a
-fully linear `_linear.png` version. Linear energy plots use 1 GeV bins for 1D
-distributions and efficiency; matched energy–angle maps use 2 GeV bins, and
-energy-response maps use 1 GeV bins. Their ranges include every plotted
-photon. Linear efficiency plots show 0–1.05 so the
-Clopper–Pearson intervals in sparse high-energy bins remain visible. Since
-energy bin widths differ, `Nγ / bin per event` heights should be compared only
-within the same scale.
-
-Plots are grouped under `plots/20260828_florian/isr_photons/`. Each sample has
-one axis per 1D figure. Matched-gen 2D energy–cos(theta) maps in stage 03 use
-common bins and color scales across samples.
+Plots are saved below `plots/20260828_florian/isr_photons/`:
 
 ```text
-01_gen_reco/<sample>/              gen/reco 1D overlays
-02_gen_reco_wo_beamISR/<sample>/  gen/reco 1D overlays without Beam ISR in gen
-03_matching/<sample>/            nominal matched gen ISR, Sim ancestry, and response
-04_efficiency/<sample>/          nominal all-ISR and Non-beam-ISR efficiencies
-05_geometric_matching/<sample>/  auxiliary matching comparisons
-05_geometric_matching/           pooled angle-cut counts and truth validation
-study_summary.json              counts, integrated efficiencies, and validation metrics
+01_gen_sim_reco/<sample>/              all stable gen photons
+02_gen_sim_reco_ISR/<sample>/          all stable gen ISR, including Beam ISR
+03_gen_sim_reco_nobeamISR/<sample>/    stable gen ISR excluding Beam ISR
+04_geometric_matching/<sample>/      auxiliary angular-matching comparisons
+04_geometric_matching/                pooled angle-cut validation
+study_summary.json                    counts, efficiencies, and bookkeeping checks
 ```
 
-The full run contains 449,999 events. The nominal counts agree with an
-independent traversal of the ROOT Sim graph:
+The previous plots are preserved in the sibling directory
+`isr_photons_previous_20261004/`; the recipe produces the new layout.
 
-| Sample | Direct matched ISR | Ancestry matched ISR | All-ISR efficiency | Non-beam-ISR efficiency |
+Stable gen photons have `GenPart_pdgId == 22` and `GenPart_status == 1`.
+The existing gen ancestry rules are unchanged: the first non-photon ancestor
+is an electron/positron and the path contains no hard parent for ISR; the hard
+parent or its sample-specific final-state daughter identifies FSR. Other
+origins are Others. Beam ISR is ISR with exactly zero px and py and a direct,
+parentless incoming electron/positron parent. Non-beam ISR is the remainder.
+There is **no energy threshold, fiducial-angle cut, or angular/energy matching
+cut** in the nominal study. Invalid photon four-vectors stop the run rather
+than being removed. Undefined phi is displayed at zero, including Beam ISR.
+
+### Gen–Sim–Reco efficiencies
+
+Each group uses the same unit: one unique selected **gen photon**.
+
+- **G:** all selected gen photons.
+- **S:** gen photons with at least one saved Sim object resolving to that Gen origin.
+- **R:** gen photons with at least one reco Photon associated with that Sim lineage.
+
+For every Sim object, use `SimPart_genIdx` when nonnegative; otherwise follow
+`SimPart_originVtxIdx → SimVtx_incomingIdx` until the first valid Gen index.
+For reco, use `Photon_partIdx → Part_simIdx` to enter the same Sim graph.
+The direct Sim root and descendants of any particle species are included;
+there is no Sim-photon-only selection. `SimPart_pdgId` stores DELPHI mass codes
+in these samples, not PDG IDs. The link semantics come from the
+[NanoAOD producer](https://github.com/jingyucms/delphi-nanoaod/blob/706d1dcab7c5105e27087ff3aad1d6a8e8087e6a/delphi-nanoaod/src/nanoaod_writer.cpp#L892).
+
+The three curves use identical **gen energy** or **gen cos(theta)** bins:
+
+```text
+Gen → Sim    = N(S) / N(G)       saved-lineage coverage
+Reco | Sim   = N(R) / N(S)       conditional truth-associated reconstruction
+Gen → Reco   = N(R) / N(G)       total truth-associated reconstruction
+```
+
+A gen photon with several reco fragments counts once. The code checks
+`R ⊆ S ⊆ G` and central-value closure
+`εGR = εGS × εR|S` in each populated bin. A zero denominator is undefined and
+not plotted. Each ratio has its own 68.27% Clopper–Pearson interval; the curves
+are correlated, so their uncertainty bands must not be multiplied as independent
+measurements. Using Sim or reco energy instead would introduce migration and
+would not have this bin-by-bin closure.
+
+**Gen → Sim is saved-lineage coverage, not detector transport or acceptance.**
+A saved input Sim root can exist even when no detector response is recorded.
+Conversely, missing stored lineage alone cannot identify transport thresholds,
+geometry, collection pruning, or an association failure as the cause.
+Tracing descendants can recover a reco origin, but cannot invent a missing Gen
+anchor. The writer exports all SKELANA `NVECMC` entries without an additional
+energy/angular selection; the completeness of the upstream simulation record
+is not established by that fact.
+
+### What the ROOT data show
+
+An independent full-data audit finds that **all 1,795,749 stable gen photons
+have exactly one direct saved Sim root**. `GenPart_simIdx` and `SimPart_genIdx`
+are exact inverses, with zero missing links or disagreements. Root Sim
+Px/Py/Pz/E are bit-identical to Gen in every case. These are saved creation/input
+four-vectors, not calorimeter deposits or energy after detector interactions.
+Here, a "Sim root" means the directly Gen-linked anchor of that photon's lineage,
+not necessarily a root of the entire Sim graph: 138,318 Ztautau photon anchors
+have Sim parents. The origin rule stops at that first Gen anchor.
+Consequently, `Gen → Sim = 100%` and `Reco | Sim = Gen → Reco` in every
+populated bin. The overlapping curves are intentional.
+
+All 899,998 Beam ISR photons have a saved root, **zero saved descendants, and
+zero associated reco Photon candidates**. This does not prove that they were
+never transported: the saved Sim schema has no transport flag, detector hits,
+or deposited-energy field. Reference simulation title files contain thresholds,
+but sample-specific titles/logs are unavailable, so no loss is assigned to them.
+`SimVtx_position` is not used to infer interaction locations; its producer
+coordinate indexing is inconsistent with the DELPHI vertex layout. The integer
+ancestry links used here pass the independent graph audit.
+
+| Sample | Stable gen photons | Gen → Reco: all stable | Gen → Reco: all ISR | Gen → Reco: Non-beam ISR |
 | --- | ---: | ---: | ---: | ---: |
-| Zee | 1,395 | 1,441 | 0.585% | 2.175% |
-| Zmumu | 1,320 | 1,372 | 0.557% | 2.073% |
-| Ztautau | 1,377 | 1,430 | 0.581% | 2.160% |
-| ZKK | 1,329 | 1,367 | 0.556% | 2.075% |
-| Zpipi | 1,336 | 1,373 | 0.559% | 2.096% |
+| Zee | 371,987 | 3.389% | 0.585% | 2.175% |
+| Zmumu | 313,532 | 3.713% | 0.557% | 2.073% |
+| Ztautau | 505,036 | 16.202% | 0.581% | 2.160% |
+| ZKK | 295,891 | 3.456% | 0.556% | 2.075% |
+| Zpipi | 309,303 | 3.718% | 0.559% | 2.096% |
 
-Truth ancestry adds 226 unique gen ISR photons (6,757 → 6,983). Beam ISR has
-zero truth-associated reconstruction in every sample. There are 7,020 linked
-reco candidates: 34 matched gen ISR photons have multiple candidates, with a
-maximum of three. For example, ZKK `job_0`, entry 1637 has two reco candidates
-whose Sim-parent paths both reach gen ISR index 6; this contributes one to the
-nominal numerator.
+There are 6,983 unique reconstructed gen ISR photons, versus 6,757 with only
+an immediate reco→Sim→Gen link. Sim ancestry recovers 226 additional gen ISR.
+There are 7,020 ISR-associated reco candidates; 34 gen ISR photons have multiple
+candidates, with a maximum of three. ISR with saved Sim descendants numbers
+3,935 / 3,848 / 3,879 / 3,908 / 3,795 in sample order. This is a saved-lineage
+diagnostic, not a calorimeter-hit or isolated-photon detection requirement.
 
-At 0.03 rad the angle-only study has 6,661 correct-origin, 18 different-origin,
-and 512 unassociated ISR pairs. Its known-pair purity is 99.73%, excluding the
-512 unassociated pairs. Truth-pair acceptance is 6,691/7,020 = 95.31%.
-Truth plus geometry adds 479 diagnostic gen matches; none enters the nominal
-efficiency. The stored Sim link is absent for 362,929 of 573,796 reco
-candidates, so missing truth remains a material limitation.
+The reco `Photon_fourMomentum` collection contains neutral electromagnetic
+calorimeter candidates, not just gen photons. **362,929 of 573,796 reco candidates
+have no stored Sim link.** They remain unassociated in nominal efficiency;
+their physical origin is not established from truth. Thus Gen→Reco measures
+reconstruction identifiable from the stored associations, not every possible
+physical ISR contribution to calorimeter candidates.
 
-In Zmumu, 92.89% of Non-beam ISR photons have energy below 1 GeV and 54.15%
-have `|cos(theta)| > 0.9`, consistent with qualitative soft/forward enhancement.
-These are reported fractions, not selection cuts. The median pair energy
-residual is about −3% across the samples, with large positive tails retained
-in the response figures. A single stored association does not establish the
-cause of those tails.
+### Reading the figures
+
+Each group has these plots:
+
+- `gen_lineage_*`: Gen / With Sim lineage / With reco, all in **gen coordinates**.
+  Multiplicity counts the unique gen photons in each subset per event.
+- `gen_sim_reco_*`: actual Gen / Saved Sim roots / Associated reco coordinates.
+  The first group additionally shows **all reco**, including unassociated
+  candidates, as black points. Associated reco may include several fragments
+  from one gen photon. Gen and saved Sim curves coincide in these samples.
+- `stage_efficiency_vs_energy` and `stage_efficiency_vs_cos_theta`: the three
+  gen-unit efficiencies with Clopper–Pearson error bars.
+- `lineage_multiplicity`: saved Sim objects (root plus descendants of all species)
+  and reco candidates per gen photon, including zero reco. The y axis is a gen
+  fraction. Sim ancestor and descendant energies are never summed.
+
+Coordinate histograms use count/bin/event and sqrt(N) errors; event multiplicity
+uses event fraction. There are no plot titles. CMS styling, default font sizes,
+11×9 figures, DELPHI Simulation, and bold sample legends are retained.
+Plots with log axes or color scales have fully linear `_linear.png` siblings.
+Coordinate log-energy distributions have 60 bins; energy efficiency has roughly
+three bins per decade to reduce sparse-bin fluctuations. Linear energy plots
+use 1 GeV bins. All plotted ranges include every selected entry. Different bin
+widths mean count/bin/event heights should be compared within the same scale.
+
+The ISR group also retains the truth energy response, summed-reco energy residual,
+opening angle, ancestry depth, matched-gen energy–angle maps, and generator
+`x_gamma`/`|cos(theta)|` checks. Pair response counts every associated reco;
+summed-reco response counts each matched gen once. Large positive energy tails
+are retained; a single stored association does not establish their cause.
+`sqrt(s)` for `x_gamma = 2 E_gamma / sqrt(s)` comes from the two Gen beams:
+91.186996 GeV, versus metadata `Event_cmEnergy = 91.25` GeV.
+Generator spectra show qualitative soft/forward enhancement consistent with
+[QED shower emission](https://arxiv.org/abs/1410.3012); Beam ISR includes
+[exactly collinear residual-radiation representatives](https://pythia.org/latest-manual/htmldoc/PDFSelection.html).
+An independent same-process reference such as [KKMC](https://arxiv.org/abs/hep-ph/9912214)
+is needed for precision agreement. The local Zee sample is s-channel annihilation.
+
+### Auxiliary angular matching
+
+`04_geometric_matching` retains direct truth, truth ancestry, angle-only, and
+truth-plus-geometry comparisons. Angle-only uses closest-first one-to-one 3D
+opening-angle matching of all stable gen photons to all reco candidates at
+0.03 rad. Geometry fallback keeps truth matches and uses only reco with no
+resolved Gen origin. These diagnostic matches never enter the nominal stage
+efficiencies.
+
+At 0.03 rad, angle-only ISR pairs have 6,661 correct origins, 18 different
+origins, and 512 unknown origins. Known-pair purity is 99.73%, excluding unknown
+origins; truth-pair acceptance is 6,691/7,020 = 95.31%. These have different
+denominators. Truth plus geometry adds 479 diagnostic gen matches.
 
 ## BDT Classification
 
