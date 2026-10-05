@@ -57,9 +57,9 @@ python/delphi_analysis/
   tracking/           gen–reco track matching
   rich/               RICH inspection
   pid/                BDT preparation, training, and application
-  photons/            photon reconstruction and ISR study
-scripts/{checks,tracking,rich,pid,photons,data}/
-runs/{checks,tracking,rich,pid,photons,data}/
+  isr_study/          ISR links, conversions, full reco lineage, and angle checks
+scripts/{checks,tracking,rich,pid,isr_study,data}/
+runs/{checks,tracking,rich,pid,isr_study,data}/
 config/pid/{features,hyperparameters}/
 ```
 
@@ -73,13 +73,13 @@ bash runs/data/prepare_data.sh
 bash runs/checks/plot_checks.sh
 bash runs/tracking/plot_track_matching.sh
 bash runs/rich/plot_rich.sh
-bash runs/photons/plot_isr_photons.sh
+bash runs/isr_study/plot_isr_study.sh
 bash runs/pid/train_bdt_pid_standard.sh
 bash runs/pid/apply_bdt_pid_standard.sh
 ```
 
 The data preparation, checks, and BDT recipes target `20260606_100kTest`
-under `data/202606xx_jongwon/`. The photon recipe targets the Florian samples.
+under `data/202606xx_jongwon/`. The ISR recipe targets the Florian samples.
 Edit the sample and data path in a recipe for another study.
 
 ## Data Preparation
@@ -111,116 +111,143 @@ reco-check.py                   reconstruction-level validation
 rich.py                         RICH storage, dtype, and consistency study
 gen-reco-track-match-cut.py     matching efficiency and cut scan
 gen-reco-track-match-result.py  matched-track residuals
-isr-photons.py                  Gen-photon reconstruction and associated energy response
+isr_study/plot.py               ISR reconstruction, conversions, and angular cross-checks
 ```
 
 Plotting diagnostics and CSV summaries are written below
 `data/check/<sample-set>/`.
 
-## Photon truth study
+## ISR reconstruction study
 
 ```bash
-bash runs/photons/plot_isr_photons.sh
+bash runs/isr_study/plot_isr_study.sh
+bash runs/isr_study/dump_truth_trees.sh
 ```
 
-The existing recipe reads only the five Florian `photosFSR` samples (`Zee`,
-`Zmumu`, `Ztautau`, `ZKK`, `Zpipi`), totaling 449,999 events. `python/delphi_analysis/photons/data.py`
-resolves truth, and `plot_isr_photons.py` produces the same plot set for all groups:
+Only the five Florian `photosFSR` samples (`Zee`, `Zmumu`, `Ztautau`, `ZKK`,
+`Zpipi`) are read, totaling 449,999 events. Code and recipes live under
+`python/delphi_analysis/isr_study/`, `scripts/isr_study/`, and `runs/isr_study/`.
+The plotting CLI has only input/output directory arguments.
 
 ```text
-plots/20260828_florian/photon_study/
-  01_gamma/<sample>/       all stable Gen photons (PDG 22, status 1)
-  02_ISR/<sample>/         stable ISR, including Beam ISR
-  03_noBeamISR/<sample>/   stable ISR excluding Beam ISR
-  study_summary.json      efficiency, energy response, and truth-link diagnostics
-  manual_audit/           preserved event trees and manual review
+plots/20260828_florian/isr_study/
+  00_link_validation/
+    <sample>/                        link agreement and conflicts
+    manual_audit/                    representative full event trees
+  01_photon_conversion/
+    gen/<sample>/                    stacked Beam/non-Beam Gen ISR spectra
+    {all_ISR,noBeamISR}/<sample>/     Photon or reconstructed conversion
+  02_all_lineage/
+    {all_ISR,noBeamISR}/<sample>/     all associated reconstructed Part objects
+  03_angle_matching/
+    01_photon_conversion/             angular cross-check for photon-like objects
+    02_all_lineage/                    angular cross-check for all Part activity
+  study_summary.json                 counts, response summaries, and diagnostics
+  study_notes.txt                    assumptions and unresolved limitations
 ```
 
-The existing ISR ancestry definition is unchanged: the first non-photon ancestor
-is an electron/positron, with no hard parent on the path. Beam ISR additionally
-has exactly zero px and py and a direct, parentless incoming electron/positron
-parent. No energy, fiducial-angle, or angular-matching cut is applied.
-Previous results remain under `plots/20260828_florian/isr_photons/`.
+**One stable Gen ISR photon is the analysis unit:** `GenPart_pdgId == 22`,
+`GenPart_status == 1`, first non-photon Gen ancestor an electron/positron, and no
+hard-process parent along that path. Beam ISR additionally has exactly zero px
+and py and a direct, parentless incoming electron/positron parent. Results are
+separated into `all_ISR` and `noBeamISR`; Gen spectra show Beam and non-Beam ISR
+as stacked components. No energy, fiducial-angle, PID, lock, or angular cut is
+applied to nominal truth reconstruction.
 
-**One stable Gen photon is the analysis unit.** Associate each Reco Photon via
-`Photon_partIdx → Part_simIdx → SimPart_genIdx`; when the latter is negative,
-trace Sim parents through `SimPart_originVtxIdx → SimVtx_incomingIdx`.
-Stop at the **first Gen anchor**, even when it has an earlier Gen parent.
-Associate the candidate only if that origin is a selected stable Gen photon.
-Direct and descendant Sim links are equally valid; the linked Sim need not be
-a photon or a terminal node. There is no angular fallback. Candidates without
-usable truth remain unresolved; valid origins outside stable photons are counted
-separately in the summary.
+### Stored truth association
 
-```text
-Gen → Reco = N(Gen photons with >=1 associated Reco Photon) / N(selected Gen photons)
-Energy recovery per Gen photon = sum(associated Reco Photon energies) / E_gen
-```
+Compare both saved directions independently:
 
-Several reco candidates count as **one efficiency success**, while all their
-energies enter the sum. Unmatched photons have recovery **zero**, not an undefined
-value. Leading response uses the highest-energy candidate and is conditional on
-successful reconstruction. Recovery ratios are not clipped at one.
+- `Part_simIdx` -> Sim ancestry -> first existing `SimPart_genIdx` anchor;
+- directly Gen-linked Sim anchors -> descendants -> `SimPart_partIdx`.
 
-Each sample/population has the same nine observables:
+A nested Gen anchor starts a different lineage. Direct and descendant Sim objects
+of any species are valid; the linked object need not be a gamma or a terminal
+node. All known Gen origins, including non-ISR origins, are retained when checking
+agreement. A Part is accepted if the **union contains exactly one Gen origin**.
+Missing evidence in one direction is allowed; contradictory or absent origins
+remain unresolved. Angular matching does not repair these nominal links.
 
-| Plots | Meaning |
-| --- | --- |
-| `gen_to_reco_efficiency_vs_{energy,cos_theta}` | Gen-unit success fraction, 68.27% Clopper–Pearson intervals |
-| `summed_energy_response` | Recovery distribution over all Gen photons, including unmatched zeros |
-| `energy_recovery_vs_{energy,cos_theta}` | Unweighted mean recovery per Gen photon, including zeros; standard error of the mean |
-| `leading_energy_response` | Highest-energy reco response among matched Gen photons |
-| `reco_gamma_multiplicity` | Reco candidates per Gen photon, including zero |
-| `linked_sim_depth` | Parent steps from the reco-linked Sim to its first Gen anchor; zero is direct |
-| `linked_sim_species` | Linked Sim species, stacked as direct/descendant |
+### Photon/conversion and all-lineage channels
 
-The last two are normalized per associated **Reco Photon**; the other distributions
-are normalized per Gen photon (leading response per matched Gen photon). Count
-errors are sqrt(N). Empty efficiency/profile bins are undefined. A singleton
-profile bin has no estimable standard error. Energy plots share binning across
-samples within each population: about three bins/decade, or 1 GeV for linear
-figures; cos(theta) uses 20 bins. Histograms retain all entries and tails.
-Logarithmic figures retain fully linear `_linear.png` siblings (16 files per
-sample/population). Summed response uses a linear interval at zero followed by
-a logarithmic x-axis; its first bin contains unmatched zeros only. Linear response
-histograms span the full tail and may merge the central response into a broad bin.
-CMS style, default font sizes, 11×9 figures, DELPHI Simulation, and bold sample
-legends are retained.
+`01_photon_conversion` measures the fraction of Gen ISR photons with at least one
+associated Photon candidate or reconstructed conversion. `02_all_lineage`
+measures the fraction with at least one associated Reco Part. Several candidates
+still count as one Gen success. Efficiencies and mean energy responses are shown
+versus Gen energy, pT, and cos(theta), for both populations.
 
-Sim coverage and saved-secondary counts remain summary diagnostics. Separate
-GS/SR efficiencies, topology fractions, Sim-gamma multiplicity/correlation,
-standalone Gen spectra/maps, and angular response plots are removed. Every stable
-photon in these samples has a saved Sim anchor; this is **saved-lineage coverage,
-not detector transport efficiency**. `SimPart_pdgId` stores DELPHI mass codes
-(gamma=21, electron/positron=±2), not PDG IDs. Beam ISR has no associated reco.
+The `Photon` branch is a view of neutral Parts with EM calorimeter energy, not a
+pure photon PID selection. `Part_pdgId` and `SimPart_pdgId` contain DELPHI mass
+codes, not PDG IDs (gamma=21, electron/positron=±2). Full-lineage composition uses
+coarse reconstructed charge/mass-code categories; these are not perfect truth PID.
+Composition and multiplicity count raw associated Parts, including retained parent
+and daughter representations.
 
-**Energy attribution is a limitation of this truth record.** A single `Part_simIdx`
-does not provide the energy contribution of every Sim particle to a reco candidate.
-Very soft Gen photons can be linked to much more energetic candidates (audited ISR:
-0.000891 GeV Gen → 1.100 GeV reco). The observable is therefore **associated reco
-energy response**, not proof that this energy came exclusively from that photon.
-Large tails can dominate arithmetic means; matched 16/50/84% quantiles and the
-ratio of total associated reco to total Gen energy are also saved in the summary.
-No energy-consistency cut is silently applied. Missing truth links and incomplete
-saved trees prevent separating transport, acceptance, and association failures:
-362,929 of 573,796 reco candidates have no usable Part→Sim link. Thus the efficiency
-measures saved truth-associated reconstruction, rather than proving all physically
-reconstructed photons have been identified. `study_notes.txt` records validation
-results and the two extreme-response event examples.
+`PhotonConv_simPhotonIdx` is unusable in these samples (all values are -1).
+Conversions instead use their saved daughter origin vertex and its incoming Part.
+A neutral gamma-code parent with a reciprocal decay vertex validates the topology.
+The conversion is accepted only when all known parent/daughter Gen anchors agree.
+One available anchor can suffice; a known conflicting anchor vetoes association.
 
-For an event-level truth audit, run:
+For energy response, Photon rows and their source Parts are the same representation.
+A validated conversion represents its parent and daughters once; it is not summed
+again with a Photon view of that group. Full-lineage response keeps an associated
+composite parent instead of its descendants when their known origins are consistent.
+Duplicate conversion rows sharing a saved parent count once; an accepted ancestor
+conversion also replaces a nested conversion of the same consistent lineage.
+Parts that merely share a Sim link are not deduplicated without saved
+parent/daughter structure.
+Accepted objects in groups with contradictory anchors have undefined energy
+response; raw Part activity and multiplicity remain separate diagnostics. Undefined
+response is not replaced by zero. A Gen photon with no accepted channel candidate
+has zero associated response, including rejected conversion-only evidence.
+Ratios are not clipped at one.
 
-```bash
-bash runs/photons/dump_truth_trees.sh
-```
+Plots retain efficiency, summed/leading response, response profiles, and multiplicity.
+Full-lineage plots additionally show raw activity response and stacked composition
+versus pT and cos(theta). Response profiles use defined responses only; numerical
+summaries record undefined-response coverage.
 
-This saves ten event dumps (two per sample) and a selection index in
-`plots/20260828_florian/photon_study/manual_audit/`. Each dump includes the full
-Gen record, the full stored Sim tree, resolved Gen origins, and every reco Photon
-association. A baseline and a targeted topology case are selected per sample;
-there are no energy or angular cuts. The script checks parent vertices, tree
-coverage, Gen anchors, and agreement between forward and backward lineage tracing.
-`REVIEW.txt` in that output folder records the manual review of the selected events.
+### Angular cross-check and limitations
+
+`03_angle_matching` scans 3D opening-angle cuts separately for the two channels.
+Truth lineage supplies the reference: own-ISR recovery, known unrelated origins,
+and candidates with unresolved truth are distinguished. Unknown truth is not
+labelled a false positive. Energy recovery and candidate multiplicity are retained
+in the scan; no preferred cut is silently promoted to nominal matching. The cone
+check allows several candidates per Gen photon; it is not an exclusive assignment.
+The recovery curve is conditional on nominal truth success; the any-candidate
+curve uses all selected Gen ISR photons. Pair fractions count Gen–Reco pairs,
+including repeated candidates in overlapping cones.
+The cone scan uses the deduplicated candidate representations. Full-lineage
+nominal success and composition still count the raw Part footprint.
+Energy profiles omit cones containing ambiguous representations, with coverage
+recorded in the summary. An unresolved saved parent retained alongside its daughters
+is energy-invalid in this geometric check; nominal daughter-associated energy and
+truth success are unchanged. Zero-momentum candidates are excluded only from
+geometric cones because their direction is undefined, and are counted in diagnostics.
+
+The efficiencies measure **saved truth-associated reconstruction**, not detector
+transport efficiency. Saved Gen-to-Sim coverage is a link diagnostic. Missing
+links, retained rejected Parts, and mixed contributions to one reconstructed object
+remain limitations. A single origin label does not measure its fractional energy
+contribution: very soft ISR can be associated with much larger reco energy. Even
+a deduplicated response is therefore an **associated energy response**, not proof
+that all that energy originated from the selected photon.
+
+Count errors use sqrt(N); efficiencies use 68.27% Clopper–Pearson intervals.
+Empty efficiency/profile bins are undefined. Profiles use the standard error of
+the mean where estimable. CMS style, default font sizes, 11×9 figures, DELPHI
+Simulation, and bold sample legends are retained. Logarithmic figures have fully
+linear `_linear.png` siblings where useful.
+
+The truth-tree script preserves the ten original representative events and adds
+fixed conversion, reverse-only, contradictory-anchor, and suspicious Beam ISR
+cases. Dumps include the full Gen/Sim records, Photon comparison, all Part link
+origins, and conversion associations. Independent checks cover Sim-tree structure,
+nested-anchor boundaries, and the conflict-free Part union. Output is under
+`00_link_validation/manual_audit/`; previous study outputs are preserved under
+`plots/20260828_florian/archive/`.
 
 ## BDT Classification
 
