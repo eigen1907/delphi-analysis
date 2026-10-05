@@ -3,4 +3,4 @@ set -e
 
 cd "$(dirname "$0")/../.."
 
-uv run python scripts/photons/dump-truth-trees.py
+uv run python scripts/isr_study/dump_truth_trees.py
