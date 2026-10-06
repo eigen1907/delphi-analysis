@@ -208,8 +208,10 @@ branch is a view of neutral Parts with EM calorimeter energy, not pure photon PI
   Histograms span 0–100% in 5% bins with count errors. Unmatched events enter at 0%;
   events with no selected Gen photons or undefined energy sums are excluded, with
   their counts printed to the terminal. Values above 100% are reported in each
-  population's legend entry as `>100%: count, percentage`, not merged into the
-  last bin. Percentages use the sample's full event count. Both linear-y and
+  population's legend entry as `>100% percentage`, not merged into the last bin.
+  Each entry also reports the arithmetic mean of unbinned event recovery values
+  in 0–100%, including unmatched zeros and exactly 100% but excluding overflow.
+  Overflow percentages use the sample's full event count. Both linear-y and
   `_log` versions are saved as `event_energy_recovery_<sample>[_log].png`.
 
 Nominal truth compares `Part_simIdx → Sim ancestry → first Gen anchor` with

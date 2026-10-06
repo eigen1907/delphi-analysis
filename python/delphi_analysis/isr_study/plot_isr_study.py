@@ -219,9 +219,11 @@ def event_energy_recovery(output, sample, values, recovered_energy):
         overflow = np.count_nonzero(recovery > 100)
         no_gen = np.count_nonzero(~has_gen)
         undefined = np.count_nonzero(has_gen & ~defined)
-        counts = np.histogram(recovery[recovery <= 100], bins=bins)[0]
+        in_range = recovery[recovery <= 100]
+        counts = np.histogram(in_range, bins=bins)[0]
         assert counts.sum() + overflow + no_gen + undefined == values['events']
-        histograms.append((counts, f'{label} (>100%: {overflow:,}, {100 * overflow / values["events"]:.2f}%)'))
+        mean = in_range.mean()
+        histograms.append((counts, f'{label}: Mean {mean:.2f}%, >100% {100 * overflow / values["events"]:.2f}%'))
         print(f'{sample} {output.parents[1].name}/{output.name} {population}: '
               f'no Gen={no_gen}, undefined={undefined}, overflow={overflow}', flush=True)
     maximum = max(counts.max() for counts, _ in histograms)
