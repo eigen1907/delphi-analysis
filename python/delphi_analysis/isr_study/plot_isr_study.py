@@ -134,17 +134,14 @@ def sample_distributions(study, sample, values, bins):
                 xlabel = r'$E_\gamma$ [GeV]' if coordinate == 'energy' else r'$\cos\theta$'
                 finish(fig, ax, output / f'{coordinate}_{sample}{suffix}.png', sample, xlabel,
                        r'$N_\gamma$ / bin per event')
-    event_multiplicity(study, sample, values)
+        event_multiplicity(output, sample, values, GEN_STACKS[gen_name])
 
 
-def event_multiplicity(study, sample, values):
+def event_multiplicity(output, sample, values, components):
     """Photon counts per event, including N_gamma = 0; overlapping curves are not stacked."""
-    populations = (('all_gamma', r'Gen all $\gamma$'), ('all_isr', 'Gen ISR'),
-                   ('beam_isr', 'Gen BeamISR'), ('nonbeam_isr', 'Gen NonBeamISR'),
-                   ('fsr', 'Gen FSR'), ('decayed', 'Gen Decayed'))
-    entries = [(values['gen_event_counts'][name], label, f'C{index}', '-')
-               for index, (name, label) in enumerate(populations)]
-    entries += [(values['reco_event_counts'][name], label, f'C{index + 6}', '--')
+    entries = [(values['gen_event_counts'][name], f'Gen {label}', f'C{GEN_COMPONENTS.index((name, label))}', '-')
+               for name, label in components]
+    entries += [(values['reco_event_counts'][name], label, f'C{index + 4}', '--')
                 for index, (name, label) in enumerate((('reco_gamma', r'Reco $\gamma$'),
                                                      ('reco_gamma_plus_conv', r'Reco $\gamma$+conv')))]
     bins = np.arange(-0.5, max(item[0].max() for item in entries) + 1.5)
@@ -169,7 +166,7 @@ def event_multiplicity(study, sample, values):
             ax.set_ylim(0, height * 1.8)
         ax.legend(title=sample, loc='upper center', ncol=2, frameon=True, framealpha=1, edgecolor='none')
         suffix = '_log' if log else ''
-        finish(fig, ax, study / '01_sample_distribution' / f'multiplicity_{sample}{suffix}.png',
+        finish(fig, ax, output / f'multiplicity_{sample}{suffix}.png',
                sample, r'$N_\gamma$', 'Events')
 
 

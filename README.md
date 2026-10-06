@@ -163,9 +163,11 @@ event-level Photon counts use the original Photon branch.
 - **01:** Independently stacked Gen colors and inclusive Reco hatching on one
   axis. The Reco stack is identical across the four Gen selections. Energy and
   cos(theta) have `_log` versions. Linear energy uses a labelled E ≥ 50 GeV
-  overflow bin; logarithmic energy retains the full tail. One event-multiplicity
-  plot per sample overlays Gen all gamma, ISR, BeamISR, NonBeamISR, FSR, Decayed,
-  and Reco Photon / Photon + conversion. Its axes are N_gamma and raw Events;
+  overflow bin; logarithmic energy retains the full tail. Each Gen directory has
+  event-multiplicity plots with its own Gen components: all four in `gen_gamma`,
+  BeamISR/NonBeamISR in `gen_isr`, FSR/Decayed in `gen_no_isr`, and NonBeamISR in
+  `gen_isr_non_beam`. Both inclusive Reco definitions appear in every plot.
+  Its axes are N_gamma and raw Events;
   `_log` changes only the multiplicity y-axis.
 - **02:** Each Gen selection compares both Reco definitions with Agree, Forward
   only, Reverse only, Conflict, and No origin. Only candidates with known evidence
