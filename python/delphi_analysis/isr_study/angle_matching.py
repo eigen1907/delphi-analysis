@@ -1,13 +1,10 @@
-"""Opening-angle validation of the stored truth association.
-
-The six curves count each selected Gen photon once. Only its own truth-linked
-Reco candidates count as a success; other cone occupants remain diagnostics.
-"""
+"""Opening-angle truth validation and independent geometric matching."""
 
 import numpy as np
 
 CUTS_DEG = np.array([0.25, 0.5, 1, 2, 3, 5, 10, 20])
 CHANNELS = ("reco_gamma", "reco_gamma_plus_conv")
+RESULT_CHANNELS = (*CHANNELS, "reco_all")
 POPULATIONS = ("gen_gamma_all", "gen_isr_all", "gen_isr_non_beam")
 PAIR_CATEGORIES = ("own_gen", "other_ISR", "non_ISR", "unresolved")
 GEN_LABELS = ("All gamma", "All ISR", "Non-beam ISR")
@@ -15,8 +12,13 @@ RECO_LABELS = (r"$\gamma$", r"$\gamma$ + conv")
 
 
 def new_accumulator():
-    """Keep scan counts and moments, rather than every event."""
-    result = dict(events=0, channels={})
+    """Keep scan moments and compact per-Gen angular observables."""
+    result = dict(events=0, channels={}, angular={})
+    for channel in RESULT_CHANNELS:
+        result["angular"][channel] = {
+            name: dict(pending=[], blocks=[])
+            for name in ("reco_count", "energy_count", "energy_ratio")
+        }
     for channel in CHANNELS:
         populations = {}
         for population in POPULATIONS:
@@ -43,33 +45,58 @@ def accumulate(accumulator, event):
     assert np.all(gen_momentum > 0) and np.all(gen_p4[:, 3] > 0)
     gen_unit = gen_p4[:, :3] / gen_momentum[:, None]
     isr_idx = gen_idx[event["selections"]["gen_isr_all"]]
-    for channel in CHANNELS:
+    for channel in RESULT_CHANNELS:
         objects = event["reco"][channel]
         p4, origins = objects["p4"], objects["gen_idx"]
-        counts = accumulator["channels"][channel]
         momentum = np.linalg.norm(p4[:, :3], axis=1)
         directional = momentum > 0
-        counts["candidates"] += len(p4)
-        counts["zero_momentum_candidates"] += int(np.count_nonzero(~directional))
-        counts["energy_invalid_candidates"] += int(np.count_nonzero(~objects["energy_valid"]))
+        if channel in CHANNELS:
+            counts = accumulator["channels"][channel]
+            counts["candidates"] += len(p4)
+            counts["zero_momentum_candidates"] += int(np.count_nonzero(~directional))
+            counts["energy_invalid_candidates"] += int(np.count_nonzero(~objects["energy_valid"]))
         p4, origins = p4[directional], origins[directional]
         energy_valid = objects["energy_valid"][directional]
+        geometric_energy_valid = objects["geometric_energy_valid"][directional]
         reco_unit = p4[:, :3] / momentum[directional, None]
         cosine = np.clip(gen_unit @ reco_unit.T, -1, 1)
         cones = cosine[:, :, None] >= np.cos(np.deg2rad(CUTS_DEG))[None, None, :]
+        energy_ratio = np.einsum("ijk,j->ik", cones, p4[:, 3]) / gen_p4[:, 3, None]
+        energy_rows = ~(cones & ~energy_valid[None, :, None]).any(axis=1)
+        geometric_energy_rows = ~(cones & ~geometric_energy_valid[None, :, None]).any(axis=1)
+        multiplicity = cones.sum(axis=1)
+        raw_multiplicity = multiplicity
+        if channel == "reco_all":
+            # Stored Parts count as footprints; energy uses canonical objects.
+            raw_p4 = objects["raw_p4"]
+            raw_momentum = np.linalg.norm(raw_p4[:, :3], axis=1)
+            raw_unit = raw_p4[raw_momentum > 0, :3] / raw_momentum[raw_momentum > 0, None]
+            raw_cosine = np.clip(gen_unit @ raw_unit.T, -1, 1)
+            raw_multiplicity = (raw_cosine[:, :, None] >= np.cos(np.deg2rad(CUTS_DEG))).sum(axis=1)
+        stored = accumulator["angular"][channel]
+        assert np.all(raw_multiplicity <= np.iinfo(np.uint16).max)
+        assert np.all(multiplicity <= np.iinfo(np.uint16).max)
+        for name, values in (("reco_count", raw_multiplicity.astype(np.uint16)),
+                             ("energy_count", multiplicity.astype(np.uint16)),
+                             ("energy_ratio", np.where(geometric_energy_rows, energy_ratio, np.nan))):
+            stored[name]["pending"].append(values)
+        # Consolidate small event arrays so the full scan stays compact.
+        if len(stored["reco_count"]["pending"]) >= 1024:
+            for field in stored.values():
+                field["blocks"].append(np.concatenate(field["pending"]))
+                field["pending"].clear()
+        if channel == "reco_all":
+            continue
         own = gen_idx[:, None] == origins[None, :]
         isr_origin = np.isin(origins, isr_idx)[None, :]
         other_isr = isr_origin & ~own
         non_isr = ((origins >= 0)[None, :] & ~isr_origin) & ~own
         unresolved = (origins < 0)[None, :]
         truth_cones = cones & own[:, :, None]
-        multiplicity = cones.sum(axis=1)
         truth_multiplicity = truth_cones.sum(axis=1)
-        energy_ratio = np.einsum("ijk,j->ik", cones, p4[:, 3]) / gen_p4[:, 3, None]
         truth_ratio = np.einsum("ijk,j->ik", truth_cones, p4[:, 3]) / gen_p4[:, 3, None]
         # A saved parent/daughter ambiguity invalidates its energy, not its
         # presence. Empty cones remain zero-energy entries.
-        energy_rows = ~(cones & ~energy_valid[None, :, None]).any(axis=1)
         truth_energy_rows = ~(truth_cones & ~energy_valid[None, :, None]).any(axis=1)
         truth_energy_rows &= objects["stats"]["energy_valid"][:, None]
         for population in POPULATIONS:
@@ -92,6 +119,29 @@ def accumulate(accumulator, event):
             values["multiplicity_square_sum"] += (multiplicity[selected] ** 2).sum(axis=0)
             values["truth_multiplicity_sum"] += truth_multiplicity[selected].sum(axis=0)
             values["truth_multiplicity_square_sum"] += (truth_multiplicity[selected] ** 2).sum(axis=0)
+
+
+def angular_stats(accumulator, cut_degrees):
+    """Return per-Gen cone matching at the selected scan cut, with no truth gate.
+
+    Arrays stay aligned with all stable Gen photons. A Reco candidate may enter
+    several Gen cones; no unique assignment or angular truth repair is implied.
+    Extracting the selected column releases the other scan-cut observations.
+    """
+    index = int(np.flatnonzero(CUTS_DEG == cut_degrees).item())
+    result = {}
+    for channel, fields in accumulator.pop("angular").items():
+        stats = {}
+        for name, field in fields.items():
+            if field["pending"]:
+                field["blocks"].append(np.concatenate(field["pending"]))
+                field["pending"].clear()
+            stats[name] = np.concatenate([block[:, index] for block in field["blocks"]])
+            field["blocks"].clear()
+        stats["raw_count"] = stats["reco_count"].copy()
+        stats["energy_valid"] = np.isfinite(stats["energy_ratio"])
+        result[channel] = stats
+    return result
 
 
 def mean_and_sem(counts, sums, squares):
@@ -172,6 +222,7 @@ def plot_angle_matching(output_root, sample, accumulator, cut_degrees):
     from .plot_isr_study import FIGURE_SIZE, clopper_pearson, finish
 
     output_root.mkdir(parents=True, exist_ok=True)
+    shown = CUTS_DEG <= 10
     for observable in ("efficiency", "energy_recovery"):
         fig, ax = plt.subplots(figsize=FIGURE_SIZE)
         for gen_index, population in enumerate(POPULATIONS):
@@ -187,11 +238,11 @@ def plot_angle_matching(output_root, sample, accumulator, cut_degrees):
                 else:
                     mean, error = mean_and_sem(values["truth_energy_count"], values["truth_energy_sum"],
                                                values["truth_energy_square_sum"])
-                ax.errorbar(CUTS_DEG, mean, yerr=error, color=f"C{gen_index}",
+                ax.errorbar(CUTS_DEG[shown], mean[shown], yerr=error[..., shown], color=f"C{gen_index}",
                             linestyle=("-", "--")[reco_index], marker=("o", "s")[reco_index],
                             label=label, capsize=2, markersize=4)
-        ax.axvline(cut_degrees, color="black", linestyle="--", label=f"Cut: {cut_degrees:g} deg")
-        ax.set_xlim(0, CUTS_DEG[-1] * 1.05)
+        ax.axvline(cut_degrees, color="black", linestyle="--", linewidth=2)
+        ax.set_xlim(0, 10)
         ax.set_ylim(bottom=0)
         ylabel = "Efficiency" if observable == "efficiency" else r'$\langle\sum E^{\rm reco}/E_\gamma^{\rm gen}\rangle$'
         # Reserve an interior legend band; the data determine the useful scale.

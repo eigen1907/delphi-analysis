@@ -320,6 +320,31 @@ def analyze_event(raw, sample):
     part_forward = [{int(gen)} if gen >= 0 else set() for gen in forward]
     photon_valid = np.asarray([part not in bad_parts and len(known[part]) <= 1
                                for part in photon_parts], dtype=bool)
+    # Geometry has no Gen-origin requirement. Only overlapping saved Reco
+    # representations make its energy ambiguous; an isolated conflicted Part
+    # still has a measured four-vector. Invalidate the retained ancestor, so
+    # a cone containing only its daughters can retain a defined energy sum.
+    photon_part_set = set(photon_parts)
+    photon_geometry_valid = np.asarray([not (part_descendants.get(part, set()) & photon_part_set)
+                                        for part in photon_parts], dtype=bool)
+    part_geometry_valid = np.asarray([not (part_descendants.get(part, set()) & retained_parts)
+                                      for part in canonical_parts], dtype=bool)
+    kept_photon_parts = set(photon_parts[kept_photons])
+    conversion_groups = []
+    for conv in kept_convs:
+        members = conv_daughters[conv] | ({conv_parents[conv]} if conv_parents[conv] >= 0 else set())
+        conversion_groups.append(members | set().union(*(part_descendants.get(part, set()) for part in members)))
+    gamma_geometry_valid = []
+    for part in photon_parts[kept_photons]:
+        children = part_descendants.get(part, set())
+        gamma_geometry_valid.append(not (children & kept_photon_parts) and
+                                    not any(children & group for group in conversion_groups))
+    for row, group in enumerate(conversion_groups):
+        overlap = bool(group & kept_photon_parts) or any(
+            group & other and not group < other for other_row, other in enumerate(conversion_groups)
+            if other_row != row)
+        gamma_geometry_valid.append(not overlap)
+    gamma_geometry_valid = np.asarray(gamma_geometry_valid, dtype=bool)
     gamma_forward = [part_forward[p] for p in photon_parts[kept_photons]] + [conv_forward[c] for c in kept_convs]
     gamma_reverse = [reverse[p] for p in photon_parts[kept_photons]] + [conv_reverse[c] for c in kept_convs]
     gamma_known = [known[p] for p in photon_parts[kept_photons]] + [conv_known[c] for c in kept_convs]
@@ -344,8 +369,16 @@ def analyze_event(raw, sample):
         reco[name] = dict(p4=p4, gen_idx=origins, energy_valid=geometric_valid, stats=stats,
                           forward_origin_sets=forward_sets, reverse_origin_sets=reverse_sets,
                           origin_sets=known_sets, kind=kind)
+        reco[name]["geometric_energy_valid"] = {
+            "reco_gamma": photon_geometry_valid,
+            "reco_gamma_plus_conv": gamma_geometry_valid,
+            "reco_all": part_geometry_valid,
+        }[name]
+        diagnostics[f"{name}_geometric_energy_overlap_objects"] += int(np.count_nonzero(
+            ~reco[name]["geometric_energy_valid"]))
     # All-Part validation counts raw stored footprints; its energy uses canonical objects.
-    reco["reco_all"].update(link_forward_sets=part_forward, link_reverse_sets=reverse, link_origin_sets=known)
+    reco["reco_all"].update(raw_p4=part_p4, link_forward_sets=part_forward,
+                            link_reverse_sets=reverse, link_origin_sets=known)
     matching_validation = {gen: {name: Counter(dict.fromkeys(LINK_STATUSES, 0)) for name in RECO_DEFINITIONS}
                            for gen in GEN_SELECTIONS}
     unmatched_validation = {name: Counter(dict.fromkeys(LINK_STATUSES, 0)) for name in RECO_DEFINITIONS}
