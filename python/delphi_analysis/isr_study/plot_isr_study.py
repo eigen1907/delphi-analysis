@@ -165,20 +165,16 @@ def link_validation(study, sample, values):
     keys = ('agreement', 'forward_only', 'reverse_only', 'conflict', 'no_origin')
     labels = ('Agree', 'Forward\nonly', 'Reverse\nonly', 'Conflict', 'No origin')
     for name, filename, label in (('all_parts', 'reco_link_status', 'All Part'),
-                                  ('ISR_involved', 'reco_link_status_isr', 'ISR-related Part')):
+                                  ('ISR_involved', 'reco_link_status_isr', 'ISR-related Part'),
+                                  ('noBeamISR_involved', 'reco_link_status_noBeamISR', 'Non-beam ISR-related Part')):
         counts = np.asarray([values['link_validation'][name].get(key, 0) for key in keys])
-        for linear in (False, True):
-            fig, ax = plt.subplots(figsize=FIGURE_SIZE)
-            ax.bar(np.arange(len(keys)), counts, color='C0', label=label)
-            ax.errorbar(np.arange(len(keys)), counts, yerr=np.sqrt(counts), fmt='o', color='black', capsize=2)
-            ax.set_xticks(np.arange(len(keys)), labels)
-            if linear:
-                ax.set_ylim(0, counts.max() * 1.4)
-            else:
-                ax.set_yscale('log')
-                ax.set_ylim(top=counts.max() * 10)
-            suffix = '_linear' if linear else ''
-            finish(fig, ax, output / f'{filename}{suffix}.png', sample, 'Link status', 'Reco Parts')
+        fig, ax = plt.subplots(figsize=FIGURE_SIZE)
+        ax.bar(np.arange(len(keys)), counts, color='C0', label=label)
+        ax.errorbar(np.arange(len(keys)), counts, yerr=np.sqrt(counts), fmt='o', color='black', capsize=2)
+        ax.set_xticks(np.arange(len(keys)), labels)
+        ax.set_yscale('log')
+        ax.set_ylim(top=counts.max() * 10)
+        finish(fig, ax, output / f'{filename}.png', sample, 'Link status', 'Reco Parts')
 
 
 def composition_plot(path, sample, photons, raw_count, composition, selected, coordinate, bins, scale):

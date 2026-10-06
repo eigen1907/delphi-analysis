@@ -132,7 +132,7 @@ The plotting CLI has only input/output directory arguments.
 ```text
 plots/20260828_florian/isr_study/
   00_link_validation/
-    <sample>/                        link agreement and conflicts
+    <sample>/                        all Part / ISR / noBeamISR links (log only)
     manual_audit/                    representative full event trees
   01_photon_conversion/
     gen/<sample>/                    stacked Beam/non-Beam Gen ISR spectra
@@ -167,6 +167,8 @@ node. All known Gen origins, including non-ISR origins, are retained when checki
 agreement. A Part is accepted if the **union contains exactly one Gen origin**.
 Missing evidence in one direction is allowed; contradictory or absent origins
 remain unresolved. Angular matching does not repair these nominal links.
+ISR link-status subsets include Parts with any known selected ISR origin,
+including conflicts; their `No origin` bin is therefore zero by construction.
 
 ### Photon/conversion and all-lineage channels
 

@@ -106,6 +106,7 @@ def analyze_event(raw, sample):
                        and abs(pdgs[parents[gen]]) == 11 and parents[parents[gen]] < 0
                        for gen, p4 in zip(gen_idx, gen_p4, strict=True)], dtype=bool)
     isr = set(gen_idx)
+    nonbeam_isr = set(gen_idx[~beam])
     sim_gens = np.asarray(raw["SimPart_genIdx"], dtype=int)
     n_sim, n_part = len(sim_gens), len(raw["Part_simIdx"])
     assert np.all((sim_gens >= -1) & (sim_gens < len(pdgs)))
@@ -148,7 +149,7 @@ def analyze_event(raw, sample):
     known = [origins | ({int(forward[part])} if forward[part] >= 0 else set())
              for part, origins in enumerate(reverse)]
     part_origins = np.asarray([next(iter(origins)) if len(origins) == 1 else -1 for origins in known], dtype=int)
-    validation = {name: Counter() for name in ("all_parts", "ISR_involved", "direct_anchors")}
+    validation = {name: Counter() for name in ("all_parts", "ISR_involved", "noBeamISR_involved", "direct_anchors")}
     for part, origins in enumerate(known):
         kind = ("conflict" if len(origins) > 1 else "no_origin" if not origins else
                 "agreement" if reverse[part] and forward[part] >= 0 else
@@ -156,6 +157,8 @@ def analyze_event(raw, sample):
         validation["all_parts"][kind] += 1
         if origins & isr:
             validation["ISR_involved"][kind] += 1
+        if origins & nonbeam_isr:
+            validation["noBeamISR_involved"][kind] += 1
     for gen, sim in enumerate(raw["GenPart_simIdx"]):
         kind = ("missing" if sim < 0 else "consistent" if sim < n_sim and sim_gens[sim] == gen
                 else "different_or_invalid_anchor")
@@ -327,7 +330,7 @@ def read_sample(input_root: Path, sample: str, angle_accumulator=None):
     photons = {name: [] for name in ("energy", "pt", "cos_theta", "beam")}
     channels = {name: {} for name in CHANNELS}
     composition = {name: [] for name in ("gen_pt", "gen_cos_theta", "beam", "category")}
-    validation = {name: Counter() for name in ("all_parts", "ISR_involved", "direct_anchors")}
+    validation = {name: Counter() for name in ("all_parts", "ISR_involved", "noBeamISR_involved", "direct_anchors")}
     diagnostics, events = Counter(), 0
     directory = input_root / f"20260828_100kTest_{sample}_photosFSR" / "final_root"
     paths = sorted(directory.glob("job_*/nanoaod.root"))
