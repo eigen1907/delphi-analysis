@@ -1,19 +1,21 @@
-"""Opening-angle cross-check; stored truth remains the nominal association.
+"""Opening-angle validation of the stored truth association.
 
-Each Gen ISR uses every candidate inside its cone. A candidate can therefore
-appear in several cones; pair fractions are diagnostics, not a new truth match.
+The six curves count each selected Gen photon once. Only its own truth-linked
+Reco candidates count as a success; other cone occupants remain diagnostics.
 """
 
 import numpy as np
 
 CUTS_DEG = np.array([0.25, 0.5, 1, 2, 3, 5, 10, 20])
-CHANNELS = ("photon_conversion", "all_lineage")
-POPULATIONS = ("all_ISR", "noBeamISR")
-PAIR_CATEGORIES = ("own_ISR", "other_ISR", "non_ISR", "unresolved")
+CHANNELS = ("reco_gamma", "reco_gamma_plus_conv")
+POPULATIONS = ("gen_gamma_all", "gen_isr_all", "gen_isr_non_beam")
+PAIR_CATEGORIES = ("own_gen", "other_ISR", "non_ISR", "unresolved")
+GEN_LABELS = ("All gamma", "All ISR", "Non-beam ISR")
+RECO_LABELS = (r"$\gamma$", r"$\gamma$ + conv")
 
 
 def new_accumulator():
-    """Only scan counts and moments are retained, rather than every event."""
+    """Keep scan counts and moments, rather than every event."""
     result = dict(events=0, channels={})
     for channel in CHANNELS:
         populations = {}
@@ -29,20 +31,20 @@ def new_accumulator():
                 values[field] = np.zeros(len(CUTS_DEG))
             populations[population] = values
         result["channels"][channel] = dict(candidates=0, zero_momentum_candidates=0,
-                                            energy_invalid_candidates=0, populations=populations)
+                                           energy_invalid_candidates=0, populations=populations)
     return result
 
 
 def accumulate(accumulator, event):
-    """Accumulate all-ISR and non-beam ISR scans from one analyzed event."""
+    """Scan the same global Reco candidates for all three Gen populations."""
     accumulator["events"] += 1
-    gen_idx, gen_p4 = event["gen_idx"], event["gen_p4"]
+    gen_idx, gen_p4 = event["all_gamma_idx"], event["all_gamma_p4"]
     gen_momentum = np.linalg.norm(gen_p4[:, :3], axis=1)
     assert np.all(gen_momentum > 0) and np.all(gen_p4[:, 3] > 0)
     gen_unit = gen_p4[:, :3] / gen_momentum[:, None]
-    population_masks = (np.ones(len(gen_idx), dtype=bool), ~event["beam"])
+    isr_idx = gen_idx[event["selections"]["gen_isr_all"]]
     for channel in CHANNELS:
-        objects = event["channels"][channel]
+        objects = event["reco"][channel]
         p4, origins = objects["p4"], objects["gen_idx"]
         counts = accumulator["channels"][channel]
         momentum = np.linalg.norm(p4[:, :3], axis=1)
@@ -56,19 +58,22 @@ def accumulate(accumulator, event):
         cosine = np.clip(gen_unit @ reco_unit.T, -1, 1)
         cones = cosine[:, :, None] >= np.cos(np.deg2rad(CUTS_DEG))[None, None, :]
         own = gen_idx[:, None] == origins[None, :]
-        other_isr = np.isin(origins, gen_idx)[None, :] & ~own
-        non_isr = ((origins >= 0) & ~np.isin(origins, gen_idx))[None, :]
+        isr_origin = np.isin(origins, isr_idx)[None, :]
+        other_isr = isr_origin & ~own
+        non_isr = ((origins >= 0)[None, :] & ~isr_origin) & ~own
         unresolved = (origins < 0)[None, :]
         truth_cones = cones & own[:, :, None]
         multiplicity = cones.sum(axis=1)
         truth_multiplicity = truth_cones.sum(axis=1)
         energy_ratio = np.einsum("ijk,j->ik", cones, p4[:, 3]) / gen_p4[:, 3, None]
         truth_ratio = np.einsum("ijk,j->ik", truth_cones, p4[:, 3]) / gen_p4[:, 3, None]
-        # Omit an energy-profile entry if its cone contains a representation
-        # whose energy could double-count a saved parent/daughter structure.
+        # A saved parent/daughter ambiguity invalidates its energy, not its
+        # presence. Empty cones remain zero-energy entries.
         energy_rows = ~(cones & ~energy_valid[None, :, None]).any(axis=1)
         truth_energy_rows = ~(truth_cones & ~energy_valid[None, :, None]).any(axis=1)
-        for population, selected in zip(POPULATIONS, population_masks, strict=True):
+        truth_energy_rows &= objects["stats"]["energy_valid"][:, None]
+        for population in POPULATIONS:
+            selected = event["selections"][population]
             values = counts["populations"][population]
             nominal = objects["stats"]["reco_count"][selected] > 0
             values["gen_count"] += int(selected.sum())
@@ -90,7 +95,7 @@ def accumulate(accumulator, event):
 
 
 def mean_and_sem(counts, sums, squares):
-    """Unweighted Gen-unit means, including zeros; SEM uses the sample variance."""
+    """Gen-unit means including zeros; SEM uses the sample variance."""
     counts = np.broadcast_to(counts, np.shape(sums))
     mean = np.divide(sums, counts, out=np.full_like(sums, np.nan), where=counts > 0)
     variance_sum = squares - np.divide(sums ** 2, counts, out=np.zeros_like(sums), where=counts > 0)
@@ -99,12 +104,38 @@ def mean_and_sem(counts, sums, squares):
     return mean, sem
 
 
+def choose_cut(accumulators):
+    """Smallest cut retaining 99% of pooled non-beam truth successes in both channels."""
+    pooled = {channel: dict(truth_success=0, recovered=np.zeros(len(CUTS_DEG), dtype=np.int64))
+              for channel in CHANNELS}
+    for accumulator in accumulators:
+        for channel in CHANNELS:
+            values = accumulator["channels"][channel]["populations"]["gen_isr_non_beam"]
+            pooled[channel]["truth_success"] += values["truth_success"]
+            pooled[channel]["recovered"] += values["recovered_truth_success"]
+    eligible = np.ones(len(CUTS_DEG), dtype=bool)
+    for values in pooled.values():
+        eligible &= (values["truth_success"] > 0) & (values["recovered"] >= 0.99 * values["truth_success"])
+    index = int(np.flatnonzero(eligible)[0]) if eligible.any() else len(CUTS_DEG) - 1
+    channels = {}
+    for channel, values in pooled.items():
+        denominator = values["truth_success"]
+        channels[channel] = dict(truth_success=denominator,
+                                 recovered_truth_success=values["recovered"].tolist(),
+                                 retained_fraction=(values["recovered"] / denominator).tolist() if denominator else [None] * len(CUTS_DEG))
+    return dict(angle_degrees=float(CUTS_DEG[index]), target_truth_retention=0.99,
+                target_met=bool(eligible.any()),
+                selection_rule="smallest scan cut retaining >=99% of pooled non-beam ISR truth successes in both Photon channels",
+                channels=channels)
+
+
 def summary(accumulator):
-    """JSON-ready raw counts preserve the denominator of every scan quantity."""
+    """Raw counts keep every denominator and cone-contamination diagnostic."""
     result = dict(events=accumulator["events"], cuts_degrees=CUTS_DEG.tolist(),
+                  efficiency_rule="own truth-associated Reco inside cone / all selected Gen photons",
                   cone_rule="all candidates in each cone; a candidate may enter multiple Gen cones",
                   zero_momentum_rule="excluded only from geometric cones; retained in nominal truth success",
-                  energy_rule="all Gen units including empty-cone zeros; omit cones containing energy-invalid objects",
+                  energy_rule="own truth-associated Reco energy / Gen energy, including empty-cone zeros; omit ambiguous nominal Gen energy and cones containing energy-invalid objects",
                   channels={})
     for channel in CHANNELS:
         counts = accumulator["channels"][channel]
@@ -134,61 +165,39 @@ def summary(accumulator):
     return result
 
 
-def plot_angle_matching(output_root, sample, accumulator):
-    """Four compact scan observables; energy also has a fully linear sibling."""
+def plot_angle_matching(output_root, sample, accumulator, cut_degrees):
+    """Six cases share each plot; color is Gen selection and line style is Reco definition."""
     import matplotlib.pyplot as plt
 
     from .plot_isr_study import FIGURE_SIZE, clopper_pearson, finish
 
-    for number, channel in enumerate(CHANNELS, start=1):
-        for population in POPULATIONS:
-            values = accumulator["channels"][channel]["populations"][population]
-            output = output_root / f"0{number}_{channel}" / population / sample
-            output.mkdir(parents=True, exist_ok=True)
-            fig, ax = plt.subplots(figsize=FIGURE_SIZE)
-            for index, (numerator, denominator, label) in enumerate((
-                (values["recovered_truth_success"], values["truth_success"], "Truth recovery"),
-                (values["geometric_success"], values["gen_count"], "Any candidate"),
-            )):
-                denominators = np.full(len(CUTS_DEG), denominator)
-                ratio = np.divide(numerator, denominators, out=np.full(len(CUTS_DEG), np.nan), where=denominators > 0)
-                lower, upper = clopper_pearson(numerator, denominators)
-                ax.errorbar(CUTS_DEG, ratio, yerr=[ratio - lower, upper - ratio], fmt='o-',
-                            color=f'C{index}', label=label, capsize=2, markersize=4)
-            ax.set_ylim(0, 1.2)
-            ax.set_yticks(np.linspace(0, 1, 6))
-            ax.set_xlim(0, CUTS_DEG[-1] * 1.05)
-            finish(fig, ax, output / 'recovery_vs_angle.png', sample, 'Opening-angle cut [deg]', 'Probability')
-
-            fig, ax = plt.subplots(figsize=FIGURE_SIZE)
-            total = values["pair_counts"].sum(axis=0)
-            fractions = np.divide(values["pair_counts"], total[None, :],
-                                  out=np.zeros_like(values["pair_counts"], dtype=float), where=total[None, :] > 0)
-            for index, label in enumerate(('Own ISR', 'Other ISR', 'Non-ISR', 'Unresolved')):
-                ax.plot(CUTS_DEG, fractions[index], 'o-', label=label, color=f'C{index}', markersize=4)
-            ax.set_ylim(0, 1.2)
-            ax.set_yticks(np.linspace(0, 1, 6))
-            ax.set_xlim(0, CUTS_DEG[-1] * 1.05)
-            finish(fig, ax, output / 'pair_composition_vs_angle.png', sample, 'Opening-angle cut [deg]', 'Pair fraction')
-
-            for linear in (False, True):
-                fig, ax = plt.subplots(figsize=FIGURE_SIZE)
-                for index, (prefix, label) in enumerate((('energy', 'All candidates'), ('truth_energy', 'Own ISR'))):
-                    mean, sem = mean_and_sem(values[f'{prefix}_count'], values[f'{prefix}_sum'], values[f'{prefix}_square_sum'])
-                    ax.errorbar(CUTS_DEG, mean, yerr=sem, fmt='o-', color=f'C{index}', label=label, capsize=2, markersize=4)
-                if not linear:
-                    ax.set_yscale('log')
+    output_root.mkdir(parents=True, exist_ok=True)
+    for observable in ("efficiency", "energy_recovery"):
+        fig, ax = plt.subplots(figsize=FIGURE_SIZE)
+        for gen_index, population in enumerate(POPULATIONS):
+            for reco_index, channel in enumerate(CHANNELS):
+                values = accumulator["channels"][channel]["populations"][population]
+                label = f"{GEN_LABELS[gen_index]} / {RECO_LABELS[reco_index]}"
+                if observable == "efficiency":
+                    denominator = np.full(len(CUTS_DEG), values["gen_count"])
+                    numerator = values["recovered_truth_success"]
+                    mean = np.divide(numerator, denominator, out=np.full(len(CUTS_DEG), np.nan), where=denominator > 0)
+                    lower, upper = clopper_pearson(numerator, denominator)
+                    error = np.maximum([mean - lower, upper - mean], 0)
                 else:
-                    ax.set_ylim(bottom=0)
-                suffix = '_linear' if linear else ''
-                ax.set_xlim(0, CUTS_DEG[-1] * 1.05)
-                finish(fig, ax, output / f'energy_recovery_vs_angle{suffix}.png', sample,
-                       'Opening-angle cut [deg]', r'$\langle\sum E^{\rm reco}/E_\gamma^{\rm gen}\rangle$')
-
-            fig, ax = plt.subplots(figsize=FIGURE_SIZE)
-            for index, (prefix, label) in enumerate((('multiplicity', 'All candidates'), ('truth_multiplicity', 'Own ISR'))):
-                mean, sem = mean_and_sem(values['gen_count'], values[f'{prefix}_sum'], values[f'{prefix}_square_sum'])
-                ax.errorbar(CUTS_DEG, mean, yerr=sem, fmt='o-', label=label, color=f'C{index}', capsize=2, markersize=4)
-            ax.set_ylim(bottom=0)
-            ax.set_xlim(0, CUTS_DEG[-1] * 1.05)
-            finish(fig, ax, output / 'multiplicity_vs_angle.png', sample, 'Opening-angle cut [deg]', r'$\langle N^{\rm reco}\rangle$ / gen')
+                    mean, error = mean_and_sem(values["truth_energy_count"], values["truth_energy_sum"],
+                                               values["truth_energy_square_sum"])
+                ax.errorbar(CUTS_DEG, mean, yerr=error, color=f"C{gen_index}",
+                            linestyle=("-", "--")[reco_index], marker=("o", "s")[reco_index],
+                            label=label, capsize=2, markersize=4)
+        ax.axvline(cut_degrees, color="black", linestyle="--", label=f"Cut: {cut_degrees:g} deg")
+        ax.set_xlim(0, CUTS_DEG[-1] * 1.05)
+        ax.set_ylim(bottom=0)
+        ylabel = "Efficiency" if observable == "efficiency" else r'$\langle\sum E^{\rm reco}/E_\gamma^{\rm gen}\rangle$'
+        # Reserve an interior legend band; the data determine the useful scale.
+        lower, upper = ax.get_ylim()
+        ax.set_ylim(lower, upper * 1.65)
+        ax.legend(title=sample, ncol=2, loc="upper center", frameon=True,
+                  framealpha=1, edgecolor="none")
+        finish(fig, ax, output_root / f"{observable}_vs_opening_angle_{sample}.png", sample,
+               "Opening-angle cut [deg]", ylabel)

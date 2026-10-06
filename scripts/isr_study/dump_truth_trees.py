@@ -12,7 +12,7 @@ from delphi_analysis.isr_study.data import (
 
 PROJECT = Path(__file__).resolve().parents[2]
 INPUT = PROJECT / 'data/20260828_florian'
-OUTPUT = PROJECT / 'plots/20260828_florian/isr_study/00_link_validation/manual_audit'
+OUTPUT = PROJECT / 'plots/20260828_florian/isr_study/02_truth_link_matching_validation/manual_audit'
 SIM_P4 = tuple(f'SimPart_fourMomentum.fCoordinates.f{axis}' for axis in 'XYZT')
 PART_P4 = tuple(f'Part_fourMomentum.fCoordinates.f{axis}' for axis in 'XYZT')
 AUDIT_BRANCHES = tuple(dict.fromkeys((*BRANCHES, *SIM_P4, 'Event_runNumber', 'Event_evtNumber',
