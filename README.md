@@ -124,168 +124,81 @@ bash runs/isr_study/plot_isr_study.sh
 bash runs/isr_study/dump_truth_trees.sh
 ```
 
-Only the five Florian `photosFSR` samples (`Zee`, `Zmumu`, `Ztautau`, `ZKK`,
-`Zpipi`) are read: 449,999 events. Code and recipes remain under
-`python/delphi_analysis/isr_study/`, `scripts/isr_study/`, and `runs/isr_study/`.
-The plotting CLI has only input/output directory arguments.
+The five Florian `photosFSR` samples (`Zee`, `Zmumu`, `Ztautau`, `ZKK`, `Zpipi`)
+contain 449,999 events. The plotting script accepts only input/output directories.
+Code and recipes are grouped under `isr_study/`.
 
 ```text
 plots/20260828_florian/isr_study/
   01_sample_distribution/
-    multiplicity_<sample>.png
-    {gen_gamma_all,gen_isr_all,gen_isr_non_beam}/
   02_truth_link_matching_validation/
-    <gen_selection>/
     manual_audit/
   03_angular_matching_validation/
   04_matching_result/
-    {gen_all_gamma,gen_all_isr,gen_non_beam_isr}/
-  study_summary.json
-  study_notes.txt
 ```
 
-Figure filenames include the sample name before any scale suffix, for example
-`energy_Zee_log.png` and `energy_response_vs_energy_Zee_logy.png`.
-CMS style, default font sizes,
-DELPHI Simulation, and bold sample legends are retained. Count errors use
-sqrt(N); efficiencies use 68.27% Clopper–Pearson intervals. Empty bins are
-undefined; response profiles show the standard error of the mean where estimable.
-Energy plots use wider bins at high energy, with a separate logarithmic-energy
-version. Linear sample spectra use a labelled overflow bin for E >= 50 GeV;
-the log-energy plots and matching use the original energies and full tails.
-No pT plots are produced. Response plots have additional `_logy` versions.
+Stages 01, 02, and 04 use the same four Gen directories:
 
-### Gen populations and Reco definitions
+| Directory | Stable Gen selection |
+| --- | --- |
+| `gen_gamma` | All gamma |
+| `gen_isr` | All ISR |
+| `gen_no_isr` | Gamma excluding ISR: FSR + Decayed |
+| `gen_isr_non_beam` | ISR excluding Beam ISR |
 
-**One stable Gen photon is the analysis unit:** `GenPart_pdgId == 22` and
-`GenPart_status == 1`. The three selections are all stable photons, all ISR,
-and non-beam ISR. ISR has an electron/positron as its first non-photon Gen
-ancestor, with no hard-process parent on that path. Beam ISR additionally has
-exactly zero px and py and a direct, parentless incoming electron/positron parent.
-FSR has the hard-process parent or its direct sample-final-state daughter as the
-first non-photon ancestor. `Decayed` is the previous `Others` category; in these
-samples its 197,201 photons come exclusively from π⁰, η, and ω decays in Ztautau.
-No energy, fiducial-angle, PID, lock, or angular cut is applied to nominal truth
-reconstruction.
+Stable photons have `GenPart_pdgId == 22` and `GenPart_status == 1`.
+ISR has an electron/positron as its first non-photon ancestor, with no hard parent
+on that path. Beam ISR additionally has `px == py == 0` and a direct, parentless
+incoming electron/positron parent. FSR starts at the hard parent or its direct
+sample-final-state daughter. Decayed is the previous Others category; here it
+contains π⁰, η, and ω decay photons in Ztautau. Nominal truth results have no
+energy, angular, fiducial, PID, or lock cuts.
 
-Reco definitions are Photon candidates (`reco_gamma`), Photon candidates plus
-explicit reconstructed conversions (`reco_gamma_plus_conv`), and all associated
-Parts (`reco_all`). The `Photon` branch is a view of neutral Parts with EM
-calorimeter energy, not a pure photon PID selection. `Part_pdgId` and
-`SimPart_pdgId` use DELPHI mass codes: gamma=21, electron/positron=±2.
+Reco definitions are **Photon** and **Photon + conversion** only. The Photon
+branch is a view of neutral Parts with EM calorimeter energy, not pure photon
+PID. `Part_pdgId` and `SimPart_pdgId` use DELPHI mass codes: gamma=21, e±=±2.
+The conversion collection replaces overlapping Photon representations once;
+event-level Photon counts use the original Photon branch.
 
-`01_sample_distribution` overlays independently stacked Gen and Reco spectra
-on one axis: Gen uses solid colors; Reco gamma/conversion uses unfilled hatching.
-Their heights are separate totals, not a combined Gen-plus-Reco count.
-Gen stacks retain the selected photons. All three Gen directories use the same
-inclusive Reco stack, including unresolved and non-photon Gen origins. Its gamma
-component is the retained Photon view after conversion deduplication.
-`01_sample_distribution/multiplicity_<sample>.png` compares photon counts **per
-event**: Gen all gamma, ISR, BeamISR, NonBeamISR, FSR, Decayed, and inclusive Reco
-gamma and gamma+conversion. The axes are `N_gamma` and raw `Events`, including
-zero-photon events, with sqrt(N) errors. Curves are overlaid because these
-selections overlap. Reco gamma uses the Photon branch; gamma+conversion uses the
-existing deduplicated candidate collection. Neither requires a Gen truth link.
-The summary saves raw multiplicity histograms; list index is `N_gamma`.
-There are no per-Gen matched-multiplicity figures.
+- **01:** Independently stacked Gen colors and inclusive Reco hatching on one
+  axis. The Reco stack is identical across the four Gen selections. Energy and
+  cos(theta) have `_log` versions. Linear energy uses a labelled E ≥ 50 GeV
+  overflow bin; logarithmic energy retains the full tail. One event-multiplicity
+  plot per sample overlays Gen all gamma, ISR, BeamISR, NonBeamISR, FSR, Decayed,
+  and Reco Photon / Photon + conversion. Its axes are N_gamma and raw Events;
+  `_log` changes only the multiplicity y-axis.
+- **02:** Each Gen selection compares both Reco definitions with Agree, Forward
+  only, Reverse only, Conflict, and No origin. Only candidates with known evidence
+  involving that Gen selection enter these plots; No origin is therefore zero.
+- **03:** Eight Gen/Reco combinations scan the 3D opening angle, displayed to 10°.
+  Curves retain each Gen photon's own truth-associated candidates. The reference
+  cut retains ≥99% of pooled non-beam ISR truth successes in both Reco channels;
+  it is a truth-retention check, not a purity optimum or a nominal truth cut.
+- **04:** Efficiency and energy response versus Gen E and cos(theta). Solid curves
+  use truth association; dashed curves include every candidate inside the chosen
+  angular cone. Efficiency counts ≥1 candidate once per Gen photon. Response is
+  sum(E_reco)/E_gen, including unmatched zeros; ambiguous sums are undefined.
+  Response plots also have `_log` versions. No matched-multiplicity plots remain.
 
-### Stored truth association
+Nominal truth compares `Part_simIdx → Sim ancestry → first Gen anchor` with
+`Gen-linked Sim → descendants → SimPart_partIdx`. A unique union origin is
+accepted; absent or contradictory origins remain unresolved. A nested Gen anchor
+starts a new lineage. Direct and descendant Sim objects of any species are valid;
+angular matching never repairs truth. `PhotonConv_simPhotonIdx` is always -1 here,
+so conversions use reciprocal saved parent/daughter vertices and agreeing anchors.
 
-Compare both saved directions independently:
+Angular cones can share candidates and are not exclusive assignments. Zero-momentum
+Reco objects have no angular direction. Overlapping saved representations invalidate
+an energy sum. Responses can exceed one because candidates may contain mixed energy,
+especially for soft Gen photons. Saved Gen-to-Sim coverage is a link diagnostic,
+not detector transport efficiency; missing links and reverse-only Beam associations
+remain limitations. Actual representative tree dumps are preserved in `manual_audit/`.
+No summary JSON, note, validation, or audit-index files are produced.
 
-- `Part_simIdx` → Sim ancestry → first existing `SimPart_genIdx` anchor;
-- directly Gen-linked Sim anchors → descendants → `SimPart_partIdx`.
-
-A nested Gen anchor starts a different lineage. Direct and descendant Sim objects
-of any species are valid; the linked object need not be a gamma or a terminal
-node. All known Gen origins, including non-photon origins, are retained when
-checking agreement. A Part is accepted if the **union contains exactly one Gen
-origin**. Missing evidence in one direction is allowed; contradictory or absent
-origins remain unresolved. Angular matching never repairs nominal truth links.
-
-`02_truth_link_matching_validation` contains the nine Gen-selection × Reco-definition
-combinations, with Agree, Forward only, Reverse only, Conflict, and No origin.
-The three Reco definitions share each Gen-selection plot as grouped bars.
-Each plot counts Reco objects with known evidence involving the selected Gen
-population, including conflicts. Its No origin bin is therefore zero by
-construction. The summary separately retains all-Reco unresolved counts and
-known origins outside each Gen selection; unknown origins are not invented to
-fill a selected population.
-These categories compare saved origin evidence; conversion acceptance additionally
-requires the saved parent/daughter topology described below.
-
-`PhotonConv_simPhotonIdx` is unusable here (all values are -1). Conversions use
-their daughter origin vertex and its incoming Part. A neutral gamma-code parent
-with a reciprocal decay vertex validates the topology. Association requires all
-known parent/daughter Gen anchors to agree; one available anchor can suffice.
-Duplicate conversion rows sharing a parent count once, as do consistent nested
-conversion representations.
-
-### Efficiency, energy response, and angular validation
-
-`04_matching_result` compares the three Reco definitions in each Gen population:
-solid curves use nominal truth association; dashed curves use the selected
-3D opening-angle cut alone, with the same color for each Reco definition.
-Efficiency is the fraction of Gen photons with at least one associated Reco
-object; several objects still count as one success. Energy response is
-`sum(E_reco) / E_gen`, shown versus Gen energy and cos(theta).
-
-Photon rows and their source Parts are the same representation. A validated
-conversion represents its parent and daughters once, without adding a Photon
-view of the same group. For all-Part energy, an associated composite parent
-replaces consistent saved descendants. Merely sharing a Sim link is insufficient
-for deduplication. All-Part multiplicity still counts raw associated Parts.
-Ambiguous associated energy is NaN, never zero; no accepted candidate gives zero
-response. Profiles use defined responses, including unmatched zeros, and the
-summary records coverage. Ratios are not clipped at one. These are **associated
-energy responses**, not measurements of the selected photon's pure energy
-contribution: reconstructed objects can contain mixed contributions, especially
-for very soft Gen photons.
-
-`03_angular_matching_validation` compares six Gen/Reco combinations per sample:
-the three Gen populations with gamma or gamma plus conversion. A 3D opening-angle
-cone can contain several candidates and overlapping cones can reuse candidates.
-The main curves count only each Gen photon's own truth-associated candidates
-inside the cone: efficiency uses all selected Gen photons as denominator, and
-energy recovery sums their cone energy divided by Gen energy, including
-unmatched zeros. All-candidate cone results, known unrelated origins, and
-unresolved candidates remain diagnostics in the JSON summary. Unknown truth is
-not automatically labelled a false positive.
-The dashed cut is the smallest scanned angle retaining at least 99% of nominal
-truth successes for pooled non-beam ISR in **both** photon channels. It is a
-truth-retention cross-check, not a purity optimum or a cut on nominal results.
-The displayed scan runs to 10 degrees; all scanned points, including 20 degrees,
-remain in the summary. The cut line is a reference without a legend entry.
-Zero-momentum Reco candidates are excluded only from angular cones because their
-direction is undefined. Cones with structurally ambiguous energy are omitted
-from energy profiles, with coverage recorded in the summary.
-
-The dashed results in `04_matching_result` include **every candidate inside the
-cone**, regardless of its truth origin. One candidate may enter several Gen
-cones, so these curves measure geometric candidate presence and cone energy,
-not an exclusive assignment or a truth-pure reconstruction efficiency.
-All-Part angular multiplicity counts raw stored Parts; energy uses the retained
-parent/daughter representations. A truth conflict alone does not invalidate
-geometric energy. A cone containing overlapping saved Reco representations has
-undefined energy instead of a double-counted sum. Specifically, a retained
-composite with retained descendants is energy-invalid; daughter-only cones remain
-usable. All-Part presence counts raw daughter directions, while energy uses
-canonical object directions, so a raw match can have no canonical energy object
-inside the cone. Empty energy cones give zero response;
-defined-response coverage is retained separately in the summary.
-
-The solid truth curves measure saved truth-associated reconstruction, not detector
-transport efficiency. Missing links, contradictory anchors, and suspicious
-reverse-only or soft-Beam associations remain limitations. Saved Gen-to-Sim
-coverage is a link diagnostic rather than a main physics efficiency.
-
-The manual audit preserves ten original representative trees plus eight fixed
-conversion, reverse-only, contradictory-anchor, and suspicious Beam ISR cases.
-Dumps include full Gen/Sim records, Photon comparisons, all Part origins, and
-conversion associations. Independent checks cover Sim-tree structure,
-nested-anchor boundaries, and the conflict-free Part union. Output is under
-`02_truth_link_matching_validation/manual_audit/`; previous outputs are preserved
-under `plots/20260828_florian/archive/`.
+CMS/mplhep defaults, DELPHI Simulation, and bold sample legends are retained.
+Counts use sqrt(N) errors; efficiencies use 68.27% Clopper–Pearson intervals.
+Response profiles show the standard error of the mean where estimable. Filenames
+place the sample before the scale suffix: `energy_Zee_log.png`.
 
 ## BDT Classification
 

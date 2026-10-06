@@ -12,18 +12,23 @@ GEN_P4 = tuple(f"GenPart_vector.fCoordinates.f{axis}" for axis in "XYZT")
 RECO_P4 = tuple(f"Photon_fourMomentum.fCoordinates.f{axis}" for axis in "XYZT")
 PART_P4 = tuple(f"Part_fourMomentum.fCoordinates.f{axis}" for axis in "XYZT")
 CONV_P4 = tuple(f"PhotonConv_fourMomentum.fCoordinates.f{axis}" for axis in "XYZT")
-CHANNELS = ("photon_conversion", "all_lineage")
-GEN_SELECTIONS = ("gen_gamma_all", "gen_isr_all", "gen_isr_non_beam")
-RECO_DEFINITIONS = ("reco_gamma", "reco_gamma_plus_conv", "reco_all")
+GEN_SELECTIONS = ("gen_gamma", "gen_isr", "gen_no_isr", "gen_isr_non_beam")
+RECO_DEFINITIONS = ("reco_gamma", "reco_gamma_plus_conv")
 LINK_STATUSES = ("agreement", "forward_only", "reverse_only", "conflict", "no_origin")
 BRANCHES = (
-    "GenPart_pdgId", "GenPart_status", "GenPart_parentIdx", "GenPart_simIdx", *GEN_P4,
+    "GenPart_pdgId", "GenPart_status", "GenPart_parentIdx", *GEN_P4,
     "Photon_partIdx", *RECO_P4, "Part_simIdx", "Part_charge", "Part_pdgId", *PART_P4,
     "Part_originVtxIdx", "Part_decayVtxIdx", "Vtx_incomingIdx",
-    "SimPart_genIdx", "SimPart_partIdx", "SimPart_pdgId",
+    "SimPart_genIdx", "SimPart_partIdx",
     "SimPart_originVtxIdx", "SimVtx_incomingIdx", *CONV_P4,
-    "PhotonConv_simPhotonIdx", "PhotonConv_firstDaughterIdx", "PhotonConv_secondDaughterIdx",
+    "PhotonConv_firstDaughterIdx", "PhotonConv_secondDaughterIdx",
 )
+
+
+def gen_selections(category):
+    isr = np.isin(category, ("beam_isr", "nonbeam_isr"))
+    return dict(gen_gamma=np.ones(len(category), dtype=bool), gen_isr=isr,
+                gen_no_isr=~isr, gen_isr_non_beam=category == "nonbeam_isr")
 
 
 def unit_momenta(p4):
@@ -76,21 +81,19 @@ def descendants(index, children):
     return found
 
 
-def response(gen_idx, gen_p4, origins, object_p4, valid, raw_origins, raw_p4, invalid_gens):
-    """Unmatched sums are zero; structurally ambiguous associated energy is NaN."""
-    fields = {name: [] for name in ("reco_count", "raw_count", "energy_count", "energy_ratio",
-                                    "leading_ratio", "raw_energy_ratio", "energy_valid")}
+def response(gen_idx, gen_p4, origins, object_p4, valid, raw_origins, invalid_gens):
+    """Each Gen photon counts once; ambiguous associated energy remains NaN."""
+    counts, ratios, defined = [], [], []
     for gen, p4 in zip(gen_idx, gen_p4, strict=True):
-        selected, raw_selected = origins == gen, raw_origins == gen
-        n, raw_n = int(selected.sum()), int(raw_selected.sum())
-        usable = (n == 0 and raw_n == 0) or (gen not in invalid_gens and bool(np.all(valid[selected])))
-        energy = object_p4[selected, 3]
-        values = (n, raw_n, n, float(energy.sum() / p4[3]) if usable else np.nan,
-                  float(energy.max() / p4[3]) if n and usable else np.nan,
-                  float(raw_p4[raw_selected, 3].sum() / p4[3]), usable)
-        for name, value in zip(fields, values, strict=True):
-            fields[name].append(value)
-    return {name: np.asarray(values) for name, values in fields.items()}
+        selected = origins == gen
+        count = int(selected.sum())
+        unmatched = count == 0 and not np.any(raw_origins == gen)
+        usable = unmatched or (gen not in invalid_gens and np.all(valid[selected]))
+        counts.append(count)
+        ratios.append(object_p4[selected, 3].sum() / p4[3] if usable else np.nan)
+        defined.append(usable)
+    return dict(reco_count=np.asarray(counts), energy_ratio=np.asarray(ratios),
+                energy_valid=np.asarray(defined))
 
 
 def link_status(forward, reverse):
@@ -118,14 +121,8 @@ def analyze_event(raw, sample):
         all_gamma_category.append("beam_isr" if is_beam else "nonbeam_isr" if origin == "isr"
                                   else "fsr" if origin == "fsr" else "decayed")
     all_gamma_category = np.asarray(all_gamma_category)
-    selections = dict(gen_gamma_all=np.ones(len(all_gamma_idx), dtype=bool),
-                      gen_isr_all=np.isin(all_gamma_category, ("beam_isr", "nonbeam_isr")),
-                      gen_isr_non_beam=all_gamma_category == "nonbeam_isr")
-    gen_idx, gen_p4 = all_gamma_idx[selections["gen_isr_all"]], all_gamma_p4[selections["gen_isr_all"]]
-    beam = all_gamma_category[selections["gen_isr_all"]] == "beam_isr"
+    selections = gen_selections(all_gamma_category)
     stable_gamma = set(all_gamma_idx)
-    isr = set(gen_idx)
-    nonbeam_isr = set(gen_idx[~beam])
     sim_gens = np.asarray(raw["SimPart_genIdx"], dtype=int)
     n_sim, n_part = len(sim_gens), len(raw["Part_simIdx"])
     assert np.all((sim_gens >= -1) & (sim_gens < len(pdgs)))
@@ -168,23 +165,6 @@ def analyze_event(raw, sample):
     known = [origins | ({int(forward[part])} if forward[part] >= 0 else set())
              for part, origins in enumerate(reverse)]
     part_origins = np.asarray([next(iter(origins)) if len(origins) == 1 else -1 for origins in known], dtype=int)
-    validation = {name: Counter() for name in ("all_parts", "ISR_involved", "noBeamISR_involved", "direct_anchors")}
-    for part, origins in enumerate(known):
-        kind = ("conflict" if len(origins) > 1 else "no_origin" if not origins else
-                "agreement" if reverse[part] and forward[part] >= 0 else
-                "forward_only" if forward[part] >= 0 else "reverse_only")
-        validation["all_parts"][kind] += 1
-        if origins & isr:
-            validation["ISR_involved"][kind] += 1
-        if origins & nonbeam_isr:
-            validation["noBeamISR_involved"][kind] += 1
-    for gen, sim in enumerate(raw["GenPart_simIdx"]):
-        kind = ("missing" if sim < 0 else "consistent" if sim < n_sim and sim_gens[sim] == gen
-                else "different_or_invalid_anchor")
-        validation["direct_anchors"][kind] += 1
-        if gen in isr:
-            validation["direct_anchors"][f"ISR_{kind}"] += 1
-
     part_p4 = np.column_stack([raw[name] for name in PART_P4])
     photon_parts = np.asarray(raw["Photon_partIdx"], dtype=int)
     photon_p4 = np.column_stack([raw[name] for name in RECO_P4])
@@ -198,7 +178,6 @@ def analyze_event(raw, sample):
         if 0 <= incoming < n_part and raw["Part_decayVtxIdx"][incoming] == vertex:
             part_children[incoming].append(part)
     part_descendants = {part: descendants(part, part_children) for part in range(n_part) if part_children[part]}
-    diagnostics = Counter()
     invalid_gens, bad_parts = set(), set()
     for part, children in part_descendants.items():
         group = children | {part}
@@ -206,27 +185,6 @@ def analyze_event(raw, sample):
         if len(anchors) > 1:
             bad_parts.update(group)
             invalid_gens.update(anchors & stable_gamma)
-            diagnostics["conflicting_Reco_structural_groups"] += 1
-    diagnostics["missing_saved_children"] += sum(vertex >= 0 and not part_children[part]
-        for part, vertex in enumerate(raw["Part_decayVtxIdx"]))
-    removed_parts = set()
-    for part, children in part_descendants.items():
-        anchors = set().union(*(known[p] for p in children | {part}))
-        if part_origins[part] >= 0 and anchors == {int(part_origins[part])}:
-            removed_parts.update(children)
-    canonical_parts = np.asarray([part for part in range(n_part) if part not in removed_parts], dtype=int)
-    diagnostics["all_lineage_removed_descendant_Parts"] = len(removed_parts)
-    all_valid = np.asarray([part not in bad_parts and len(known[part]) <= 1 for part in canonical_parts], dtype=bool)
-    # An unresolved retained parent may overlap its retained daughters geometrically.
-    # Do not invent its Gen origin: nominal child response stays valid, but a cone
-    # containing that parent has no unambiguous total reconstructed energy.
-    all_geometry_valid = all_valid.copy()
-    retained_parts = set(canonical_parts)
-    for row, part in enumerate(canonical_parts):
-        if part_origins[part] < 0 and part_descendants.get(part, set()) & retained_parts:
-            all_geometry_valid[row] = False
-            diagnostics["all_lineage_unresolved_parent_geometry_overlap"] += 1
-
     conv_p4 = np.column_stack([raw[name] for name in CONV_P4])
     conv_origins = np.full(len(conv_p4), -1, dtype=int)
     conv_parents, conv_daughters, conv_known, conv_forward, conv_reverse = [], [], [], [], []
@@ -251,12 +209,6 @@ def analyze_event(raw, sample):
         conv_known.append(anchors)
         conv_forward.append({int(forward[p]) for p in members if forward[p] >= 0})
         conv_reverse.append(set().union(*(reverse[p] for p in members)))
-        diagnostics["conversion_rows"] += 1
-        diagnostics["conversion_direct_sim_index_nonnegative"] += raw["PhotonConv_simPhotonIdx"][conv] >= 0
-        diagnostics["conversion_missing_parent_topology"] += parent < 0
-        diagnostics["conversion_conflicting_origins"] += len(anchors) > 1
-        diagnostics["conversion_conflict_involving_ISR"] += len(anchors) > 1 and bool(anchors & isr)
-        diagnostics["conversion_unique_ISR"] += conv_origins[conv] in isr
 
     # Duplicate conversion rows are one parent representation; combine their evidence first.
     by_parent = {}
@@ -271,14 +223,12 @@ def analyze_event(raw, sample):
             conv_known[conv] = anchors
             conv_origins[conv] = next(iter(anchors)) if len(anchors) == 1 else -1
             conv_forward[conv], conv_reverse[conv] = forward_anchors, reverse_anchors
-        diagnostics["duplicate_conversion_parent_conflicting_origins"] += len(rows) > 1 and len(anchors) > 1
 
     # Explicit conversions represent their parent and saved descendants once.
     kept_convs, seen_parents, removed_photons = [], set(), set()
     photon_invalid_gens = set()
     for conv, parent in enumerate(conv_parents):
         if parent >= 0 and parent in seen_parents:
-            diagnostics["duplicate_conversion_rows_same_parent"] += 1
             continue
         kept_convs.append(conv)
         if parent >= 0:
@@ -305,7 +255,6 @@ def analyze_event(raw, sample):
         else:
             photon_invalid_gens.update(anchors & stable_gamma)
     kept_convs = [conv for conv in kept_convs if conv not in nested_convs]
-    diagnostics["removed_nested_conversion_representations"] = len(nested_convs)
     kept_photons = np.asarray([r for r in range(len(photon_parts)) if r not in removed_photons], dtype=int)
     kept_convs = np.asarray(kept_convs, dtype=int)
     gamma_p4 = np.concatenate((photon_p4[kept_photons], conv_p4[kept_convs]))
@@ -314,8 +263,6 @@ def analyze_event(raw, sample):
                              for part in photon_parts[kept_photons]] +
                             [conv_parents[c] >= 0 and len(conv_known[c]) <= 1 and
                              conv_parents[c] not in bad_parts for c in kept_convs], dtype=bool)
-    diagnostics["photon_conversion_removed_Photon_representations"] = len(removed_photons)
-    raw_gamma_p4 = np.concatenate((photon_p4, conv_p4))
     raw_gamma_origins = np.concatenate((part_origins[photon_parts], conv_origins))
     part_forward = [{int(gen)} if gen >= 0 else set() for gen in forward]
     photon_valid = np.asarray([part not in bad_parts and len(known[part]) <= 1
@@ -327,8 +274,6 @@ def analyze_event(raw, sample):
     photon_part_set = set(photon_parts)
     photon_geometry_valid = np.asarray([not (part_descendants.get(part, set()) & photon_part_set)
                                         for part in photon_parts], dtype=bool)
-    part_geometry_valid = np.asarray([not (part_descendants.get(part, set()) & retained_parts)
-                                      for part in canonical_parts], dtype=bool)
     kept_photon_parts = set(photon_parts[kept_photons])
     conversion_groups = []
     for conv in kept_convs:
@@ -347,85 +292,55 @@ def analyze_event(raw, sample):
     gamma_geometry_valid = np.asarray(gamma_geometry_valid, dtype=bool)
     gamma_forward = [part_forward[p] for p in photon_parts[kept_photons]] + [conv_forward[c] for c in kept_convs]
     gamma_reverse = [reverse[p] for p in photon_parts[kept_photons]] + [conv_reverse[c] for c in kept_convs]
-    gamma_known = [known[p] for p in photon_parts[kept_photons]] + [conv_known[c] for c in kept_convs]
     reco = {}
-    for name, p4, origins, valid, raw_p4, raw_origins, ambiguous, forward_sets, reverse_sets, known_sets, kind in (
-        ("reco_gamma", photon_p4, part_origins[photon_parts], photon_valid, photon_p4,
+    for name, p4, origins, valid, raw_origins, ambiguous, forward_sets, reverse_sets, kind in (
+        ("reco_gamma", photon_p4, part_origins[photon_parts], photon_valid,
          part_origins[photon_parts], invalid_gens, [part_forward[p] for p in photon_parts],
-         [reverse[p] for p in photon_parts], [known[p] for p in photon_parts],
+         [reverse[p] for p in photon_parts],
          np.full(len(photon_parts), "gamma")),
-        ("reco_gamma_plus_conv", gamma_p4, gamma_origins, gamma_valid, raw_gamma_p4, raw_gamma_origins,
-         photon_invalid_gens, gamma_forward, gamma_reverse, gamma_known,
+        ("reco_gamma_plus_conv", gamma_p4, gamma_origins, gamma_valid, raw_gamma_origins,
+         photon_invalid_gens, gamma_forward, gamma_reverse,
          np.asarray(["gamma"] * len(kept_photons) + ["gamma_conv"] * len(kept_convs))),
-        ("reco_all", part_p4[canonical_parts], part_origins[canonical_parts], all_valid,
-         part_p4, part_origins, invalid_gens, [part_forward[p] for p in canonical_parts],
-         [reverse[p] for p in canonical_parts], [known[p] for p in canonical_parts],
-         np.full(len(canonical_parts), "part")),
     ):
-        stats = response(all_gamma_idx, all_gamma_p4, origins, p4, valid, raw_origins, raw_p4, ambiguous)
-        if name == "reco_all":
-            stats["reco_count"] = stats["raw_count"].copy()  # Any stored footprint; energy uses canonical objects.
-        geometric_valid = all_geometry_valid if name == "reco_all" else valid
-        reco[name] = dict(p4=p4, gen_idx=origins, energy_valid=geometric_valid, stats=stats,
+        stats = response(all_gamma_idx, all_gamma_p4, origins, p4, valid, raw_origins, ambiguous)
+        reco[name] = dict(p4=p4, gen_idx=origins, energy_valid=valid, stats=stats,
                           forward_origin_sets=forward_sets, reverse_origin_sets=reverse_sets,
-                          origin_sets=known_sets, kind=kind)
+                          kind=kind)
         reco[name]["geometric_energy_valid"] = {
             "reco_gamma": photon_geometry_valid,
             "reco_gamma_plus_conv": gamma_geometry_valid,
-            "reco_all": part_geometry_valid,
         }[name]
-        diagnostics[f"{name}_geometric_energy_overlap_objects"] += int(np.count_nonzero(
-            ~reco[name]["geometric_energy_valid"]))
-    # All-Part validation counts raw stored footprints; its energy uses canonical objects.
-    reco["reco_all"].update(raw_p4=part_p4, link_forward_sets=part_forward,
-                            link_reverse_sets=reverse, link_origin_sets=known)
     matching_validation = {gen: {name: Counter(dict.fromkeys(LINK_STATUSES, 0)) for name in RECO_DEFINITIONS}
                            for gen in GEN_SELECTIONS}
-    unmatched_validation = {name: Counter(dict.fromkeys(LINK_STATUSES, 0)) for name in RECO_DEFINITIONS}
     selected_origins = {name: set(all_gamma_idx[mask]) for name, mask in selections.items()}
     for name, objects in reco.items():
-        forward_sets = objects.get("link_forward_sets", objects["forward_origin_sets"])
-        reverse_sets = objects.get("link_reverse_sets", objects["reverse_origin_sets"])
+        forward_sets = objects["forward_origin_sets"]
+        reverse_sets = objects["reverse_origin_sets"]
         for first, second in zip(forward_sets, reverse_sets, strict=True):
             status = link_status(first, second)
-            unmatched_validation[name][status] += 1
             for gen_name, selected in selected_origins.items():
                 if (first | second) & selected:
                     matching_validation[gen_name][name][status] += 1
-    # Legacy ISR fields remain exact slices for the independent manual-tree audit.
-    channels = {}
-    for old_name, name in (("photon_conversion", "reco_gamma_plus_conv"), ("all_lineage", "reco_all")):
-        objects = reco[name]
-        stats = {field: values[selections["gen_isr_all"]] for field, values in objects["stats"].items()}
-        diagnostics[f"{old_name}_Gen_with_undefined_energy"] += int(np.count_nonzero(~stats["energy_valid"]))
-        channels[old_name] = {field: objects[field] for field in ("p4", "gen_idx", "energy_valid")}
-        channels[old_name]["stats"] = stats
-
-    return dict(all_gamma_idx=all_gamma_idx, all_gamma_p4=all_gamma_p4, all_gamma_category=all_gamma_category,
-                selections=selections, reco=reco, matching_validation=matching_validation,
-                unmatched_validation=unmatched_validation,
-                gen_idx=gen_idx, gen_p4=gen_p4, beam=beam, part_origins=part_origins,
+    return dict(all_gamma_idx=all_gamma_idx, all_gamma_p4=all_gamma_p4,
+                all_gamma_category=all_gamma_category, selections=selections, reco=reco,
+                matching_validation=matching_validation, part_origins=part_origins,
                 part_origin_sets=known, forward_origins=forward, reverse_origins=reverse,
-                sim_origins=downward_sim_origins,
                 conversion_origins=conv_origins, conversion_parents=conv_parents,
-                conversion_daughters=conv_daughters, conversion_origin_sets=conv_known, channels=channels,
-                link_validation=validation, diagnostics=diagnostics)
+                conversion_daughters=conv_daughters)
 
 
-def read_sample(input_root: Path, sample: str, angle_accumulator=None):
+def read_sample(input_root: Path, sample: str, angle_accumulator):
     """Stream files and keep only compact per-Gen observables, not full events."""
     gamma = {name: [] for name in ("energy", "cos_theta", "category")}
     reco = {name: {} for name in RECO_DEFINITIONS}
-    reco_distributions = {name: {field: [] for field in ("energy", "cos_theta", "kind", "origin_category")}
+    reco_distributions = {name: {field: [] for field in ("energy", "cos_theta", "kind")}
                           for name in RECO_DEFINITIONS}
     reco_event_counts = {name: [] for name in RECO_DEFINITIONS}
     gen_event_counts = {name: [] for name in
                         ("all_gamma", "all_isr", "beam_isr", "nonbeam_isr", "fsr", "decayed")}
     matching_validation = {gen: {name: Counter(dict.fromkeys(LINK_STATUSES, 0)) for name in RECO_DEFINITIONS}
                            for gen in GEN_SELECTIONS}
-    unmatched_validation = {name: Counter(dict.fromkeys(LINK_STATUSES, 0)) for name in RECO_DEFINITIONS}
-    validation = {name: Counter() for name in ("all_parts", "ISR_involved", "noBeamISR_involved", "direct_anchors")}
-    diagnostics, events = Counter(), 0
+    events = 0
     directory = input_root / f"20260828_100kTest_{sample}_photosFSR" / "final_root"
     paths = sorted(directory.glob("job_*/nanoaod.root"))
     if not paths:
@@ -440,7 +355,7 @@ def read_sample(input_root: Path, sample: str, angle_accumulator=None):
                 gamma_p4 = event["all_gamma_p4"]
                 categories = event["all_gamma_category"]
                 counts = dict(all_gamma=len(categories),
-                              all_isr=int(event["selections"]["gen_isr_all"].sum()))
+                              all_isr=int(event["selections"]["gen_isr"].sum()))
                 counts.update({name: int(np.count_nonzero(categories == name))
                                for name in ("beam_isr", "nonbeam_isr", "fsr", "decayed")})
                 assert counts["all_isr"] == counts["beam_isr"] + counts["nonbeam_isr"]
@@ -451,27 +366,19 @@ def read_sample(input_root: Path, sample: str, angle_accumulator=None):
                                      ("cos_theta", unit_momenta(gamma_p4)[:, 2]),
                                      ("category", event["all_gamma_category"])):
                     gamma[name].extend(values)
-                origin_categories = dict(zip(event["all_gamma_idx"], event["all_gamma_category"], strict=True))
                 for name, objects in event["reco"].items():
-                    for field, values in objects["stats"].items():
-                        reco[name].setdefault(field, []).extend(values)
+                    for field in ("reco_count", "energy_ratio", "energy_valid"):
+                        reco[name].setdefault(field, []).extend(objects["stats"][field])
                     p4 = objects["p4"]
                     momentum = np.linalg.norm(p4[:, :3], axis=1)
                     cos_theta = np.divide(p4[:, 2], momentum, out=np.full(len(p4), np.nan), where=momentum > 0)
-                    category = [origin_categories.get(gen, "other_anchor") if gen >= 0 else "unresolved"
-                                for gen in objects["gen_idx"]]
                     for field, values in (("energy", p4[:, 3]), ("cos_theta", cos_theta),
-                                          ("kind", objects["kind"]), ("origin_category", category)):
+                                          ("kind", objects["kind"])):
                         reco_distributions[name][field].extend(values)
-                    reco_event_counts[name].append(len(event["part_origins"]) if name == "reco_all" else len(p4))
-                    unmatched_validation[name].update(event["unmatched_validation"][name])
+                    reco_event_counts[name].append(len(p4))
                     for gen_name in GEN_SELECTIONS:
                         matching_validation[gen_name][name].update(event["matching_validation"][gen_name][name])
-                for name, values in event["link_validation"].items():
-                    validation[name].update(values)
-                diagnostics.update(event["diagnostics"])
-                if angle_accumulator is not None:
-                    angle_accumulator(event)
+                angle_accumulator(event)
         print(f"{sample} {path.parent.name}: {events} events", flush=True)
     gamma = {name: np.asarray(values) for name, values in gamma.items()}
     reco = {name: {field: np.asarray(values) for field, values in fields.items()}
@@ -483,16 +390,12 @@ def read_sample(input_root: Path, sample: str, angle_accumulator=None):
     for name, fields in reco.items():
         unmatched = fields["reco_count"] == 0
         assert np.all(fields["energy_ratio"][unmatched & fields["energy_valid"]] == 0)
-        assert np.all(fields["energy_ratio"][~fields["energy_valid"]] != fields["energy_ratio"][~fields["energy_valid"]])
+        assert np.all(np.isnan(fields["energy_ratio"][~fields["energy_valid"]]))
         print(f"{sample} {name}: Gen={len(gamma['energy'])}, with Reco={np.count_nonzero(~unmatched)}, "
-              f"raw objects={fields['raw_count'].sum()}, canonical objects={fields['energy_count'].sum()}", flush=True)
-    selections = dict(gen_gamma_all=np.ones(len(gamma["energy"]), dtype=bool),
-                      gen_isr_all=np.isin(gamma["category"], ("beam_isr", "nonbeam_isr")),
-                      gen_isr_non_beam=gamma["category"] == "nonbeam_isr")
+              f"associated objects={fields['reco_count'].sum()}", flush=True)
+    selections = gen_selections(gamma["category"])
     return dict(events=events, gamma=gamma, selections=selections, reco=reco,
                 reco_distributions=reco_distributions, reco_event_counts=reco_event_counts,
                 gen_event_counts=gen_event_counts,
                 matching_validation={gen: {name: dict(counts) for name, counts in definitions.items()}
-                                     for gen, definitions in matching_validation.items()},
-                unmatched_validation={name: dict(counts) for name, counts in unmatched_validation.items()},
-                link_validation={name: dict(values) for name, values in validation.items()}, diagnostics=dict(diagnostics))
+                                     for gen, definitions in matching_validation.items()})

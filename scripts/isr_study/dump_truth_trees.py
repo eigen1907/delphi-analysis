@@ -16,7 +16,8 @@ OUTPUT = PROJECT / 'plots/20260828_florian/isr_study/02_truth_link_matching_vali
 SIM_P4 = tuple(f'SimPart_fourMomentum.fCoordinates.f{axis}' for axis in 'XYZT')
 PART_P4 = tuple(f'Part_fourMomentum.fCoordinates.f{axis}' for axis in 'XYZT')
 AUDIT_BRANCHES = tuple(dict.fromkeys((*BRANCHES, *SIM_P4, 'Event_runNumber', 'Event_evtNumber',
-                  'GenPart_simIdx', 'SimPart_decayVtxIdx', 'SimPart_charge', 'SimPart_partIdx', 'Part_lock')))
+                  'GenPart_simIdx', 'SimPart_pdgId', 'SimPart_decayVtxIdx', 'SimPart_charge',
+                  'PhotonConv_simPhotonIdx', 'Part_lock')))
 CASES = ('direct ISR reco', 'descendant ISR reco', 'nonprimary photon anchor',
          'split ISR', 'ISR shower with secondary gamma')
 # Fixed cases from the preceding full-sample diagnostics (zero-based entries).
@@ -83,7 +84,7 @@ def event_info(raw, sample):
         recos = sorted(r for s in lineage for r in reco_at_sim[s])
         assert len(recos) == len(set(recos))
         leading = max(recos, key=lambda r: reco_p4[r, 3]) if recos else None
-        photons[g] = dict(origin='Beam ISR' if beam else 'Non-beam ISR' if origin == 'isr' else 'FSR' if origin == 'fsr' else 'Others',
+        photons[g] = dict(origin='Beam ISR' if beam else 'Non-beam ISR' if origin == 'isr' else 'FSR' if origin == 'fsr' else 'Decayed',
                           topology='no_sim' if not lineage else 'shower' if secondary else 'direct',
                           anchors=anchors, lineage=lineage, secondary=secondary, gamma=gamma,
                           recos=recos, leading=leading)
@@ -146,16 +147,17 @@ def part_audit(info, sample):
                      f'parentPart={parent} daughterParts={sorted(daughters)} '
                      f'knownGen={sorted(known)} acceptedGen={origin}')
     lines += ['', 'NOMINAL ISR OBSERVABLES (one row per Gen ISR)']
-    for row, gen in enumerate(result['gen_idx']):
+    isr_rows = np.flatnonzero(result['selections']['gen_isr'])
+    for row in isr_rows:
+        gen = result['all_gamma_idx'][row]
         parts = np.flatnonzero(result['part_origins'] == gen).tolist()
         conversions = np.flatnonzero(result['conversion_origins'] == gen).tolist()
         lines.append(f'Gen[{gen}] unionParts={parts} acceptedConversions={conversions}')
-        for name, channel in result['channels'].items():
+        for name, channel in result['reco'].items():
             stats = channel['stats']
-            lines.append(f'  {name}: Reco={stats["reco_count"][row]} raw={stats["raw_count"][row]} '
-                         f'canonical={stats["energy_count"][row]} energyValid={stats["energy_valid"][row]} '
-                         f'energy/gen={stats["energy_ratio"][row]:.9g} '
-                         f'rawEnergy/gen={stats["raw_energy_ratio"][row]:.9g}')
+            lines.append(f'  {name}: Reco={stats["reco_count"][row]} '
+                         f'energyValid={stats["energy_valid"][row]} '
+                         f'energy/gen={stats["energy_ratio"][row]:.9g}')
     if 'contradictory ISR/pion' in info.get('reason', ''):
         assert result['conversion_origins'][0] < 0, 'Known contradictory ISR conversion was accepted'
     if info.get('reason') == 'conversion: two agreeing daughters':
@@ -251,19 +253,7 @@ def dump_event(info, sample, path, entry, reason, focus, filename):
 
 def main():
     OUTPUT.mkdir(parents=True, exist_ok=True)
-    index = [
-        'Manual Gen -> Sim -> Reco audit: 10 preserved cases plus 8 fixed link/conversion checks.',
-        'Selection is deliberately representative, not random or an efficiency estimate.',
-        'For each sample: entry 0 of the first sorted ROOT file, then the first distinct event meeting its target criterion.',
-        'Stable Gen photon: PDG 22, status 1. ISR/Beam definitions reuse isr_study.',
-        'SimPart_pdgId is a DELPHI mass code (21=photon), not a PDG ID.',
-        'Secondary Sim gamma excludes directly Gen-linked anchors. Truth association includes all Sim species.',
-        'The full physical Sim forest includes other Gen origins; firstGen marks analysis lineage boundaries.',
-        'No energy/angular cuts or angular matching. All saved Gen/Sim/Reco records of selected events are printed.',
-        'Gen -> Sim means saved lineage. No transport, energy-deposit, or interaction-position claim is made.',
-        'The old Photon association is printed for comparison; Part sections validate the new nominal union.',
-        'No unknown truth is changed to an unrelated origin or a zero-energy observation.', '',
-    ]
+    print('Manual audit: 10 representative trees and 8 fixed truth/conversion cases.', flush=True)
     number = 0
     for sample, target in zip(SAMPLES, CASES, strict=True):
         paths = sorted((INPUT / f'20260828_100kTest_{sample}_photosFSR/final_root').glob('job_*/nanoaod.root'))
@@ -282,8 +272,7 @@ def main():
                     number += 1
                     filename = f'{number:02d}_{sample}_{path.parent.name}_entry_{entry}.txt'
                     dump_event(info, sample, path, entry, reason, focus, filename)
-                    index.append(f'{filename}: {reason}; focus Gen={focus}; run={info["raw"]["Event_runNumber"]}, event={info["raw"]["Event_evtNumber"]}; PASS')
-                    print(index[-1], flush=True)
+                    print(f'{filename}: {reason}; focus Gen={focus}; PASS', flush=True)
                     if not baseline:
                         found = True
                         break
@@ -301,10 +290,8 @@ def main():
         number += 1
         filename = f'{number:02d}_{sample}_job_{job}_entry_{entry}.txt'
         dump_event(info, sample, path, entry, reason, focus, filename)
-        index.append(f'{filename}: {reason}; focus Gen={focus}; PASS')
-        print(index[-1], flush=True)
+        print(f'{filename}: {reason}; focus Gen={focus}; PASS', flush=True)
     assert number == 18
-    (OUTPUT / 'README.txt').write_text('\n'.join(index) + '\n')
     print(f'audit: {OUTPUT}')
 
 
