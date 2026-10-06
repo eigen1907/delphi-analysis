@@ -1,4 +1,4 @@
-"""Stable Gen photons, two stored-link directions, and Reco representations."""
+"""Stable Gen photons and truth-linked Photon+conversion candidates."""
 from collections import Counter
 from pathlib import Path
 
@@ -13,7 +13,7 @@ RECO_P4 = tuple(f"Photon_fourMomentum.fCoordinates.f{axis}" for axis in "XYZT")
 PART_P4 = tuple(f"Part_fourMomentum.fCoordinates.f{axis}" for axis in "XYZT")
 CONV_P4 = tuple(f"PhotonConv_fourMomentum.fCoordinates.f{axis}" for axis in "XYZT")
 GEN_SELECTIONS = ("gen_gamma", "gen_isr", "gen_no_isr", "gen_isr_non_beam")
-RECO_DEFINITIONS = ("reco_gamma", "reco_gamma_plus_conv")
+GEN_LABELS = ("All", "ISR", "no ISR", "ISR (non beam)")
 LINK_STATUSES = ("agreement", "forward_only", "reverse_only", "conflict", "no_origin")
 BRANCHES = (
     "GenPart_pdgId", "GenPart_status", "GenPart_parentIdx", *GEN_P4,
@@ -178,13 +178,12 @@ def analyze_event(raw, sample):
         if 0 <= incoming < n_part and raw["Part_decayVtxIdx"][incoming] == vertex:
             part_children[incoming].append(part)
     part_descendants = {part: descendants(part, part_children) for part in range(n_part) if part_children[part]}
-    invalid_gens, bad_parts = set(), set()
+    bad_parts = set()
     for part, children in part_descendants.items():
         group = children | {part}
         anchors = set().union(*(known[p] for p in group))
         if len(anchors) > 1:
             bad_parts.update(group)
-            invalid_gens.update(anchors & stable_gamma)
     conv_p4 = np.column_stack([raw[name] for name in CONV_P4])
     conv_origins = np.full(len(conv_p4), -1, dtype=int)
     conv_parents, conv_daughters, conv_known, conv_forward, conv_reverse = [], [], [], [], []
@@ -265,15 +264,10 @@ def analyze_event(raw, sample):
                              conv_parents[c] not in bad_parts for c in kept_convs], dtype=bool)
     raw_gamma_origins = np.concatenate((part_origins[photon_parts], conv_origins))
     part_forward = [{int(gen)} if gen >= 0 else set() for gen in forward]
-    photon_valid = np.asarray([part not in bad_parts and len(known[part]) <= 1
-                               for part in photon_parts], dtype=bool)
     # Geometry has no Gen-origin requirement. Only overlapping saved Reco
     # representations make its energy ambiguous; an isolated conflicted Part
     # still has a measured four-vector. Invalidate the retained ancestor, so
     # a cone containing only its daughters can retain a defined energy sum.
-    photon_part_set = set(photon_parts)
-    photon_geometry_valid = np.asarray([not (part_descendants.get(part, set()) & photon_part_set)
-                                        for part in photon_parts], dtype=bool)
     kept_photon_parts = set(photon_parts[kept_photons])
     conversion_groups = []
     for conv in kept_convs:
@@ -292,35 +286,17 @@ def analyze_event(raw, sample):
     gamma_geometry_valid = np.asarray(gamma_geometry_valid, dtype=bool)
     gamma_forward = [part_forward[p] for p in photon_parts[kept_photons]] + [conv_forward[c] for c in kept_convs]
     gamma_reverse = [reverse[p] for p in photon_parts[kept_photons]] + [conv_reverse[c] for c in kept_convs]
-    reco = {}
-    for name, p4, origins, valid, raw_origins, ambiguous, forward_sets, reverse_sets, kind in (
-        ("reco_gamma", photon_p4, part_origins[photon_parts], photon_valid,
-         part_origins[photon_parts], invalid_gens, [part_forward[p] for p in photon_parts],
-         [reverse[p] for p in photon_parts],
-         np.full(len(photon_parts), "gamma")),
-        ("reco_gamma_plus_conv", gamma_p4, gamma_origins, gamma_valid, raw_gamma_origins,
-         photon_invalid_gens, gamma_forward, gamma_reverse,
-         np.asarray(["gamma"] * len(kept_photons) + ["gamma_conv"] * len(kept_convs))),
-    ):
-        stats = response(all_gamma_idx, all_gamma_p4, origins, p4, valid, raw_origins, ambiguous)
-        reco[name] = dict(p4=p4, gen_idx=origins, energy_valid=valid, stats=stats,
-                          forward_origin_sets=forward_sets, reverse_origin_sets=reverse_sets,
-                          kind=kind)
-        reco[name]["geometric_energy_valid"] = {
-            "reco_gamma": photon_geometry_valid,
-            "reco_gamma_plus_conv": gamma_geometry_valid,
-        }[name]
-    matching_validation = {gen: {name: Counter(dict.fromkeys(LINK_STATUSES, 0)) for name in RECO_DEFINITIONS}
-                           for gen in GEN_SELECTIONS}
+    stats = response(all_gamma_idx, all_gamma_p4, gamma_origins, gamma_p4,
+                     gamma_valid, raw_gamma_origins, photon_invalid_gens)
+    reco = dict(p4=gamma_p4, gen_idx=gamma_origins, energy_valid=gamma_valid,
+                geometric_energy_valid=gamma_geometry_valid, stats=stats)
+    matching_validation = {gen: Counter(dict.fromkeys(LINK_STATUSES, 0)) for gen in GEN_SELECTIONS}
     selected_origins = {name: set(all_gamma_idx[mask]) for name, mask in selections.items()}
-    for name, objects in reco.items():
-        forward_sets = objects["forward_origin_sets"]
-        reverse_sets = objects["reverse_origin_sets"]
-        for first, second in zip(forward_sets, reverse_sets, strict=True):
-            status = link_status(first, second)
-            for gen_name, selected in selected_origins.items():
-                if (first | second) & selected:
-                    matching_validation[gen_name][name][status] += 1
+    for first, second in zip(gamma_forward, gamma_reverse, strict=True):
+        status = link_status(first, second)
+        for gen_name, selected in selected_origins.items():
+            if (first | second) & selected:
+                matching_validation[gen_name][status] += 1
     return dict(all_gamma_idx=all_gamma_idx, all_gamma_p4=all_gamma_p4,
                 all_gamma_category=all_gamma_category, selections=selections, reco=reco,
                 matching_validation=matching_validation)
@@ -329,14 +305,12 @@ def analyze_event(raw, sample):
 def read_sample(input_root: Path, sample: str, angle_accumulator):
     """Stream files and keep only compact per-Gen observables, not full events."""
     gamma = {name: [] for name in ("energy", "cos_theta", "category")}
-    reco = {name: {} for name in RECO_DEFINITIONS}
-    reco_distributions = {name: {field: [] for field in ("energy", "cos_theta", "kind")}
-                          for name in RECO_DEFINITIONS}
-    reco_event_counts = {name: [] for name in RECO_DEFINITIONS}
+    reco = {field: [] for field in ("reco_count", "energy_ratio", "energy_valid")}
+    reco_distributions = {field: [] for field in ("energy", "cos_theta")}
+    reco_event_counts = []
     gen_event_counts = {name: [] for name in
                         ("all_gamma", "all_isr", "beam_isr", "nonbeam_isr", "fsr", "decayed")}
-    matching_validation = {gen: {name: Counter(dict.fromkeys(LINK_STATUSES, 0)) for name in RECO_DEFINITIONS}
-                           for gen in GEN_SELECTIONS}
+    matching_validation = {gen: Counter(dict.fromkeys(LINK_STATUSES, 0)) for gen in GEN_SELECTIONS}
     events = 0
     directory = input_root / f"20260828_100kTest_{sample}_photosFSR" / "final_root"
     paths = sorted(directory.glob("job_*/nanoaod.root"))
@@ -363,36 +337,31 @@ def read_sample(input_root: Path, sample: str, angle_accumulator):
                                      ("cos_theta", unit_momenta(gamma_p4)[:, 2]),
                                      ("category", event["all_gamma_category"])):
                     gamma[name].extend(values)
-                for name, objects in event["reco"].items():
-                    for field in ("reco_count", "energy_ratio", "energy_valid"):
-                        reco[name].setdefault(field, []).extend(objects["stats"][field])
-                    p4 = objects["p4"]
-                    momentum = np.linalg.norm(p4[:, :3], axis=1)
-                    cos_theta = np.divide(p4[:, 2], momentum, out=np.full(len(p4), np.nan), where=momentum > 0)
-                    for field, values in (("energy", p4[:, 3]), ("cos_theta", cos_theta),
-                                          ("kind", objects["kind"])):
-                        reco_distributions[name][field].extend(values)
-                    reco_event_counts[name].append(len(p4))
-                    for gen_name in GEN_SELECTIONS:
-                        matching_validation[gen_name][name].update(event["matching_validation"][gen_name][name])
+                objects = event["reco"]
+                for field, entries in reco.items():
+                    entries.extend(objects["stats"][field])
+                p4 = objects["p4"]
+                momentum = np.linalg.norm(p4[:, :3], axis=1)
+                cos_theta = np.divide(p4[:, 2], momentum, out=np.full(len(p4), np.nan), where=momentum > 0)
+                reco_distributions["energy"].extend(p4[:, 3])
+                reco_distributions["cos_theta"].extend(cos_theta)
+                reco_event_counts.append(len(p4))
+                for gen_name in GEN_SELECTIONS:
+                    matching_validation[gen_name].update(event["matching_validation"][gen_name])
                 angle_accumulator(event)
         print(f"{sample} {path.parent.name}: {events} events", flush=True)
     gamma = {name: np.asarray(values) for name, values in gamma.items()}
-    reco = {name: {field: np.asarray(values) for field, values in fields.items()}
-            for name, fields in reco.items()}
-    reco_distributions = {name: {field: np.asarray(values) for field, values in fields.items()}
-                          for name, fields in reco_distributions.items()}
-    reco_event_counts = {name: np.asarray(values) for name, values in reco_event_counts.items()}
+    reco = {field: np.asarray(values) for field, values in reco.items()}
+    reco_distributions = {field: np.asarray(values) for field, values in reco_distributions.items()}
+    reco_event_counts = np.asarray(reco_event_counts)
     gen_event_counts = {name: np.asarray(values) for name, values in gen_event_counts.items()}
-    for name, fields in reco.items():
-        unmatched = fields["reco_count"] == 0
-        assert np.all(fields["energy_ratio"][unmatched & fields["energy_valid"]] == 0)
-        assert np.all(np.isnan(fields["energy_ratio"][~fields["energy_valid"]]))
-        print(f"{sample} {name}: Gen={len(gamma['energy'])}, with Reco={np.count_nonzero(~unmatched)}, "
-              f"associated objects={fields['reco_count'].sum()}", flush=True)
+    unmatched = reco["reco_count"] == 0
+    assert np.all(reco["energy_ratio"][unmatched & reco["energy_valid"]] == 0)
+    assert np.all(np.isnan(reco["energy_ratio"][~reco["energy_valid"]]))
+    print(f"{sample} Photon+conv: Gen={len(gamma['energy'])}, with Reco={np.count_nonzero(~unmatched)}, "
+          f"associated objects={reco['reco_count'].sum()}", flush=True)
     selections = gen_selections(gamma["category"])
     return dict(events=events, gamma=gamma, selections=selections, reco=reco,
                 reco_distributions=reco_distributions, reco_event_counts=reco_event_counts,
                 gen_event_counts=gen_event_counts,
-                matching_validation={gen: {name: dict(counts) for name, counts in definitions.items()}
-                                     for gen, definitions in matching_validation.items()})
+                matching_validation={gen: dict(counts) for gen, counts in matching_validation.items()})

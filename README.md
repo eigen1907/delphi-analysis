@@ -129,20 +129,21 @@ Code and recipes are grouped under `isr_study/`.
 
 ```text
 plots/20260828_florian/isr_study/
-  01_sample_distribution/
+  01_sample_distribution/{gen_gamma,gen_isr,gen_no_isr,gen_isr_non_beam}/
   02_truth_link_matching_validation/
   03_angular_matching_validation/
-  04_matching_result/
+  04_matching_result/{truth_matching,angular_matching}/
 ```
 
-Stages 01, 02, and 04 use the same four Gen directories:
+All stages use the same four stable Gen selections. Only stage 01 has Gen
+subdirectories; the other stages compare these selections in one plot:
 
-| Directory | Stable Gen selection |
-| --- | --- |
-| `gen_gamma` | All gamma |
-| `gen_isr` | All ISR |
-| `gen_no_isr` | Gamma excluding ISR: FSR + Decayed |
-| `gen_isr_non_beam` | ISR excluding Beam ISR |
+| Selection | Legend | Definition |
+| --- | --- | --- |
+| `gen_gamma` | All | All stable gamma |
+| `gen_isr` | ISR | All ISR |
+| `gen_no_isr` | no ISR | Gamma excluding ISR: FSR + Decayed |
+| `gen_isr_non_beam` | ISR (non beam) | ISR excluding Beam ISR |
 
 Stable photons have `GenPart_pdgId == 22` and `GenPart_status == 1`.
 ISR has an electron/positron as its first non-photon ancestor, with no hard parent
@@ -152,31 +153,33 @@ sample-final-state daughter. Decayed is the previous Others category; here it
 contains π⁰, η, and ω decay photons in Ztautau. Nominal truth results have no
 energy, angular, fiducial, PID, or lock cuts.
 
-Reco definitions are **Photon** and **Photon + conversion** only. The Photon
-branch is a view of neutral Parts with EM calorimeter energy, not pure photon
-PID. `Part_pdgId` and `SimPart_pdgId` use DELPHI mass codes: gamma=21, e±=±2.
-The conversion collection replaces overlapping Photon representations once;
-event-level Photon counts use the original Photon branch.
+The sole Reco collection is **Photon + conversion**, with overlapping Photon
+representations replaced once by the conversion candidate. The Photon branch is
+a view of neutral Parts with EM calorimeter energy, not pure photon PID.
+`Part_pdgId` and `SimPart_pdgId` use DELPHI mass codes: gamma=21, e±=±2.
 
-- **01:** Independently stacked Gen colors and inclusive Reco hatching on one
-  axis. The Reco stack is identical across the four Gen selections. Energy and
+- **01:** Stacked Gen colors and one combined inclusive Reco outline with
+  hatching on one axis. Reco is identical across the four Gen selections. Energy and
   cos(theta) have `_log` versions. Linear energy uses a labelled E ≥ 50 GeV
   overflow bin; logarithmic energy retains the full tail. Each Gen directory has
   event-multiplicity plots with its own Gen components: all four in `gen_gamma`,
   BeamISR/NonBeamISR in `gen_isr`, FSR/Decayed in `gen_no_isr`, and NonBeamISR in
-  `gen_isr_non_beam`. Both inclusive Reco definitions appear in every plot.
-  Its axes are N_gamma and raw Events;
+  `gen_isr_non_beam`. One inclusive Reco curve appears in every plot.
+  Multiplicity axes are N_gamma and raw Events;
   `_log` changes only the multiplicity y-axis.
-- **02:** Each Gen selection compares both Reco definitions with Agree, Forward
-  only, Reverse only, Conflict, and No origin. Only candidates with known evidence
-  involving that Gen selection enter these plots; No origin is therefore zero.
-- **03:** Eight Gen/Reco combinations scan the 3D opening angle, displayed to 10°.
+- **02:** One plot per sample compares the four Gen selections, with Agree,
+  Forward only, Reverse only, Conflict, and No origin on the x-axis. Only candidates
+  with known evidence involving that selection enter the counts; No origin cannot
+  be assigned to a Gen selection and is therefore zero. Conflict is a link
+  diagnostic, not an accepted match.
+- **03:** The four Gen selections scan the 3D opening angle, displayed to 10°.
   Curves retain each Gen photon's own truth-associated candidates. The reference
-  cut retains ≥99% of pooled non-beam ISR truth successes in both Reco channels;
+  cut retains ≥99% of pooled non-beam ISR truth successes;
   it is a truth-retention check, not a purity optimum or a nominal truth cut.
-- **04:** Efficiency and energy response versus Gen E and cos(theta). Solid curves
-  use truth association; dashed curves include every candidate inside the chosen
-  angular cone. Efficiency counts ≥1 candidate once per Gen photon. Response is
+- **04:** Separate `truth_matching` and `angular_matching` directories contain
+  efficiency and energy response versus Gen E and cos(theta). Each plot compares
+  the four Gen selections. Angular matching includes every candidate inside the
+  chosen cone. Efficiency counts ≥1 candidate once per Gen photon. Response is
   sum(E_reco)/E_gen, including unmatched zeros; ambiguous sums are undefined.
   Response plots also have `_log` versions. No matched-multiplicity plots remain.
 
