@@ -13,7 +13,8 @@ RECO_P4 = tuple(f"Photon_fourMomentum.fCoordinates.f{axis}" for axis in "XYZT")
 PART_P4 = tuple(f"Part_fourMomentum.fCoordinates.f{axis}" for axis in "XYZT")
 CONV_P4 = tuple(f"PhotonConv_fourMomentum.fCoordinates.f{axis}" for axis in "XYZT")
 GEN_SELECTIONS = ("gen_gamma", "gen_isr", "gen_no_isr", "gen_isr_non_beam")
-GEN_LABELS = ("All", "ISR", "no ISR", "ISR (non beam)")
+ANALYSIS_SELECTIONS = ("gen_gamma", "gen_isr", "gen_no_isr")
+GEN_LABELS = (r"$\gamma_{\mathrm{all}}$", r"$\gamma_{\mathrm{ISR}}$", r"$\gamma_{\mathrm{no\ ISR}}$")
 LINK_STATUSES = ("agreement", "forward_only", "reverse_only", "conflict", "no_origin")
 BRANCHES = (
     "GenPart_pdgId", "GenPart_status", "GenPart_parentIdx", *GEN_P4,
@@ -29,6 +30,12 @@ def gen_selections(category):
     isr = np.isin(category, ("beam_isr", "nonbeam_isr"))
     return dict(gen_gamma=np.ones(len(category), dtype=bool), gen_isr=isr,
                 gen_no_isr=~isr, gen_isr_non_beam=category == "nonbeam_isr")
+
+
+def analysis_selections(category):
+    """Stages 02–04 exclude the beam-collinear generator component."""
+    return dict(gen_gamma=category != "beam_isr", gen_isr=category == "nonbeam_isr",
+                gen_no_isr=np.isin(category, ("fsr", "decayed")))
 
 
 def unit_momenta(p4):
@@ -122,6 +129,7 @@ def analyze_event(raw, sample):
                                   else "fsr" if origin == "fsr" else "decayed")
     all_gamma_category = np.asarray(all_gamma_category)
     selections = gen_selections(all_gamma_category)
+    analysis = analysis_selections(all_gamma_category)
     stable_gamma = set(all_gamma_idx)
     sim_gens = np.asarray(raw["SimPart_genIdx"], dtype=int)
     n_sim, n_part = len(sim_gens), len(raw["Part_simIdx"])
@@ -290,15 +298,16 @@ def analyze_event(raw, sample):
                      gamma_valid, raw_gamma_origins, photon_invalid_gens)
     reco = dict(p4=gamma_p4, gen_idx=gamma_origins, energy_valid=gamma_valid,
                 geometric_energy_valid=gamma_geometry_valid, stats=stats)
-    matching_validation = {gen: Counter(dict.fromkeys(LINK_STATUSES, 0)) for gen in GEN_SELECTIONS}
-    selected_origins = {name: set(all_gamma_idx[mask]) for name, mask in selections.items()}
+    matching_validation = {gen: Counter(dict.fromkeys(LINK_STATUSES, 0)) for gen in ANALYSIS_SELECTIONS}
+    selected_origins = {name: set(all_gamma_idx[mask]) for name, mask in analysis.items()}
     for first, second in zip(gamma_forward, gamma_reverse, strict=True):
         status = link_status(first, second)
         for gen_name, selected in selected_origins.items():
             if (first | second) & selected:
                 matching_validation[gen_name][status] += 1
     return dict(all_gamma_idx=all_gamma_idx, all_gamma_p4=all_gamma_p4,
-                all_gamma_category=all_gamma_category, selections=selections, reco=reco,
+                all_gamma_category=all_gamma_category, selections=selections,
+                analysis_selections=analysis, reco=reco,
                 matching_validation=matching_validation)
 
 
@@ -310,7 +319,7 @@ def read_sample(input_root: Path, sample: str, angle_accumulator):
     reco_event_counts = []
     gen_event_counts = {name: [] for name in
                         ("all_gamma", "all_isr", "beam_isr", "nonbeam_isr", "fsr", "decayed")}
-    matching_validation = {gen: Counter(dict.fromkeys(LINK_STATUSES, 0)) for gen in GEN_SELECTIONS}
+    matching_validation = {gen: Counter(dict.fromkeys(LINK_STATUSES, 0)) for gen in ANALYSIS_SELECTIONS}
     events = 0
     directory = input_root / f"20260828_100kTest_{sample}_photosFSR" / "final_root"
     paths = sorted(directory.glob("job_*/nanoaod.root"))
@@ -346,7 +355,7 @@ def read_sample(input_root: Path, sample: str, angle_accumulator):
                 reco_distributions["energy"].extend(p4[:, 3])
                 reco_distributions["cos_theta"].extend(cos_theta)
                 reco_event_counts.append(len(p4))
-                for gen_name in GEN_SELECTIONS:
+                for gen_name in ANALYSIS_SELECTIONS:
                     matching_validation[gen_name].update(event["matching_validation"][gen_name])
                 angle_accumulator(event)
         print(f"{sample} {path.parent.name}: {events} events", flush=True)
@@ -361,7 +370,8 @@ def read_sample(input_root: Path, sample: str, angle_accumulator):
     print(f"{sample} Photon+conv: Gen={len(gamma['energy'])}, with Reco={np.count_nonzero(~unmatched)}, "
           f"associated objects={reco['reco_count'].sum()}", flush=True)
     selections = gen_selections(gamma["category"])
-    return dict(events=events, gamma=gamma, selections=selections, reco=reco,
+    return dict(events=events, gamma=gamma, selections=selections,
+                analysis_selections=analysis_selections(gamma["category"]), reco=reco,
                 reco_distributions=reco_distributions, reco_event_counts=reco_event_counts,
                 gen_event_counts=gen_event_counts,
                 matching_validation={gen: dict(counts) for gen, counts in matching_validation.items()})

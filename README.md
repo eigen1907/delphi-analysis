@@ -135,15 +135,14 @@ plots/20260828_florian/isr_study/
   04_matching_result/{truth_matching,angular_matching}/
 ```
 
-All stages use the same four stable Gen selections. Only stage 01 has Gen
-subdirectories; the other stages compare these selections in one plot:
+Stage 01 keeps four stable Gen selections, including Beam ISR for inspection:
 
-| Selection | Legend | Definition |
-| --- | --- | --- |
-| `gen_gamma` | All | All stable gamma |
-| `gen_isr` | ISR | All ISR |
-| `gen_no_isr` | no ISR | Gamma excluding ISR: FSR + Decayed |
-| `gen_isr_non_beam` | ISR (non beam) | ISR excluding Beam ISR |
+| Selection | Definition |
+| --- | --- |
+| `gen_gamma` | All stable gamma |
+| `gen_isr` | All ISR |
+| `gen_no_isr` | Gamma excluding ISR: FSR + Decayed |
+| `gen_isr_non_beam` | ISR excluding Beam ISR |
 
 Stable photons have `GenPart_pdgId == 22` and `GenPart_status == 1`.
 ISR has an electron/positron as its first non-photon ancestor, with no hard parent
@@ -152,6 +151,19 @@ incoming electron/positron parent. FSR starts at the hard parent or its direct
 sample-final-state daughter. Decayed is the previous Others category; here it
 contains π⁰, η, and ω decay photons in Ztautau. Nominal truth results have no
 energy, angular, fiducial, PID, or lock cuts.
+
+Stages 02–04 exclude Beam ISR from all Gen selections, numerators, and
+denominators, and compare three populations in each plot:
+
+| Legend | Definition |
+| --- | --- |
+| $\gamma_{\mathrm{all}}$ | Stable gamma excluding Beam ISR |
+| $\gamma_{\mathrm{ISR}}$ | Non-beam ISR |
+| $\gamma_{\mathrm{no\ ISR}}$ | FSR + Decayed |
+
+This exclusion uses the Beam ISR ancestry and exact `px == py == 0` definition;
+it is not an energy threshold or detector acceptance cut. It changes only the
+study populations: the original Gen particles and truth ancestry remain intact.
 
 The sole Reco collection is **Photon + conversion**, with overlapping Photon
 representations replaced once by the conversion candidate. The Photon branch is
@@ -167,18 +179,21 @@ a view of neutral Parts with EM calorimeter energy, not pure photon PID.
   `gen_isr_non_beam`. One inclusive Reco curve appears in every plot.
   Multiplicity axes are N_gamma and raw Events;
   `_log` changes only the multiplicity y-axis.
-- **02:** One plot per sample compares the four Gen selections, with Agree,
+- **02:** One plot per sample compares the three Gen selections, with Agree,
   Forward only, Reverse only, Conflict, and No origin on the x-axis. Only candidates
   with known evidence involving that selection enter the counts; No origin cannot
-  be assigned to a Gen selection and is therefore zero. Conflict is a link
-  diagnostic, not an accepted match.
-- **03:** The four Gen selections scan the 3D opening angle, displayed to 10°.
+  be assigned to a Gen selection and is therefore zero. Status is evaluated using
+  all original anchors before applying the Gen selection, so a conflict between
+  Beam ISR and another origin remains a Conflict. Conflict is a link diagnostic,
+  not an accepted match.
+- **03:** The three Gen selections scan the 3D opening angle, displayed to 10°.
   Curves retain each Gen photon's own truth-associated candidates. The reference
   cut retains ≥99% of pooled non-beam ISR truth successes;
   it is a truth-retention check, not a purity optimum or a nominal truth cut.
 - **04:** Separate `truth_matching` and `angular_matching` directories contain
   efficiency and energy response versus Gen E and cos(theta). Each plot compares
-  the four Gen selections. Angular matching includes every candidate inside the
+  the three Gen selections. Angular matching retains the inclusive Reco pool,
+  without a Reco truth-origin veto, and includes every candidate inside the
   chosen cone. Efficiency counts ≥1 candidate once per Gen photon. Response is
   sum(E_reco)/E_gen, including unmatched zeros; ambiguous sums are undefined.
   Response plots also have `_log` versions. No matched-multiplicity plots remain.

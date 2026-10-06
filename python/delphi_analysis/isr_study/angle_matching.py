@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from .data import GEN_LABELS, GEN_SELECTIONS
+from .data import ANALYSIS_SELECTIONS, GEN_LABELS
 
 CUTS_DEG = np.array([0.25, 0.5, 1, 2, 3, 5, 10, 20])
 
@@ -16,7 +16,7 @@ def new_accumulator():
             truth_energy_count=np.zeros(len(CUTS_DEG), dtype=np.int64),
             truth_energy_sum=np.zeros(len(CUTS_DEG)),
             truth_energy_square_sum=np.zeros(len(CUTS_DEG)),
-        ) for population in GEN_SELECTIONS
+        ) for population in ANALYSIS_SELECTIONS
     }, angular={name: dict(pending=[], blocks=[]) for name in ("reco_count", "energy_ratio")})
 
 
@@ -53,8 +53,8 @@ def accumulate(accumulator, event):
     energy_valid = objects["energy_valid"][directional]
     truth_valid = ~(truth_cones & ~energy_valid[None, :, None]).any(axis=1)
     truth_valid &= objects["stats"]["energy_valid"][:, None]
-    for population in GEN_SELECTIONS:
-        selected = event["selections"][population]
+    for population in ANALYSIS_SELECTIONS:
+        selected = event["analysis_selections"][population]
         values = accumulator["populations"][population]
         values["gen_count"] += int(selected.sum())
         values["truth_success"] += int((objects["stats"]["reco_count"][selected] > 0).sum())
@@ -92,7 +92,7 @@ def choose_cut(accumulators):
     successes = 0
     recovered = np.zeros(len(CUTS_DEG), dtype=np.int64)
     for accumulator in accumulators:
-        values = accumulator["populations"]["gen_isr_non_beam"]
+        values = accumulator["populations"]["gen_isr"]
         successes += values["truth_success"]
         recovered += values["recovered_truth_success"]
     eligible = (successes > 0) & (recovered >= 0.99 * successes)
@@ -101,7 +101,7 @@ def choose_cut(accumulators):
 
 
 def plot_angle_matching(output_root, sample, accumulator, cut_degrees):
-    """Four Gen selections with the same Photon+conversion collection."""
+    """All, ISR and no ISR, after excluding the beam generator component."""
     import matplotlib.pyplot as plt
 
     from .plot_isr_study import FIGURE_SIZE, clopper_pearson, finish
@@ -110,7 +110,7 @@ def plot_angle_matching(output_root, sample, accumulator, cut_degrees):
     shown = CUTS_DEG <= 10
     for observable in ("efficiency", "energy_recovery"):
         fig, ax = plt.subplots(figsize=FIGURE_SIZE)
-        for gen_index, population in enumerate(GEN_SELECTIONS):
+        for gen_index, population in enumerate(ANALYSIS_SELECTIONS):
             values = accumulator["populations"][population]
             if observable == "efficiency":
                 denominator = np.full(len(CUTS_DEG), values["gen_count"])

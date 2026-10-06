@@ -8,13 +8,14 @@ from matplotlib.ticker import MaxNLocator
 from scipy.stats import beta
 
 from .angle_matching import accumulate, angular_stats, choose_cut, new_accumulator, plot_angle_matching
-from .data import GEN_LABELS, GEN_SELECTIONS, LINK_STATUSES, SAMPLES, read_sample
+from .data import ANALYSIS_SELECTIONS, GEN_LABELS, GEN_SELECTIONS, LINK_STATUSES, SAMPLES, read_sample
 
 FIGURE_SIZE = (11, 9)
 COVERAGE = 0.6826894921370859
 ENERGY_EDGES = np.array([0, 0.1, 0.2, 0.5, 1, 2, 3, 5, 7, 10, 15, 20, 30, 50])
-GEN_COMPONENTS = (('beam_isr', 'BeamISR'), ('nonbeam_isr', 'NonBeamISR'),
-                  ('fsr', 'FSR'), ('decayed', 'Decayed'))
+GEN_COMPONENTS = (('beam_isr', r'$\gamma_{\mathrm{BeamISR}}$'),
+                  ('nonbeam_isr', r'$\gamma_{\mathrm{NonBeamISR}}$'),
+                  ('fsr', r'$\gamma_{\mathrm{FSR}}$'), ('decayed', r'$\gamma_{\mathrm{Decayed}}$'))
 GEN_STACKS = dict(gen_gamma=GEN_COMPONENTS, gen_isr=GEN_COMPONENTS[:2],
                   gen_no_isr=GEN_COMPONENTS[2:], gen_isr_non_beam=GEN_COMPONENTS[1:2])
 XLABELS = dict(energy=r'$E_\gamma^{\rm gen}$ [GeV]', cos_theta=r'$\cos\theta^{\rm gen}$')
@@ -181,10 +182,10 @@ def truth_link_validation(study, sample, values):
     fig, ax = plt.subplots(figsize=FIGURE_SIZE)
     x = np.arange(len(labels))
     maximum = 0
-    for index, (gen_name, label) in enumerate(zip(GEN_SELECTIONS, GEN_LABELS, strict=True)):
+    for index, (gen_name, label) in enumerate(zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True)):
         counts = np.array([values['matching_validation'][gen_name][key] for key in LINK_STATUSES])
-        positions = x + (index - 1.5) * 0.2
-        ax.bar(positions, counts, width=0.2, color=f'C{index}', label=label)
+        positions = x + (index - 1) * 0.25
+        ax.bar(positions, counts, width=0.25, color=f'C{index}', label=label)
         ax.errorbar(positions, counts, yerr=np.sqrt(counts), fmt='none', color=f'C{index}', capsize=2)
         maximum = max(maximum, counts.max())
     ax.set_xticks(x, labels)
@@ -219,9 +220,9 @@ def matching_results(study, sample, values, bins):
             edges = bins[coordinate]
             centers = (edges[:-1] + edges[1:]) / 2
             fig, ax = plt.subplots(figsize=FIGURE_SIZE)
-            for index, (gen_name, label) in enumerate(zip(GEN_SELECTIONS, GEN_LABELS, strict=True)):
+            for index, (gen_name, label) in enumerate(zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True)):
                 color = f'C{index}'
-                selected = values['selections'][gen_name]
+                selected = values['analysis_selections'][gen_name]
                 x = gamma[coordinate][selected]
                 denominator = np.histogram(x, bins=edges)[0]
                 assert denominator.sum() == selected.sum()
@@ -242,9 +243,9 @@ def matching_results(study, sample, values, bins):
             for log_y in (False, True):
                 fig, ax = plt.subplots(figsize=FIGURE_SIZE)
                 means, upper_errors = [], []
-                for index, (gen_name, label) in enumerate(zip(GEN_SELECTIONS, GEN_LABELS, strict=True)):
+                for index, (gen_name, label) in enumerate(zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True)):
                     color = f'C{index}'
-                    selected = values['selections'][gen_name]
+                    selected = values['analysis_selections'][gen_name]
                     x = gamma[coordinate][selected]
                     mean, error = profile_points(x, stats['energy_ratio'][selected], edges)
                     means.append(mean)
