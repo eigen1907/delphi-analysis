@@ -205,37 +205,44 @@ def profile_points(coordinate, response, bins):
     return mean, error
 
 
-def event_isr_recovery(output, sample, values, recovered_energy):
-    """Sum recovered ISR energy once per event; percentages refer to all events."""
-    gen_energy = values['event_isr_energy']
-    has_isr = gen_energy > 0
-    defined = has_isr & np.isfinite(recovered_energy)
-    recovery = 100 * recovered_energy[defined] / gen_energy[defined]
-    overflow = np.count_nonzero(recovery > 100)
-    no_isr = np.count_nonzero(~has_isr)
-    undefined = np.count_nonzero(has_isr & ~defined)
+def event_energy_recovery(output, sample, values, recovered_energy):
+    """Compare event energy sums; overflow percentages refer to all sample events."""
     bins = np.linspace(0, 100, 21)
-    counts = np.histogram(recovery[recovery <= 100], bins=bins)[0]
-    assert counts.sum() + overflow + no_isr + undefined == values['events']
     centers = (bins[:-1] + bins[1:]) / 2
+    histograms = []
+    for population, label in zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True):
+        gen_energy = values['event_gen_energy'][population]
+        energy = recovered_energy[population]
+        has_gen = gen_energy > 0
+        defined = has_gen & np.isfinite(energy)
+        recovery = 100 * energy[defined] / gen_energy[defined]
+        overflow = np.count_nonzero(recovery > 100)
+        no_gen = np.count_nonzero(~has_gen)
+        undefined = np.count_nonzero(has_gen & ~defined)
+        counts = np.histogram(recovery[recovery <= 100], bins=bins)[0]
+        assert counts.sum() + overflow + no_gen + undefined == values['events']
+        histograms.append((counts, f'{label} (>100%: {overflow:,}, {100 * overflow / values["events"]:.2f}%)'))
+        print(f'{sample} {output.parents[1].name}/{output.name} {population}: '
+              f'no Gen={no_gen}, undefined={undefined}, overflow={overflow}', flush=True)
+    maximum = max(counts.max() for counts, _ in histograms)
     for log in (False, True):
         fig, ax = plt.subplots(figsize=FIGURE_SIZE)
-        ax.stairs(counts, bins, label='ISR recovery', color='C0')
-        shown = counts > 0
-        ax.errorbar(centers[shown], counts[shown], yerr=np.sqrt(counts[shown]),
-                    fmt='none', color='C0', capsize=2)
-        for label, count in (('Overflow (>100%)', overflow), ('No ISR', no_isr), ('Undefined', undefined)):
-            ax.plot([], [], color='none', label=f'{label}: {count:,} ({100 * count / values["events"]:.2f}%)')
+        for index, (counts, label) in enumerate(histograms):
+            color = f'C{index}'
+            ax.stairs(counts, bins, label=label, color=color)
+            shown = counts > 0
+            ax.errorbar(centers[shown], counts[shown], yerr=np.sqrt(counts[shown]),
+                        fmt='none', color=color, capsize=2)
         ax.set_xlim(0, 100)
         ax.set_xticks(np.arange(0, 101, 20))
         if log:
             ax.set_yscale('log')
-            ax.set_ylim(0.5, 0.5 * (counts.max() / 0.5) ** 1.65)
+            ax.set_ylim(0.5, 0.5 * (maximum / 0.5) ** 1.65)
         else:
-            ax.set_ylim(0, counts.max() * 1.65)
+            ax.set_ylim(0, maximum * 1.65)
         suffix = '_log' if log else ''
-        finish(fig, ax, output / f'isr_event_energy_recovery_{sample}{suffix}.png',
-               sample, 'ISR energy recovery [%]', 'Events')
+        finish(fig, ax, output / f'event_energy_recovery_{sample}{suffix}.png',
+               sample, 'Energy recovery [%]', 'Events')
 
 
 def matching_results(study, sample, values, bins):
@@ -245,7 +252,7 @@ def matching_results(study, sample, values, bins):
         output.mkdir(parents=True, exist_ok=True)
         stats = values[source]
         recovered_energy = values['event_truth_energy'] if source == 'reco' else stats['event_energy']
-        event_isr_recovery(output, sample, values, recovered_energy)
+        event_energy_recovery(output, sample, values, recovered_energy)
         for coordinate in ('cos_theta', 'energy'):
             edges = bins[coordinate]
             centers = (edges[:-1] + edges[1:]) / 2

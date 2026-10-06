@@ -348,10 +348,10 @@ def read_sample(input_root: Path, sample: str, angle_accumulator):
         reco={field: [] for field in ("reco_count", "energy_ratio", "energy_valid")},
         reco_distributions={field: [] for field in ("energy", "cos_theta")},
         reco_event_counts=[],
-        event_truth_energy=[],
+        event_truth_energy={gen: [] for gen in ANALYSIS_SELECTIONS},
         matching_validation={gen: Counter(dict.fromkeys(LINK_STATUSES, 0)) for gen in ANALYSIS_SELECTIONS},
     ) for mode in RECO_LABELS}
-    event_isr_energy = []
+    event_gen_energy = {gen: [] for gen in ANALYSIS_SELECTIONS}
     gen_event_counts = {name: [] for name in
                         ("all_gamma", "all_isr", "beam_isr", "nonbeam_isr", "fsr", "decayed")}
     events = 0
@@ -368,9 +368,8 @@ def read_sample(input_root: Path, sample: str, angle_accumulator):
                 event = analyze_event({name: values[entry] for name, values in columns.items()}, sample)
                 gamma_p4 = event["all_gamma_p4"]
                 categories = event["all_gamma_category"]
-                isr = event["analysis_selections"]["gen_isr"]
-                isr_gen_idx = event["all_gamma_idx"][isr]
-                event_isr_energy.append(gamma_p4[isr, 3].sum())
+                for gen_name, selected in event["analysis_selections"].items():
+                    event_gen_energy[gen_name].append(gamma_p4[selected, 3].sum())
                 counts = dict(all_gamma=len(categories),
                               all_isr=int(event["selections"]["gen_isr"].sum()))
                 counts.update({name: int(np.count_nonzero(categories == name))
@@ -385,10 +384,11 @@ def read_sample(input_root: Path, sample: str, angle_accumulator):
                     for field, entries in values["reco"].items():
                         entries.extend(objects["stats"][field])
                     p4 = objects["p4"]
-                    matched_isr = np.isin(objects["gen_idx"], isr_gen_idx)
-                    truth_energy = (p4[matched_isr, 3].sum()
-                                    if objects["stats"]["energy_valid"][isr].all() else np.nan)
-                    values["event_truth_energy"].append(truth_energy)
+                    for gen_name, selected in event["analysis_selections"].items():
+                        matched = np.isin(objects["gen_idx"], event["all_gamma_idx"][selected])
+                        truth_energy = (p4[matched, 3].sum()
+                                        if objects["stats"]["energy_valid"][selected].all() else np.nan)
+                        values["event_truth_energy"][gen_name].append(truth_energy)
                     momentum = np.linalg.norm(p4[:, :3], axis=1)
                     cos_theta = np.divide(p4[:, 2], momentum, out=np.full(len(p4), np.nan), where=momentum > 0)
                     values["reco_distributions"]["energy"].extend(p4[:, 3])
@@ -403,13 +403,14 @@ def read_sample(input_root: Path, sample: str, angle_accumulator):
     selections = gen_selections(gamma["category"])
     shared = dict(events=events, gamma=gamma, selections=selections,
                   analysis_selections=analysis_selections(gamma["category"]), gen_event_counts=gen_event_counts,
-                  event_isr_energy=np.asarray(event_isr_energy))
+                  event_gen_energy={gen: np.asarray(energy) for gen, energy in event_gen_energy.items()})
     for mode, values in results.items():
         values["reco"] = {field: np.asarray(entries) for field, entries in values["reco"].items()}
         values["reco_distributions"] = {field: np.asarray(entries)
                                         for field, entries in values["reco_distributions"].items()}
         values["reco_event_counts"] = np.asarray(values["reco_event_counts"])
-        values["event_truth_energy"] = np.asarray(values["event_truth_energy"])
+        values["event_truth_energy"] = {gen: np.asarray(energy)
+                                        for gen, energy in values["event_truth_energy"].items()}
         values["matching_validation"] = {gen: dict(counts) for gen, counts in values["matching_validation"].items()}
         values.update(shared, reco_label=RECO_LABELS[mode])
         reco = values["reco"]

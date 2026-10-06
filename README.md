@@ -201,13 +201,16 @@ branch is a view of neutral Parts with EM calorimeter energy, not pure photon PI
   chosen cone. Efficiency counts ≥1 candidate once per Gen photon. Response is
   sum(E_reco)/E_gen, including unmatched zeros; ambiguous sums are undefined.
   Response plots also have `_log` versions. No matched-multiplicity plots remain.
-  Event-level ISR energy recovery uses sum(E of distinct associated Reco objects)
-  / sum(E of non-beam Gen ISR photons), displayed from 0 to 100% with count errors.
-  Angular matching uses the union of ISR cones so a Reco candidate is counted once
-  per event. Unmatched ISR events enter at 0%; no-ISR and undefined-energy events
-  are excluded and counted in the legend. Values above 100% are overflow, reported
-  in the legend rather than merged into the last bin. All legend percentages use
-  the sample's full event count. Both linear-y and `_log` versions are saved.
+  Event-level energy recovery compares All, ISR, and no ISR on one axis, using
+  sum(E of distinct associated Reco objects) / sum(E of selected Gen photons).
+  Beam ISR is excluded from each population. Angular matching uses the union
+  of selected cones so a candidate is counted once per population per event.
+  Histograms span 0–100% in 5% bins with count errors. Unmatched events enter at 0%;
+  events with no selected Gen photons or undefined energy sums are excluded, with
+  their counts printed to the terminal. Values above 100% are reported in each
+  population's legend entry as `>100%: count, percentage`, not merged into the
+  last bin. Percentages use the sample's full event count. Both linear-y and
+  `_log` versions are saved as `event_energy_recovery_<sample>[_log].png`.
 
 Nominal truth compares `Part_simIdx → Sim ancestry → first Gen anchor` with
 `Gen-linked Sim → descendants → SimPart_partIdx`. A unique union origin is
