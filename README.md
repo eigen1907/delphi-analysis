@@ -208,8 +208,10 @@ branch is a view of neutral Parts with EM calorimeter energy, not pure photon PI
   Histograms span 0–100% in 5% bins with count errors. Unmatched events enter at 0%;
   events with no selected Gen photons or undefined energy sums are excluded, with
   their counts printed to the terminal. Values above 100% are reported in each
-  population's legend entry as `>100% percentage`, not merged into the last bin.
-  Each entry also reports the arithmetic mean of unbinned event recovery values
+  population's `% (>100%)` legend column, not merged into the last bin.
+  Separate one-column legends align Gen selection, `Mean (≤100%)`, and overflow;
+  the two statistic columns use empty Line2D handles. The mean uses unbinned
+  event recovery values
   in 0–100%, including unmatched zeros and exactly 100% but excluding overflow.
   Overflow percentages use the sample's full event count. Both linear-y and
   `_log` versions are saved as `event_energy_recovery_<sample>[_log].png`.

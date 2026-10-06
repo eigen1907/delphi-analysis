@@ -4,6 +4,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import mplhep as mh
 import numpy as np
+from matplotlib.lines import Line2D
 from matplotlib.ticker import MaxNLocator
 from scipy.stats import beta
 
@@ -36,7 +37,8 @@ def clopper_pearson(numerator, denominator):
 def finish(fig, ax, path, sample, xlabel, ylabel):
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
-    ax.legend(loc='upper right', frameon=False)
+    if ax.get_legend() is None:
+        ax.legend(loc='upper right', frameon=False)
     ax.text(0.02, 0.97, SAMPLE_LABELS[sample], transform=ax.transAxes,
             va='top', fontweight='bold')
     ax.grid(alpha=0.2)
@@ -223,18 +225,30 @@ def event_energy_recovery(output, sample, values, recovered_energy):
         counts = np.histogram(in_range, bins=bins)[0]
         assert counts.sum() + overflow + no_gen + undefined == values['events']
         mean = in_range.mean()
-        histograms.append((counts, f'{label}: Mean {mean:.2f}%, >100% {100 * overflow / values["events"]:.2f}%'))
+        histograms.append((counts, label, mean, 100 * overflow / values['events']))
         print(f'{sample} {output.parents[1].name}/{output.name} {population}: '
               f'no Gen={no_gen}, undefined={undefined}, overflow={overflow}', flush=True)
-    maximum = max(counts.max() for counts, _ in histograms)
+    maximum = max(counts.max() for counts, _, _, _ in histograms)
     for log in (False, True):
         fig, ax = plt.subplots(figsize=FIGURE_SIZE)
-        for index, (counts, label) in enumerate(histograms):
+        for index, (counts, label, _, _) in enumerate(histograms):
             color = f'C{index}'
             ax.stairs(counts, bins, label=label, color=color)
             shown = counts > 0
             ax.errorbar(centers[shown], counts[shown], yerr=np.sqrt(counts[shown]),
                         fmt='none', color=color, capsize=2)
+        # Keep three single-column legends aligned, with empty handles for the statistics.
+        groups = ax.legend(title='Gen', loc='upper right', bbox_to_anchor=(0.46, 0.96),
+                           frameon=False, handleheight=1.6)
+        ax.add_artist(groups)
+        empty = [Line2D([], [], color='none') for _ in histograms]
+        means = ax.legend(empty, [f'{mean:.2f}' for _, _, mean, _ in histograms],
+                          title='Mean (≤100%)', loc='upper right', bbox_to_anchor=(0.75, 0.96),
+                          frameon=False, handlelength=0, handletextpad=0, handleheight=1.6)
+        ax.add_artist(means)
+        ax.legend(empty, [f'{overflow:.2f}' for _, _, _, overflow in histograms],
+                  title='% (>100%)', loc='upper right', bbox_to_anchor=(0.99, 0.96),
+                  frameon=False, handlelength=0, handletextpad=0, handleheight=1.6)
         ax.set_xlim(0, 100)
         ax.set_xticks(np.arange(0, 101, 20))
         if log:
