@@ -57,13 +57,13 @@ def photon_origin(index, pdgs, parents, hard_parent, target_pdg):
 
 def first_gen_ancestor(sim, sim_gens, sim_vertices, vertex_incoming):
     """Stop at the first saved Gen anchor, including non-photon anchors."""
-    for depth in range(len(sim_gens)):
+    for _ in range(len(sim_gens)):
         gen = sim_gens[sim]
         if gen >= 0:
-            return int(gen), depth
+            return int(gen)
         vertex = sim_vertices[sim]
         if vertex < 0 or vertex_incoming[vertex] < 0:
-            return -1, depth
+            return -1
         sim = vertex_incoming[vertex]
     raise ValueError("Cycle in Sim ancestry")
 
@@ -159,7 +159,7 @@ def analyze_event(raw, sample):
             assert sim < n_sim
             if sim not in resolved:
                 resolved[sim] = first_gen_ancestor(sim, sim_gens, raw["SimPart_originVtxIdx"],
-                                                  raw["SimVtx_incomingIdx"])[0]
+                                                  raw["SimVtx_incomingIdx"])
                 assert resolved[sim] == downward_sim_origins[sim], "Up/down Sim origin disagreement"
             forward[part] = resolved[sim]
     known = [origins | ({int(forward[part])} if forward[part] >= 0 else set())
@@ -323,10 +323,7 @@ def analyze_event(raw, sample):
                     matching_validation[gen_name][name][status] += 1
     return dict(all_gamma_idx=all_gamma_idx, all_gamma_p4=all_gamma_p4,
                 all_gamma_category=all_gamma_category, selections=selections, reco=reco,
-                matching_validation=matching_validation, part_origins=part_origins,
-                part_origin_sets=known, forward_origins=forward, reverse_origins=reverse,
-                conversion_origins=conv_origins, conversion_parents=conv_parents,
-                conversion_daughters=conv_daughters)
+                matching_validation=matching_validation)
 
 
 def read_sample(input_root: Path, sample: str, angle_accumulator):

@@ -121,7 +121,6 @@ Plotting diagnostics and CSV summaries are written below
 
 ```bash
 bash runs/isr_study/plot_isr_study.sh
-bash runs/isr_study/dump_truth_trees.sh
 ```
 
 The five Florian `photosFSR` samples (`Zee`, `Zmumu`, `Ztautau`, `ZKK`, `Zpipi`)
@@ -132,7 +131,6 @@ Code and recipes are grouped under `isr_study/`.
 plots/20260828_florian/isr_study/
   01_sample_distribution/
   02_truth_link_matching_validation/
-    manual_audit/
   03_angular_matching_validation/
   04_matching_result/
 ```
@@ -194,8 +192,7 @@ Reco objects have no angular direction. Overlapping saved representations invali
 an energy sum. Responses can exceed one because candidates may contain mixed energy,
 especially for soft Gen photons. Saved Gen-to-Sim coverage is a link diagnostic,
 not detector transport efficiency; missing links and reverse-only Beam associations
-remain limitations. Actual representative tree dumps are preserved in `manual_audit/`.
-No summary JSON, note, validation, or audit-index files are produced.
+remain limitations. No summary JSON, note, or validation text files are produced.
 
 CMS/mplhep defaults, DELPHI Simulation, and bold sample legends are retained.
 Counts use sqrt(N) errors; efficiencies use 68.27% Clopper–Pearson intervals.
