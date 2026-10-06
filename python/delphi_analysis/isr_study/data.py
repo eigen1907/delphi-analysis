@@ -419,6 +419,8 @@ def read_sample(input_root: Path, sample: str, angle_accumulator=None):
     reco_distributions = {name: {field: [] for field in ("energy", "cos_theta", "kind", "origin_category")}
                           for name in RECO_DEFINITIONS}
     reco_event_counts = {name: [] for name in RECO_DEFINITIONS}
+    gen_event_counts = {name: [] for name in
+                        ("all_gamma", "all_isr", "beam_isr", "nonbeam_isr", "fsr", "decayed")}
     matching_validation = {gen: {name: Counter(dict.fromkeys(LINK_STATUSES, 0)) for name in RECO_DEFINITIONS}
                            for gen in GEN_SELECTIONS}
     unmatched_validation = {name: Counter(dict.fromkeys(LINK_STATUSES, 0)) for name in RECO_DEFINITIONS}
@@ -436,6 +438,15 @@ def read_sample(input_root: Path, sample: str, angle_accumulator=None):
             for entry in range(tree.num_entries):
                 event = analyze_event({name: values[entry] for name, values in columns.items()}, sample)
                 gamma_p4 = event["all_gamma_p4"]
+                categories = event["all_gamma_category"]
+                counts = dict(all_gamma=len(categories),
+                              all_isr=int(event["selections"]["gen_isr_all"].sum()))
+                counts.update({name: int(np.count_nonzero(categories == name))
+                               for name in ("beam_isr", "nonbeam_isr", "fsr", "decayed")})
+                assert counts["all_isr"] == counts["beam_isr"] + counts["nonbeam_isr"]
+                assert counts["all_gamma"] == counts["all_isr"] + counts["fsr"] + counts["decayed"]
+                for name, count in counts.items():
+                    gen_event_counts[name].append(count)
                 for name, values in (("energy", gamma_p4[:, 3]),
                                      ("cos_theta", unit_momenta(gamma_p4)[:, 2]),
                                      ("category", event["all_gamma_category"])):
@@ -468,6 +479,7 @@ def read_sample(input_root: Path, sample: str, angle_accumulator=None):
     reco_distributions = {name: {field: np.asarray(values) for field, values in fields.items()}
                           for name, fields in reco_distributions.items()}
     reco_event_counts = {name: np.asarray(values) for name, values in reco_event_counts.items()}
+    gen_event_counts = {name: np.asarray(values) for name, values in gen_event_counts.items()}
     for name, fields in reco.items():
         unmatched = fields["reco_count"] == 0
         assert np.all(fields["energy_ratio"][unmatched & fields["energy_valid"]] == 0)
@@ -479,6 +491,7 @@ def read_sample(input_root: Path, sample: str, angle_accumulator=None):
                       gen_isr_non_beam=gamma["category"] == "nonbeam_isr")
     return dict(events=events, gamma=gamma, selections=selections, reco=reco,
                 reco_distributions=reco_distributions, reco_event_counts=reco_event_counts,
+                gen_event_counts=gen_event_counts,
                 matching_validation={gen: {name: dict(counts) for name, counts in definitions.items()}
                                      for gen, definitions in matching_validation.items()},
                 unmatched_validation={name: dict(counts) for name, counts in unmatched_validation.items()},

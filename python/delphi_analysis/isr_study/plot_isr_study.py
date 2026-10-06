@@ -101,28 +101,30 @@ def sample_distributions(study, sample, values, bins):
         output = study / '01_sample_distribution' / gen_name
         output.mkdir(parents=True, exist_ok=True)
         gen_selected = values['selections'][gen_name]
-        reco_selected = (np.ones(len(candidates['energy']), dtype=bool) if gen_name == 'gen_gamma_all' else
-                         np.isin(candidates['origin_category'], ('beam_isr', 'nonbeam_isr')) if gen_name == 'gen_isr_all' else
-                         candidates['origin_category'] == 'nonbeam_isr')
         components = dict(gen_gamma_all=GEN_COMPONENTS, gen_isr_all=GEN_COMPONENTS[:2],
                           gen_isr_non_beam=GEN_COMPONENTS[1:2])[gen_name]
         for observable in ('cos_theta', 'energy', 'energy_log'):
             coordinate = 'energy' if observable.startswith('energy') else 'cos_theta'
             logarithmic = observable == 'energy_log'
             gen_entries = gamma[coordinate][gen_selected]
-            reco_entries = candidates[coordinate][reco_selected]
+            reco_entries = candidates[coordinate]
             if observable == 'energy':
                 # Display all E >= 50 GeV in the labelled final bin; physics arrays stay unchanged.
                 last = np.nextafter(bins['energy'][-1], -np.inf)
                 gen_entries = np.minimum(gen_entries, last)
                 reco_entries = np.minimum(reco_entries, last)
             fig, ax = plt.subplots(figsize=FIGURE_SIZE)
-            gen_height = stacked_spectrum(ax, gen_entries, gamma['category'][gen_selected],
-                                          components, bins[observable], values['events'], logarithmic, False)
-            reco_height = stacked_spectrum(ax, reco_entries, candidates['kind'][reco_selected],
+            stacked_spectrum(ax, gen_entries, gamma['category'][gen_selected],
+                             components, bins[observable], values['events'], logarithmic, False)
+            reco_height = stacked_spectrum(ax, reco_entries, candidates['kind'],
                                            (('gamma', r'$\gamma$'), ('gamma_conv', r'$\gamma_{\rm conv}$')),
                                            bins[observable], values['events'], logarithmic, True)
-            height = max(gen_height.max(), reco_height.max(), 1 / values['events'])
+            all_gen_entries = gamma[coordinate]
+            if observable == 'energy':
+                all_gen_entries = np.minimum(all_gen_entries, last)
+            all_gen_counts = np.histogram(all_gen_entries[np.isfinite(all_gen_entries)], bins=bins[observable])[0]
+            # A shared range makes the identical Reco reference directly comparable across Gen selections.
+            height = max(all_gen_counts.max() / values['events'], reco_height.max(), 1 / values['events'])
             if logarithmic:
                 ax.set_yscale('log')
                 ax.set_ylim(0.5 / values['events'], height * 1000)
@@ -136,41 +138,36 @@ def sample_distributions(study, sample, values, bins):
             xlabel = r'$E_\gamma$ [GeV]' if coordinate == 'energy' else r'$\cos\theta$'
             finish(fig, ax, output / f'{coordinate}_{sample}{suffix}.png', sample, xlabel,
                    r'$N_\gamma$ / bin per event')
-    for gen_name in GEN_SELECTIONS:
-        output = study / '01_sample_distribution' / gen_name
-        selected = values['selections'][gen_name]
-        entries = [(values['reco'][name]['reco_count'][selected], label, f'C{index}', '-')
-                   for index, (name, label) in enumerate(zip(RECO_DEFINITIONS, RECO_LABELS, strict=True))]
-        multiplicity_plot(output / f'multiplicity_{sample}.png', sample, entries,
-                          r'$N^{\rm reco}$ / gen', 'Gen fraction / bin')
-    entries = [(values['reco_event_counts'][name], label, f'C{index}', '-')
-               for index, (name, label) in enumerate(zip(RECO_DEFINITIONS, RECO_LABELS, strict=True))]
-    multiplicity_plot(study / '01_sample_distribution' / 'gen_gamma_all' / f'reco_event_multiplicity_{sample}.png',
-                      sample, entries, r'$N^{\rm reco}$ / event', 'Event fraction / bin')
+    event_multiplicity(study, sample, values)
 
 
-def multiplicity_plot(path, sample, entries, xlabel, ylabel, log_y=False):
+def event_multiplicity(study, sample, values):
+    populations = (('all_gamma', r'Gen all $\gamma$'), ('all_isr', 'Gen ISR'),
+                   ('beam_isr', 'Gen BeamISR'), ('nonbeam_isr', 'Gen NonBeamISR'),
+                   ('fsr', 'Gen FSR'), ('decayed', 'Gen Decayed'))
+    entries = [(values['gen_event_counts'][name], label, f'C{index}', '-')
+               for index, (name, label) in enumerate(populations)]
+    entries += [(values['reco_event_counts'][name], label, f'C{index + 6}', '--')
+                for index, (name, label) in enumerate((('reco_gamma', r'Reco $\gamma$'),
+                                                     ('reco_gamma_plus_conv', r'Reco $\gamma$+conv')))]
     bins = np.arange(-0.5, max(item[0].max() for item in entries) + 1.5)
     fig, ax = plt.subplots(figsize=FIGURE_SIZE)
     centers = (bins[:-1] + bins[1:]) / 2
     height = 0
-    for values, label, color, line in entries:
-        counts = np.histogram(values, bins=bins)[0]
-        assert counts.sum() == len(values)
+    for numbers, label, color, line in entries:
+        counts = np.histogram(numbers, bins=bins)[0]
+        assert counts.sum() == len(numbers) == values['events']
         shown = counts > 0
-        ax.stairs(counts / len(values), bins, label=label, color=color, linestyle=line)
-        ax.errorbar(centers[shown], counts[shown] / len(values), yerr=np.sqrt(counts[shown]) / len(values),
+        ax.stairs(counts, bins, label=label, color=color, linestyle=line)
+        ax.errorbar(centers[shown], counts[shown], yerr=np.sqrt(counts[shown]),
                     fmt='none', color=color, capsize=2)
-        height = max(height, (counts + np.sqrt(counts)).max() / len(values))
+        height = max(height, (counts + np.sqrt(counts)).max())
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     ax.set_xlim(bins[0], bins[-1])
-    if log_y:
-        ax.set_yscale('log')
-        ax.set_ylim(top=height * 100)
-    else:
-        ax.set_ylim(0, height * 1.6)
+    ax.set_ylim(0, height * 1.8)
     ax.legend(title=sample, loc='upper center', ncol=2, frameon=True, framealpha=1, edgecolor='none')
-    finish(fig, ax, path, sample, xlabel, ylabel)
+    finish(fig, ax, study / '01_sample_distribution' / f'multiplicity_{sample}.png',
+           sample, r'$N_\gamma$', 'Events')
 
 
 def truth_link_validation(study, sample, values):
@@ -260,11 +257,6 @@ def matching_results(study, sample, values, bins, cut_degrees):
                 suffix = '_logy' if log_y else ''
                 finish(fig, ax, output / f'energy_response_vs_{coordinate}_{sample}{suffix}.png', sample,
                        XLABELS[coordinate], r'$\langle\sum E^{\rm reco}/E_\gamma^{\rm gen}\rangle$')
-        entries = [(stats['reco_count'][selected], label, color, line) for stats, label, color, line in series]
-        for log_y in (False, True):
-            suffix = '_logy' if log_y else ''
-            multiplicity_plot(output / f'matched_reco_multiplicity_{sample}{suffix}.png', sample, entries,
-                              r'$N^{\rm reco}$ / gen', 'Gen fraction / bin', log_y)
 
 
 def matching_summary(gamma, stats, selected):
@@ -308,6 +300,10 @@ def write_summary(study, values, angles, cut, bins):
                 validation[gen_name][reco_name] = dict(counts=counts, known_outside_selected=outside)
         samples[sample] = dict(events=value['events'],
             gen_categories={key: int(np.count_nonzero(value['gamma']['category'] == key)) for key, _ in GEN_COMPONENTS},
+            event_multiplicity=dict(
+                gen={name: np.bincount(counts).tolist() for name, counts in value['gen_event_counts'].items()},
+                reco={name: np.bincount(value['reco_event_counts'][name]).tolist()
+                      for name in ('reco_gamma', 'reco_gamma_plus_conv')}),
             matching=matching, angular_matching_at_cut=angular_matching, truth_link_validation=validation,
             all_reco_truth_status=value['unmatched_validation'],
             reco_counts={name: dict(candidates=int(counts.sum()), mean_per_event=float(counts.mean()),
@@ -330,10 +326,10 @@ def write_summary(study, values, angles, cut, bins):
         'Five PHOTOS-FSR samples; stable Gen gamma = PDG 22, status 1. No energy or fiducial cut.',
         'Decayed is the previous Others category; current photons originate from pi0, eta, or omega decays.',
         'Gen color stacks and independent transparent Reco hatch stacks share one axis, normalized by event count, not bin width.',
-        'All-gamma Reco spectra include every deduplicated Photon/conversion candidate, including unknown/non-photon origins.',
-        'ISR Reco spectra require a unique selected Gen origin. They are truth-associated subsets.',
-        'Gen-folder multiplicity compares Photon, Photon+conversion, and all-Part matches per Gen, including zero.',
-        'Combined reco_event_multiplicity counts all three Reco definitions per event.',
+        'All three Gen folders use the same inclusive Reco Photon/conversion spectra, including unknown/non-photon origins.',
+        'Only the Gen spectrum changes with Gen selection; Reco spectra have no truth-origin selection.',
+        'One event multiplicity plot per sample compares Gen all gamma, ISR, BeamISR, NonBeamISR, FSR, Decayed and Reco gamma, gamma+conversion.',
+        'Multiplicity uses raw event counts, including N_gamma=0, without truth matching; JSON histogram index is N_gamma.',
         'Nominal association is the conflict-free union of both stored directions, stopping at the first Gen anchor.',
         'Truth validation counts Reco objects with any known selected origin; conflicts are retained, No origin is zero by membership.',
         'Unassigned Reco counts are separate in all_reco_truth_status; known outside-selected counts are saved for each case.',
@@ -348,7 +344,7 @@ def write_summary(study, values, angles, cut, bins):
         'Zero-momentum Reco contributes energy and multiplicity, but not cos(theta) or angular cones; counts are saved.',
         'energy_log uses a logarithmic positive region plus a zero-only first interval; no zero-energy entry is dropped.',
         'Linear spectra put E >= 50 GeV into a labelled overflow bin. energy_log and matching retain original energies.',
-        'Log-y response and multiplicity figures cannot display zeros; their linear counterparts retain zero values.',
+        'Log-y response figures cannot display zeros; their linear counterparts retain zero values.',
         'Log-y profile limits follow positive means; error bars extending below zero reach the plot boundary.',
         'Count errors: sqrt(N). Efficiency errors: 68.27% Clopper-Pearson. Profile errors: SEM when estimable.',
         'All finite histogram entries and energy tails are retained. High-energy linear bins are deliberately wider.',

@@ -132,6 +132,7 @@ The plotting CLI has only input/output directory arguments.
 ```text
 plots/20260828_florian/isr_study/
   01_sample_distribution/
+    multiplicity_<sample>.png
     {gen_gamma_all,gen_isr_all,gen_isr_non_beam}/
   02_truth_link_matching_validation/
     <gen_selection>/
@@ -152,8 +153,7 @@ undefined; response profiles show the standard error of the mean where estimable
 Energy plots use wider bins at high energy, with a separate logarithmic-energy
 version. Linear sample spectra use a labelled overflow bin for E >= 50 GeV;
 the log-energy plots and matching use the original energies and full tails.
-No pT plots are produced. Response and matched-multiplicity plots have
-additional `_logy` versions.
+No pT plots are produced. Response plots have additional `_logy` versions.
 
 ### Gen populations and Reco definitions
 
@@ -177,13 +177,17 @@ calorimeter energy, not a pure photon PID selection. `Part_pdgId` and
 `01_sample_distribution` overlays independently stacked Gen and Reco spectra
 on one axis: Gen uses solid colors; Reco gamma/conversion uses unfilled hatching.
 Their heights are separate totals, not a combined Gen-plus-Reco count.
-Gen stacks retain all selected photons;
-Reco ISR subsets require a unique selected truth origin. Reco candidates with
-unresolved origins cannot be assigned to ISR subsets. Each Gen directory also
-compares associated Photon, Photon-plus-conversion, and all-Part multiplicities
-**per Gen photon**, including zero matches. All-Part multiplicity counts raw
-stored footprints. `gen_gamma_all/reco_event_multiplicity_<sample>.png` separately
-compares the three Reco candidate counts **per event**.
+Gen stacks retain the selected photons. All three Gen directories use the same
+inclusive Reco stack, including unresolved and non-photon Gen origins. Its gamma
+component is the retained Photon view after conversion deduplication.
+`01_sample_distribution/multiplicity_<sample>.png` compares photon counts **per
+event**: Gen all gamma, ISR, BeamISR, NonBeamISR, FSR, Decayed, and inclusive Reco
+gamma and gamma+conversion. The axes are `N_gamma` and raw `Events`, including
+zero-photon events, with sqrt(N) errors. Curves are overlaid because these
+selections overlap. Reco gamma uses the Photon branch; gamma+conversion uses the
+existing deduplicated candidate collection. Neither requires a Gen truth link.
+The summary saves raw multiplicity histograms; list index is `N_gamma`.
+There are no per-Gen matched-multiplicity figures.
 
 ### Stored truth association
 
