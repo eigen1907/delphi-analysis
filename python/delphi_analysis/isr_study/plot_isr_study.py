@@ -8,7 +8,7 @@ from matplotlib.ticker import MaxNLocator
 from scipy.stats import beta
 
 from .angle_matching import accumulate, angular_stats, choose_cut, new_accumulator, plot_angle_matching
-from .data import ANALYSIS_SELECTIONS, GEN_LABELS, GEN_SELECTIONS, LINK_STATUSES, SAMPLES, read_sample
+from .data import ANALYSIS_SELECTIONS, GEN_LABELS, GEN_SELECTIONS, LINK_STATUSES, RECO_LABELS, SAMPLES, read_sample
 
 FIGURE_SIZE = (11, 9)
 COVERAGE = 0.6826894921370859
@@ -19,6 +19,9 @@ GEN_COMPONENTS = (('beam_isr', r'$\gamma_{\mathrm{BeamISR}}$'),
 GEN_STACKS = dict(gen_gamma=GEN_COMPONENTS, gen_isr=GEN_COMPONENTS[:2],
                   gen_no_isr=GEN_COMPONENTS[2:], gen_isr_non_beam=GEN_COMPONENTS[1:2])
 XLABELS = dict(energy=r'$E_\gamma^{\rm gen}$ [GeV]', cos_theta=r'$\cos\theta^{\rm gen}$')
+SAMPLE_LABELS = dict(Zee=r'$\boldsymbol{Z\to e^+e^-}$', Zmumu=r'$\boldsymbol{Z\to\mu^+\mu^-}$',
+                     Ztautau=r'$\boldsymbol{Z\to\tau^+\tau^-}$', ZKK=r'$\boldsymbol{Z\to K^+K^-}$',
+                     Zpipi=r'$\boldsymbol{Z\to\pi^+\pi^-}$')
 
 
 def clopper_pearson(numerator, denominator):
@@ -33,8 +36,9 @@ def clopper_pearson(numerator, denominator):
 def finish(fig, ax, path, sample, xlabel, ylabel):
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
-    legend = ax.legend(title=sample, frameon=True)
-    legend.get_title().set_fontweight('bold')
+    ax.legend(loc='upper right', frameon=False)
+    ax.text(0.02, 0.97, SAMPLE_LABELS[sample], transform=ax.transAxes,
+            va='top', fontweight='bold')
     ax.grid(alpha=0.2)
     mh.label.exp_label(exp='DELPHI', llabel='Simulation', rlabel='LEP 1 (91.2 GeV)', loc=0, ax=ax)
     fig.tight_layout()
@@ -83,14 +87,14 @@ def gen_spectrum(ax, entries, category, components, bins, events, logarithmic):
                 fmt='none', ecolor='grey', capsize=2, elinewidth=0.8)
 
 
-def reco_spectrum(ax, entries, bins, events, logarithmic):
-    """One inclusive Photon+conversion curve, with no truth-origin selection."""
+def reco_spectrum(ax, entries, bins, events, logarithmic, label):
+    """One inclusive Reco curve, with no truth-origin selection."""
     centers = bin_centers(ax, bins, logarithmic)
     entries = entries[np.isfinite(entries)]
     counts = np.histogram(entries, bins=bins)[0]
     assert counts.sum() == len(entries)
     ax.stairs(counts / events, bins, fill=True, facecolor='none', edgecolor='black',
-              hatch='///', linewidth=1.8, label=r'Reco $\gamma+\gamma_{\rm conv}$')
+              hatch='///', linewidth=1.8, label=f'Reco {label}')
     shown = counts > 0
     ax.errorbar(centers[shown], counts[shown] / events, yerr=np.sqrt(counts[shown]) / events,
                 fmt='none', ecolor='black', capsize=2, elinewidth=0.8)
@@ -119,7 +123,7 @@ def sample_distributions(study, sample, values, bins):
                 fig, ax = plt.subplots(figsize=FIGURE_SIZE)
                 gen_spectrum(ax, gen_entries[gen_selected], gamma['category'][gen_selected],
                              GEN_STACKS[gen_name], edges, values['events'], log_energy)
-                reco_height = reco_spectrum(ax, reco_entries, edges, values['events'], log_energy)
+                reco_height = reco_spectrum(ax, reco_entries, edges, values['events'], log_energy, values['reco_label'])
                 all_gen_counts = np.histogram(gen_entries[np.isfinite(gen_entries)], bins=edges)[0]
                 # Use one y range for all four Gen selections.
                 height = max(all_gen_counts.max() / values['events'], reco_height.max(), 1 / values['events'])
@@ -141,7 +145,7 @@ def event_multiplicity(output, sample, values, components):
     """Photon counts per event, including N_gamma = 0; overlapping curves are not stacked."""
     entries = [(values['gen_event_counts'][name], f'Gen {label}', f'C{GEN_COMPONENTS.index((name, label))}', '-')
                for name, label in components]
-    entries.append((values['reco_event_counts'], r'Reco $\gamma+\gamma_{\rm conv}$', 'C4', '--'))
+    entries.append((values['reco_event_counts'], f"Reco {values['reco_label']}", 'C4', '--'))
     bins = np.arange(-0.5, max(item[0].max() for item in entries) + 1.5)
     centers = (bins[:-1] + bins[1:]) / 2
     for log in (False, True):
@@ -184,7 +188,7 @@ def truth_link_validation(study, sample, values):
     ax.set_yscale('log')
     ax.set_ylim(top=max(maximum * 100, 1))
     finish(fig, ax, output / f'truth_link_status_{sample}.png', sample,
-           'Link status', r'# of linked $\gamma+\gamma_{\rm conv}$')
+           'Link status', f"# of linked {values['reco_label']}")
 
 
 def profile_points(coordinate, response, bins):
@@ -201,12 +205,47 @@ def profile_points(coordinate, response, bins):
     return mean, error
 
 
+def event_isr_recovery(output, sample, values, recovered_energy):
+    """Sum recovered ISR energy once per event; percentages refer to all events."""
+    gen_energy = values['event_isr_energy']
+    has_isr = gen_energy > 0
+    defined = has_isr & np.isfinite(recovered_energy)
+    recovery = 100 * recovered_energy[defined] / gen_energy[defined]
+    overflow = np.count_nonzero(recovery > 100)
+    no_isr = np.count_nonzero(~has_isr)
+    undefined = np.count_nonzero(has_isr & ~defined)
+    bins = np.linspace(0, 100, 21)
+    counts = np.histogram(recovery[recovery <= 100], bins=bins)[0]
+    assert counts.sum() + overflow + no_isr + undefined == values['events']
+    centers = (bins[:-1] + bins[1:]) / 2
+    for log in (False, True):
+        fig, ax = plt.subplots(figsize=FIGURE_SIZE)
+        ax.stairs(counts, bins, label='ISR recovery', color='C0')
+        shown = counts > 0
+        ax.errorbar(centers[shown], counts[shown], yerr=np.sqrt(counts[shown]),
+                    fmt='none', color='C0', capsize=2)
+        for label, count in (('Overflow (>100%)', overflow), ('No ISR', no_isr), ('Undefined', undefined)):
+            ax.plot([], [], color='none', label=f'{label}: {count:,} ({100 * count / values["events"]:.2f}%)')
+        ax.set_xlim(0, 100)
+        ax.set_xticks(np.arange(0, 101, 20))
+        if log:
+            ax.set_yscale('log')
+            ax.set_ylim(0.5, 0.5 * (counts.max() / 0.5) ** 1.65)
+        else:
+            ax.set_ylim(0, counts.max() * 1.65)
+        suffix = '_log' if log else ''
+        finish(fig, ax, output / f'isr_event_energy_recovery_{sample}{suffix}.png',
+               sample, 'ISR energy recovery [%]', 'Events')
+
+
 def matching_results(study, sample, values, bins):
     gamma = values['gamma']
     for source, method in (('reco', 'truth_matching'), ('angular', 'angular_matching')):
         output = study / '04_matching_result' / method
         output.mkdir(parents=True, exist_ok=True)
         stats = values[source]
+        recovered_energy = values['event_truth_energy'] if source == 'reco' else stats['event_energy']
+        event_isr_recovery(output, sample, values, recovered_energy)
         for coordinate in ('cos_theta', 'energy'):
             edges = bins[coordinate]
             centers = (edges[:-1] + edges[1:]) / 2
@@ -247,7 +286,9 @@ def matching_results(study, sample, values, bins):
                     ax.set_yscale('log')
                     positive = np.concatenate([mean for mean, _, _, _ in profiles])
                     positive = positive[np.isfinite(positive) & (positive > 0)]
-                    ax.set_ylim(positive.min() / 3, upper * 30)
+                    lower = positive.min() / 3
+                    # Reserve the same upper fraction as in the linear plot for the legend.
+                    ax.set_ylim(lower, lower * (upper / lower) ** 1.65)
                 else:
                     ax.set_ylim(0, upper * 1.65)
                 suffix = '_log' if log_y else ''
@@ -260,24 +301,32 @@ def plot_isr_study(input_root: Path, output_root: Path):
     study = output_root / 'isr_study'
     study.mkdir(parents=True, exist_ok=True)
     # Read each event once: Gen selection, truth association, and angular scan.
-    angles, values = {}, {}
+    angles = {mode: {} for mode in RECO_LABELS}
+    values = {mode: {} for mode in RECO_LABELS}
     for sample in SAMPLES:
-        angles[sample] = new_accumulator()
-        values[sample] = read_sample(input_root, sample, lambda event: accumulate(angles[sample], event))
+        for mode in RECO_LABELS:
+            angles[mode][sample] = new_accumulator()
+        def scan(event):
+            for mode, objects in event['reco'].items():
+                accumulate(angles[mode][sample], event, objects)
+        samples = read_sample(input_root, sample, scan)
+        for mode, value in samples.items():
+            values[mode][sample] = value
+    # Identical bins make the two Reco definitions directly comparable.
     all_energy = np.concatenate([np.r_[value['gamma']['energy'], value['reco_distributions']['energy']]
-                                 for value in values.values()])
+                                 for samples in values.values() for value in samples.values()])
     bins = dict(energy=np.r_[ENERGY_EDGES, 60], energy_log=energy_bins(all_energy, True),
                 cos_theta=np.linspace(-1, 1, 21))
-    gen_bins = dict(bins, energy=energy_bins(np.concatenate([value['gamma']['energy'] for value in values.values()])))
-    # Set the angular reference from pooled non-beam ISR truth retention.
-    cut = choose_cut(angles.values())
-    for sample in SAMPLES:
-        values[sample]['angular'] = angular_stats(angles[sample], cut)
-    # Draw the same four sections for every sample.
-    for sample, value in values.items():
-        sample_distributions(study, sample, value, bins)
-        truth_link_validation(study, sample, value)
-        plot_angle_matching(study / '03_angular_matching_validation', sample, angles[sample], cut)
-        matching_results(study, sample, value, gen_bins)
-        print(f'plots: {sample}', flush=True)
-    print(f'ISR study: {study}; opening-angle reference {cut:g} deg', flush=True)
+    gen_bins = dict(bins, energy=energy_bins(np.concatenate([value['gamma']['energy'] for value in values['gamma'].values()])))
+    for mode in RECO_LABELS:
+        output = study / mode
+        # Apply the same 99% pooled non-beam ISR truth-retention criterion to each mode.
+        cut = choose_cut(angles[mode].values())
+        for sample, value in values[mode].items():
+            value['angular'] = angular_stats(angles[mode][sample], cut)
+            sample_distributions(output, sample, value, bins)
+            truth_link_validation(output, sample, value)
+            plot_angle_matching(output / '03_angular_matching_validation', sample, angles[mode][sample], cut)
+            matching_results(output, sample, value, gen_bins)
+            print(f'plots: {mode} {sample}', flush=True)
+        print(f'ISR study: {output}; opening-angle reference {cut:g} deg', flush=True)

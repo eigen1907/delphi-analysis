@@ -17,15 +17,15 @@ def new_accumulator():
             truth_energy_sum=np.zeros(len(CUTS_DEG)),
             truth_energy_square_sum=np.zeros(len(CUTS_DEG)),
         ) for population in ANALYSIS_SELECTIONS
-    }, angular={name: dict(pending=[], blocks=[]) for name in ("reco_count", "energy_ratio")})
+    }, angular={name: dict(pending=[], blocks=[])
+                for name in ("reco_count", "energy_ratio", "event_energy")})
 
 
-def accumulate(accumulator, event):
+def accumulate(accumulator, event, objects):
     """Every Gen photon gets its own cone; candidates can enter several cones."""
     gen_idx, gen_p4 = event["all_gamma_idx"], event["all_gamma_p4"]
     gen_unit = gen_p4[:, :3] / np.linalg.norm(gen_p4[:, :3], axis=1)[:, None]
     cut_cosines = np.cos(np.deg2rad(CUTS_DEG))
-    objects = event["reco"]
     momentum = np.linalg.norm(objects["p4"][:, :3], axis=1)
     directional = momentum > 0
     p4 = objects["p4"][directional]
@@ -42,6 +42,11 @@ def accumulate(accumulator, event):
     stored = accumulator["angular"]
     stored["reco_count"]["pending"].append(multiplicity.astype(np.uint16))
     stored["energy_ratio"]["pending"].append(np.where(valid_cones, energy_ratio, np.nan))
+    # For an event, use the union of ISR cones: count each Reco candidate once.
+    isr_cones = cones[event["analysis_selections"]["gen_isr"]].any(axis=0)
+    event_energy = (isr_cones * p4[:, 3, None]).sum(axis=0)
+    event_valid = ~(isr_cones & ~geometric_valid[:, None]).any(axis=0)
+    stored["event_energy"]["pending"].append(np.where(event_valid, event_energy, np.nan)[None, :])
     # Combine small event arrays to avoid one Python object per event.
     if len(stored["reco_count"]["pending"]) == 1024:
         for field in stored.values():

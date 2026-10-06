@@ -129,10 +129,11 @@ Code and recipes are grouped under `isr_study/`.
 
 ```text
 plots/20260828_florian/isr_study/
-  01_sample_distribution/{gen_gamma,gen_isr,gen_no_isr,gen_isr_non_beam}/
-  02_truth_link_matching_validation/
-  03_angular_matching_validation/
-  04_matching_result/{truth_matching,angular_matching}/
+  {gamma,gamma_plus_conversion}/
+    01_sample_distribution/{gen_gamma,gen_isr,gen_no_isr,gen_isr_non_beam}/
+    02_truth_link_matching_validation/
+    03_angular_matching_validation/
+    04_matching_result/{truth_matching,angular_matching}/
 ```
 
 Stage 01 keeps four stable Gen selections, including Beam ISR for inspection:
@@ -165,12 +166,15 @@ This exclusion uses the Beam ISR ancestry and exact `px == py == 0` definition;
 it is not an energy threshold or detector acceptance cut. It changes only the
 study populations: the original Gen particles and truth ancestry remain intact.
 
-The sole Reco collection is **Photon + conversion**, with overlapping Photon
-representations replaced once by the conversion candidate. The Photon branch is
-a view of neutral Parts with EM calorimeter energy, not pure photon PID.
+The same study runs for two Reco collections: **Photon only** (`gamma`) and
+**Photon + conversion** (`gamma_plus_conversion`). Photon only retains every
+original Photon row. The combined collection replaces overlapping Photon
+representations once by the conversion candidate. Both use the same Gen
+populations, bins, and truth definitions, reading each event once. The Photon
+branch is a view of neutral Parts with EM calorimeter energy, not pure photon PID.
 `Part_pdgId` and `SimPart_pdgId` use DELPHI mass codes: gamma=21, e±=±2.
 
-- **01:** Stacked Gen colors and one combined inclusive Reco outline with
+- **01:** Stacked Gen colors and one inclusive Reco outline with
   hatching on one axis. Reco is identical across the four Gen selections. Energy and
   cos(theta) have `_log` versions. Linear energy uses a labelled E ≥ 50 GeV
   overflow bin; logarithmic energy retains the full tail. Each Gen directory has
@@ -187,8 +191,8 @@ a view of neutral Parts with EM calorimeter energy, not pure photon PID.
   Beam ISR and another origin remains a Conflict. Conflict is a link diagnostic,
   not an accepted match.
 - **03:** The three Gen selections scan the 3D opening angle, displayed to 10°.
-  Curves retain each Gen photon's own truth-associated candidates. The reference
-  cut retains ≥99% of pooled non-beam ISR truth successes;
+  Curves retain each Gen photon's own truth-associated candidates. For each Reco
+  collection, the reference cut retains ≥99% of pooled non-beam ISR truth successes;
   it is a truth-retention check, not a purity optimum or a nominal truth cut.
 - **04:** Separate `truth_matching` and `angular_matching` directories contain
   efficiency and energy response versus Gen E and cos(theta). Each plot compares
@@ -197,6 +201,13 @@ a view of neutral Parts with EM calorimeter energy, not pure photon PID.
   chosen cone. Efficiency counts ≥1 candidate once per Gen photon. Response is
   sum(E_reco)/E_gen, including unmatched zeros; ambiguous sums are undefined.
   Response plots also have `_log` versions. No matched-multiplicity plots remain.
+  Event-level ISR energy recovery uses sum(E of distinct associated Reco objects)
+  / sum(E of non-beam Gen ISR photons), displayed from 0 to 100% with count errors.
+  Angular matching uses the union of ISR cones so a Reco candidate is counted once
+  per event. Unmatched ISR events enter at 0%; no-ISR and undefined-energy events
+  are excluded and counted in the legend. Values above 100% are overflow, reported
+  in the legend rather than merged into the last bin. All legend percentages use
+  the sample's full event count. Both linear-y and `_log` versions are saved.
 
 Nominal truth compares `Part_simIdx → Sim ancestry → first Gen anchor` with
 `Gen-linked Sim → descendants → SimPart_partIdx`. A unique union origin is
@@ -207,14 +218,19 @@ so conversions use reciprocal saved parent/daughter vertices and agreeing anchor
 
 Angular cones can share candidates and are not exclusive assignments. Zero-momentum
 Reco objects have no angular direction. Overlapping saved representations invalidate
-an energy sum. Responses can exceed one because candidates may contain mixed energy,
-especially for soft Gen photons. Saved Gen-to-Sim coverage is a link diagnostic,
+an energy sum, including parent/descendant Photon rows in the Photon-only study;
+candidate counts and efficiency still retain those rows. Responses can exceed one
+because candidates may contain mixed energy, especially for soft Gen photons.
+Response profiles average per-Gen ratios, not total recovered energy divided by
+total Gen energy. Very soft photons with large ratios can dominate this mean;
+a truth link identifies ancestry, not exclusive ownership of the Reco energy.
+Saved Gen-to-Sim coverage is a link diagnostic,
 not detector transport efficiency; missing links and reverse-only Beam associations
 remain limitations. No summary JSON, note, or validation text files are produced.
 
-CMS/mplhep defaults, DELPHI Simulation, and bold sample legends are retained.
-All plots use a single-column legend with default placement and a readable background;
-its title is the sample name.
+CMS/mplhep defaults and DELPHI Simulation are retained. Legends use one column
+at the upper right without a frame; a bold symbolic sample label appears separately
+at the upper left, e.g. Z → μ⁺μ⁻. No detector-region guides are drawn.
 Counts use sqrt(N) errors; efficiencies use 68.27% Clopper–Pearson intervals.
 Linear energy bins start at 1 GeV width and widen at higher energies; this adds
 no energy selection. Log-energy plots retain equally spaced logarithmic bins.
