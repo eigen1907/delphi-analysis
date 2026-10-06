@@ -33,7 +33,9 @@ def clopper_pearson(numerator, denominator):
 def finish(fig, ax, path, sample, xlabel, ylabel):
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
-    legend = ax.legend(title=sample, loc='best', frameon=True, framealpha=1, edgecolor='none')
+    legend = ax.get_legend()
+    if legend is None:
+        legend = ax.legend(title=sample, loc='best', frameon=True, framealpha=1, edgecolor='none')
     legend.get_title().set_fontweight('bold')
     legend.get_frame().set_facecolor('white')
     ax.grid(alpha=0.2)
@@ -159,22 +161,32 @@ def gen_spectra(study, sample, values, common):
                    XLABELS[coordinate], r'$N_\gamma$ / bin per event')
 
 
-def link_validation(study, sample, values):
-    output = study / '00_link_validation' / sample
+def link_validation(study, values):
+    output = study / '00_link_validation'
     output.mkdir(parents=True, exist_ok=True)
-    keys = ('agreement', 'forward_only', 'reverse_only', 'conflict', 'no_origin')
-    labels = ('Agree', 'Forward\nonly', 'Reverse\nonly', 'Conflict', 'No origin')
+    # Small statuses first; Agree last keeps the smaller stacks visible on log axes.
+    keys = ('conflict', 'reverse_only', 'forward_only', 'no_origin', 'agreement')
+    labels = ('Conflict', 'Reverse only', 'Forward only', 'No origin', 'Agree')
     for name, filename, label in (('all_parts', 'reco_link_status', 'All Part'),
                                   ('ISR_involved', 'reco_link_status_isr', 'ISR-related Part'),
                                   ('noBeamISR_involved', 'reco_link_status_noBeamISR', 'Non-beam ISR-related Part')):
-        counts = np.asarray([values['link_validation'][name].get(key, 0) for key in keys])
+        counts = np.asarray([[values[sample]['link_validation'][name].get(key, 0)
+                              for sample in SAMPLES] for key in keys])
         fig, ax = plt.subplots(figsize=FIGURE_SIZE)
-        ax.bar(np.arange(len(keys)), counts, color='C0', label=label)
-        ax.errorbar(np.arange(len(keys)), counts, yerr=np.sqrt(counts), fmt='o', color='black', capsize=2)
-        ax.set_xticks(np.arange(len(keys)), labels)
+        x = np.arange(len(SAMPLES))
+        bottom = np.zeros(len(SAMPLES))
+        for entries, status, color, hatch in zip(counts, labels, ('C3', 'C2', 'C1', 'C4', 'C0'),
+                                                ('xx', '\\\\', '//', '..', ''), strict=True):
+            ax.bar(x, entries, bottom=bottom, label=status, color=color,
+                   edgecolor='black', linewidth=0.7, hatch=hatch)
+            bottom += entries
+        ax.errorbar(x, bottom, yerr=np.sqrt(bottom), fmt='o', color='black', capsize=2)
+        ax.set_xticks(x, SAMPLES)
         ax.set_yscale('log')
-        ax.set_ylim(top=counts.max() * 10)
-        finish(fig, ax, output / f'{filename}.png', sample, 'Link status', 'Reco Parts')
+        ax.set_ylim(counts[counts > 0].min() / 2, bottom.max() * 100)
+        ax.legend(title=label, loc='upper center', ncol=3,
+                  frameon=True, framealpha=1, edgecolor='none')
+        finish(fig, ax, output / f'{filename}.png', label, 'Sample', 'Reco Parts')
 
 
 def composition_plot(path, sample, photons, raw_count, composition, selected, coordinate, bins, scale):
@@ -321,8 +333,8 @@ def plot_isr_study(input_root: Path, output_root: Path):
         angles[sample] = new_accumulator()
         values[sample] = read_sample(input_root, sample, lambda event: accumulate(angles[sample], event))
     common = {name: np.concatenate([value['photons'][name] for value in values.values()]) for name in XLABELS}
+    link_validation(study, values)
     for sample, value in values.items():
-        link_validation(study, sample, value)
         gen_spectra(study, sample, value, common)
     for channel in CHANNELS:
         ranges = {field: np.concatenate([value['channels'][channel][field][np.isfinite(value['channels'][channel][field])]

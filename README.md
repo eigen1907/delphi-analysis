@@ -132,7 +132,7 @@ The plotting CLI has only input/output directory arguments.
 ```text
 plots/20260828_florian/isr_study/
   00_link_validation/
-    <sample>/                        all Part / ISR / noBeamISR links (log only)
+    reco_link_status*.png            sample comparison with stacked statuses (log only)
     manual_audit/                    representative full event trees
   01_photon_conversion/
     gen/<sample>/                    stacked Beam/non-Beam Gen ISR spectra
