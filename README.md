@@ -133,9 +133,8 @@ The plotting CLI has only input/output directory arguments.
 plots/20260828_florian/isr_study/
   01_sample_distribution/
     {gen_gamma_all,gen_isr_all,gen_isr_non_beam}/
-    multiplicity/
   02_truth_link_matching_validation/
-    <gen_selection>/<reco_definition>/
+    <gen_selection>/
     manual_audit/
   03_angular_matching_validation/
   04_matching_result/
@@ -144,7 +143,9 @@ plots/20260828_florian/isr_study/
   study_notes.txt
 ```
 
-All figure filenames end in the sample name. CMS style, default font sizes,
+Figure filenames include the sample name before any scale suffix, for example
+`energy_Zee_log.png` and `energy_response_vs_energy_Zee_logy.png`.
+CMS style, default font sizes,
 DELPHI Simulation, and bold sample legends are retained. Count errors use
 sqrt(N); efficiencies use 68.27% Clopper–Pearson intervals. Empty bins are
 undefined; response profiles show the standard error of the mean where estimable.
@@ -173,15 +174,16 @@ Parts (`reco_all`). The `Photon` branch is a view of neutral Parts with EM
 calorimeter energy, not a pure photon PID selection. `Part_pdgId` and
 `SimPart_pdgId` use DELPHI mass codes: gamma=21, electron/positron=±2.
 
-`01_sample_distribution` shows Gen stacks above separate Reco gamma/conversion
-stacks, versus energy and cos(theta). Gen stacks retain all selected photons;
+`01_sample_distribution` overlays independently stacked Gen and Reco spectra
+on one axis: Gen uses solid colors; Reco gamma/conversion uses unfilled hatching.
+Their heights are separate totals, not a combined Gen-plus-Reco count.
+Gen stacks retain all selected photons;
 Reco ISR subsets require a unique selected truth origin. Reco candidates with
-unresolved origins cannot be assigned to ISR subsets. The three Gen multiplicity
-populations count matched raw Parts **per Gen
-photon**, including zero matches. The two Reco multiplicity populations count
-gamma or gamma-plus-conversion candidates **per event**. The multiplicity in
-`04_matching_result` compares associated Reco objects **per Gen photon** for
-all three Reco definitions.
+unresolved origins cannot be assigned to ISR subsets. Each Gen directory also
+compares associated Photon, Photon-plus-conversion, and all-Part multiplicities
+**per Gen photon**, including zero matches. All-Part multiplicity counts raw
+stored footprints. `gen_gamma_all/reco_event_multiplicity_<sample>.png` separately
+compares the three Reco candidate counts **per event**.
 
 ### Stored truth association
 
@@ -199,6 +201,7 @@ origins remain unresolved. Angular matching never repairs nominal truth links.
 
 `02_truth_link_matching_validation` contains the nine Gen-selection × Reco-definition
 combinations, with Agree, Forward only, Reverse only, Conflict, and No origin.
+The three Reco definitions share each Gen-selection plot as grouped bars.
 Each plot counts Reco objects with known evidence involving the selected Gen
 population, including conflicts. Its No origin bin is therefore zero by
 construction. The summary separately retains all-Reco unresolved counts and
@@ -216,7 +219,9 @@ conversion representations.
 
 ### Efficiency, energy response, and angular validation
 
-`04_matching_result` compares the three Reco definitions in each Gen population.
+`04_matching_result` compares the three Reco definitions in each Gen population:
+solid curves use nominal truth association; dashed curves use the selected
+3D opening-angle cut alone, with the same color for each Reco definition.
 Efficiency is the fraction of Gen photons with at least one associated Reco
 object; several objects still count as one success. Energy response is
 `sum(E_reco) / E_gen`, shown versus Gen energy and cos(theta).
@@ -245,11 +250,27 @@ not automatically labelled a false positive.
 The dashed cut is the smallest scanned angle retaining at least 99% of nominal
 truth successes for pooled non-beam ISR in **both** photon channels. It is a
 truth-retention cross-check, not a purity optimum or a cut on nominal results.
+The displayed scan runs to 10 degrees; all scanned points, including 20 degrees,
+remain in the summary. The cut line is a reference without a legend entry.
 Zero-momentum Reco candidates are excluded only from angular cones because their
 direction is undefined. Cones with structurally ambiguous energy are omitted
 from energy profiles, with coverage recorded in the summary.
 
-The efficiencies measure saved truth-associated reconstruction, not detector
+The dashed results in `04_matching_result` include **every candidate inside the
+cone**, regardless of its truth origin. One candidate may enter several Gen
+cones, so these curves measure geometric candidate presence and cone energy,
+not an exclusive assignment or a truth-pure reconstruction efficiency.
+All-Part angular multiplicity counts raw stored Parts; energy uses the retained
+parent/daughter representations. A truth conflict alone does not invalidate
+geometric energy. A cone containing overlapping saved Reco representations has
+undefined energy instead of a double-counted sum. Specifically, a retained
+composite with retained descendants is energy-invalid; daughter-only cones remain
+usable. All-Part presence counts raw daughter directions, while energy uses
+canonical object directions, so a raw match can have no canonical energy object
+inside the cone. Empty energy cones give zero response;
+defined-response coverage is retained separately in the summary.
+
+The solid truth curves measure saved truth-associated reconstruction, not detector
 transport efficiency. Missing links, contradictory anchors, and suspicious
 reverse-only or soft-Beam associations remain limitations. Saved Gen-to-Sim
 coverage is a link diagnostic rather than a main physics efficiency.
