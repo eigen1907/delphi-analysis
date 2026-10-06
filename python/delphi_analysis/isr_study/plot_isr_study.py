@@ -12,7 +12,7 @@ from .data import ANALYSIS_SELECTIONS, GEN_LABELS, GEN_SELECTIONS, LINK_STATUSES
 
 FIGURE_SIZE = (11, 9)
 COVERAGE = 0.6826894921370859
-ENERGY_EDGES = np.array([0, 0.1, 0.2, 0.5, 1, 2, 3, 5, 7, 10, 15, 20, 30, 50])
+ENERGY_EDGES = np.array([0, 1, 2, 3, 5, 7, 10, 15, 20, 30, 50])
 GEN_COMPONENTS = (('beam_isr', r'$\gamma_{\mathrm{BeamISR}}$'),
                   ('nonbeam_isr', r'$\gamma_{\mathrm{NonBeamISR}}$'),
                   ('fsr', r'$\gamma_{\mathrm{FSR}}$'), ('decayed', r'$\gamma_{\mathrm{Decayed}}$'))
@@ -33,11 +33,8 @@ def clopper_pearson(numerator, denominator):
 def finish(fig, ax, path, sample, xlabel, ylabel):
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
-    legend = ax.get_legend()
-    if legend is None:
-        legend = ax.legend(title=sample, loc='best', frameon=True, framealpha=1, edgecolor='none')
+    legend = ax.legend(title=sample, frameon=True)
     legend.get_title().set_fontweight('bold')
-    legend.get_frame().set_facecolor('white')
     ax.grid(alpha=0.2)
     mh.label.exp_label(exp='DELPHI', llabel='Simulation', rlabel='LEP 1 (91.2 GeV)', loc=0, ax=ax)
     fig.tight_layout()
@@ -56,16 +53,15 @@ def energy_bins(entries, logarithmic=False):
 
 
 def bin_centers(ax, bins, logarithmic=False):
+    ax.set_xlim(bins[0], bins[-1])
     if logarithmic:
         # The first interval contains zero only, rather than dropping zero-energy candidates.
         ax.set_xscale('symlog', linthresh=bins[1])
         centers = np.r_[0, np.sqrt(bins[1:-1] * bins[2:])]
-    else:
-        centers = (bins[:-1] + bins[1:]) / 2
-    ax.set_xlim(bins[0], bins[-1])
-    if logarithmic:
         # Space the labels around zero; the bins and all entries are unchanged.
         ax.set_xticks(np.r_[0, ax.get_xticks()[2:]])
+    else:
+        centers = (bins[:-1] + bins[1:]) / 2
     return centers
 
 
@@ -85,7 +81,6 @@ def gen_spectrum(ax, entries, category, components, bins, events, logarithmic):
     shown = total > 0
     ax.errorbar(centers[shown], bottom[shown], yerr=np.sqrt(total[shown]) / events,
                 fmt='none', ecolor='grey', capsize=2, elinewidth=0.8)
-    return bottom
 
 
 def reco_spectrum(ax, entries, bins, events, logarithmic):
@@ -133,8 +128,6 @@ def sample_distributions(study, sample, values, bins):
                     ax.set_ylim(0.5 / values['events'], height * 1000)
                 else:
                     ax.set_ylim(0, height * 1.8)
-                ax.legend(title=sample, loc='upper center', ncol=2,
-                          frameon=True, framealpha=1, edgecolor='none')
                 if coordinate == 'energy' and not log:
                     ax.set_xticks([0, 10, 20, 30, 40, 55], ['0', '10', '20', '30', '40', r'$\geq 50$'])
                 suffix = '_log' if log else ''
@@ -169,7 +162,6 @@ def event_multiplicity(output, sample, values, components):
             ax.set_ylim(0.5, height * 100)
         else:
             ax.set_ylim(0, height * 1.8)
-        ax.legend(title=sample, loc='upper center', ncol=2, frameon=True, framealpha=1, edgecolor='none')
         suffix = '_log' if log else ''
         finish(fig, ax, output / f'multiplicity_{sample}{suffix}.png',
                sample, r'$N_\gamma$', 'Events')
@@ -191,7 +183,6 @@ def truth_link_validation(study, sample, values):
     ax.set_xticks(x, labels)
     ax.set_yscale('log')
     ax.set_ylim(top=max(maximum * 100, 1))
-    ax.legend(title=sample, loc='upper center', ncol=2, frameon=True, framealpha=1, edgecolor='none')
     finish(fig, ax, output / f'truth_link_status_{sample}.png', sample,
            'Link status', r'# of linked $\gamma+\gamma_{\rm conv}$')
 
@@ -238,29 +229,27 @@ def matching_results(study, sample, values, bins):
             ax.set_xlim(edges[0], edges[-1])
             ax.set_ylim(0, 1.5)
             ax.set_yticks(np.linspace(0, 1, 6))
-            ax.legend(title=sample, loc='upper center', ncol=2, frameon=True, framealpha=1, edgecolor='none')
             finish(fig, ax, output / f'efficiency_vs_{coordinate}_{sample}.png', sample, XLABELS[coordinate], 'Efficiency')
+            profiles = []
+            for index, (gen_name, label) in enumerate(zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True)):
+                selected = values['analysis_selections'][gen_name]
+                x = gamma[coordinate][selected]
+                mean, error = profile_points(x, stats['energy_ratio'][selected], edges)
+                profiles.append((mean, error, f'C{index}', label))
+            upper = max(np.nanmax(mean + np.nan_to_num(error, nan=0)) for mean, error, _, _ in profiles)
             for log_y in (False, True):
                 fig, ax = plt.subplots(figsize=FIGURE_SIZE)
-                means, upper_errors = [], []
-                for index, (gen_name, label) in enumerate(zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True)):
-                    color = f'C{index}'
-                    selected = values['analysis_selections'][gen_name]
-                    x = gamma[coordinate][selected]
-                    mean, error = profile_points(x, stats['energy_ratio'][selected], edges)
-                    means.append(mean)
-                    upper_errors.append(mean + np.nan_to_num(error, nan=0))
+                for mean, error, color, label in profiles:
                     ax.stairs(mean, edges, baseline=None, color=color, label=label)
                     ax.errorbar(centers, mean, yerr=error, fmt='none', color=color, capsize=2)
                 ax.set_xlim(edges[0], edges[-1])
                 if log_y:
                     ax.set_yscale('log')
-                    positive = np.concatenate(means)
+                    positive = np.concatenate([mean for mean, _, _, _ in profiles])
                     positive = positive[np.isfinite(positive) & (positive > 0)]
-                    ax.set_ylim(positive.min() / 3, np.nanmax(upper_errors) * 30)
+                    ax.set_ylim(positive.min() / 3, upper * 30)
                 else:
-                    ax.set_ylim(0, np.nanmax(upper_errors) * 1.65)
-                ax.legend(title=sample, loc='upper center', ncol=2, frameon=True, framealpha=1, edgecolor='none')
+                    ax.set_ylim(0, upper * 1.65)
                 suffix = '_log' if log_y else ''
                 finish(fig, ax, output / f'energy_response_vs_{coordinate}_{sample}{suffix}.png', sample,
                        XLABELS[coordinate], r'$\langle\sum E^{\rm reco}/E_\gamma^{\rm gen}\rangle$')

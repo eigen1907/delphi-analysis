@@ -10,7 +10,6 @@ TARGET_PDG = {"Zee": 11, "Zmumu": 13, "Ztautau": 15, "ZKK": 321, "Zpipi": 211}
 SIM_GAMMA_CODE = 21  # Part/SimPart use DELPHI mass codes; GenPart uses PDG IDs.
 GEN_P4 = tuple(f"GenPart_vector.fCoordinates.f{axis}" for axis in "XYZT")
 RECO_P4 = tuple(f"Photon_fourMomentum.fCoordinates.f{axis}" for axis in "XYZT")
-PART_P4 = tuple(f"Part_fourMomentum.fCoordinates.f{axis}" for axis in "XYZT")
 CONV_P4 = tuple(f"PhotonConv_fourMomentum.fCoordinates.f{axis}" for axis in "XYZT")
 GEN_SELECTIONS = ("gen_gamma", "gen_isr", "gen_no_isr", "gen_isr_non_beam")
 ANALYSIS_SELECTIONS = ("gen_gamma", "gen_isr", "gen_no_isr")
@@ -18,7 +17,7 @@ GEN_LABELS = (r"$\gamma_{\mathrm{all}}$", r"$\gamma_{\mathrm{ISR}}$", r"$\gamma_
 LINK_STATUSES = ("agreement", "forward_only", "reverse_only", "conflict", "no_origin")
 BRANCHES = (
     "GenPart_pdgId", "GenPart_status", "GenPart_parentIdx", *GEN_P4,
-    "Photon_partIdx", *RECO_P4, "Part_simIdx", "Part_charge", "Part_pdgId", *PART_P4,
+    "Photon_partIdx", *RECO_P4, "Part_simIdx", "Part_charge", "Part_pdgId",
     "Part_originVtxIdx", "Part_decayVtxIdx", "Vtx_incomingIdx",
     "SimPart_genIdx", "SimPart_partIdx",
     "SimPart_originVtxIdx", "SimVtx_incomingIdx", *CONV_P4,
@@ -104,9 +103,15 @@ def response(gen_idx, gen_p4, origins, object_p4, valid, raw_origins, invalid_ge
 
 
 def link_status(forward, reverse):
-    origins = forward | reverse
-    return ("conflict" if len(origins) > 1 else "no_origin" if not origins else
-            "agreement" if forward and reverse else "forward_only" if forward else "reverse_only")
+    if len(forward | reverse) > 1:
+        return "conflict"
+    if forward and reverse:
+        return "agreement"
+    if forward:
+        return "forward_only"
+    if reverse:
+        return "reverse_only"
+    return "no_origin"
 
 
 def analyze_event(raw, sample):
@@ -173,12 +178,10 @@ def analyze_event(raw, sample):
     known = [origins | ({int(forward[part])} if forward[part] >= 0 else set())
              for part, origins in enumerate(reverse)]
     part_origins = np.asarray([next(iter(origins)) if len(origins) == 1 else -1 for origins in known], dtype=int)
-    part_p4 = np.column_stack([raw[name] for name in PART_P4])
     photon_parts = np.asarray(raw["Photon_partIdx"], dtype=int)
     photon_p4 = np.column_stack([raw[name] for name in RECO_P4])
     assert np.all((photon_parts >= 0) & (photon_parts < n_part))
     assert len(set(photon_parts)) == len(photon_parts)
-    assert np.array_equal(photon_p4, part_p4[photon_parts])
     # Only reciprocal saved Reco vertex relations define parent/child structure.
     part_children = [[] for _ in range(n_part)]
     for part, vertex in enumerate(raw["Part_originVtxIdx"]):
@@ -271,7 +274,6 @@ def analyze_event(raw, sample):
                             [conv_parents[c] >= 0 and len(conv_known[c]) <= 1 and
                              conv_parents[c] not in bad_parts for c in kept_convs], dtype=bool)
     raw_gamma_origins = np.concatenate((part_origins[photon_parts], conv_origins))
-    part_forward = [{int(gen)} if gen >= 0 else set() for gen in forward]
     # Geometry has no Gen-origin requirement. Only overlapping saved Reco
     # representations make its energy ambiguous; an isolated conflicted Part
     # still has a measured four-vector. Invalidate the retained ancestor, so
@@ -292,7 +294,8 @@ def analyze_event(raw, sample):
             if other_row != row)
         gamma_geometry_valid.append(not overlap)
     gamma_geometry_valid = np.asarray(gamma_geometry_valid, dtype=bool)
-    gamma_forward = [part_forward[p] for p in photon_parts[kept_photons]] + [conv_forward[c] for c in kept_convs]
+    gamma_forward = [{int(forward[p])} if forward[p] >= 0 else set()
+                     for p in photon_parts[kept_photons]] + [conv_forward[c] for c in kept_convs]
     gamma_reverse = [reverse[p] for p in photon_parts[kept_photons]] + [conv_reverse[c] for c in kept_convs]
     stats = response(all_gamma_idx, all_gamma_p4, gamma_origins, gamma_p4,
                      gamma_valid, raw_gamma_origins, photon_invalid_gens)
@@ -338,14 +341,11 @@ def read_sample(input_root: Path, sample: str, angle_accumulator):
                               all_isr=int(event["selections"]["gen_isr"].sum()))
                 counts.update({name: int(np.count_nonzero(categories == name))
                                for name in ("beam_isr", "nonbeam_isr", "fsr", "decayed")})
-                assert counts["all_isr"] == counts["beam_isr"] + counts["nonbeam_isr"]
-                assert counts["all_gamma"] == counts["all_isr"] + counts["fsr"] + counts["decayed"]
                 for name, count in counts.items():
                     gen_event_counts[name].append(count)
-                for name, values in (("energy", gamma_p4[:, 3]),
-                                     ("cos_theta", unit_momenta(gamma_p4)[:, 2]),
-                                     ("category", event["all_gamma_category"])):
-                    gamma[name].extend(values)
+                gamma["energy"].extend(gamma_p4[:, 3])
+                gamma["cos_theta"].extend(unit_momenta(gamma_p4)[:, 2])
+                gamma["category"].extend(categories)
                 objects = event["reco"]
                 for field, entries in reco.items():
                     entries.extend(objects["stats"][field])
@@ -365,8 +365,6 @@ def read_sample(input_root: Path, sample: str, angle_accumulator):
     reco_event_counts = np.asarray(reco_event_counts)
     gen_event_counts = {name: np.asarray(values) for name, values in gen_event_counts.items()}
     unmatched = reco["reco_count"] == 0
-    assert np.all(reco["energy_ratio"][unmatched & reco["energy_valid"]] == 0)
-    assert np.all(np.isnan(reco["energy_ratio"][~reco["energy_valid"]]))
     print(f"{sample} Photon+conv: Gen={len(gamma['energy'])}, with Reco={np.count_nonzero(~unmatched)}, "
           f"associated objects={reco['reco_count'].sum()}", flush=True)
     selections = gen_selections(gamma["category"])

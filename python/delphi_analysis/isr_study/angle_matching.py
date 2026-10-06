@@ -33,7 +33,8 @@ def accumulate(accumulator, event):
     cosine = np.clip(gen_unit @ reco_unit.T, -1, 1)
     cones = cosine[:, :, None] >= cut_cosines[None, None, :]
     multiplicity = cones.sum(axis=1)
-    energy_ratio = np.einsum("ijk,j->ik", cones, p4[:, 3]) / gen_p4[:, 3, None]
+    reco_energy = p4[None, :, 3, None]
+    energy_ratio = (cones * reco_energy).sum(axis=1) / gen_p4[:, 3, None]
     # Geometry ignores truth conflicts, but saved-object energy overlaps
     # still invalidate a cone's energy. Empty cones have zero energy.
     geometric_valid = objects["geometric_energy_valid"][directional]
@@ -49,7 +50,7 @@ def accumulate(accumulator, event):
 
     own_origin = gen_idx[:, None] == objects["gen_idx"][directional][None, :]
     truth_cones = cones & own_origin[:, :, None]
-    truth_ratio = np.einsum("ijk,j->ik", truth_cones, p4[:, 3]) / gen_p4[:, 3, None]
+    truth_ratio = (truth_cones * reco_energy).sum(axis=1) / gen_p4[:, 3, None]
     energy_valid = objects["energy_valid"][directional]
     truth_valid = ~(truth_cones & ~energy_valid[None, :, None]).any(axis=1)
     truth_valid &= objects["stats"]["energy_valid"][:, None]
@@ -126,8 +127,6 @@ def plot_angle_matching(output_root, sample, accumulator, cut_degrees):
         ax.axvline(cut_degrees, color="black", linestyle="--", linewidth=2)
         ax.set_xlim(0, 10)
         ax.set_ylim(0, ax.get_ylim()[1] * 1.65)
-        ax.legend(title=sample, ncol=2, loc="upper center", frameon=True,
-                  framealpha=1, edgecolor="none")
         ylabel = "Efficiency" if observable == "efficiency" else r'$\langle\sum E^{\rm reco}/E_\gamma^{\rm gen}\rangle$'
         finish(fig, ax, output_root / f"{observable}_vs_opening_angle_{sample}.png", sample,
                "Opening-angle cut [deg]", ylabel)

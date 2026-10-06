@@ -213,7 +213,11 @@ not detector transport efficiency; missing links and reverse-only Beam associati
 remain limitations. No summary JSON, note, or validation text files are produced.
 
 CMS/mplhep defaults, DELPHI Simulation, and bold sample legends are retained.
+All plots use a single-column legend with default placement and a readable background;
+its title is the sample name.
 Counts use sqrt(N) errors; efficiencies use 68.27% Clopper–Pearson intervals.
+Linear energy bins start at 1 GeV width and widen at higher energies; this adds
+no energy selection. Log-energy plots retain equally spaced logarithmic bins.
 Response profiles show the standard error of the mean where estimable. Filenames
 place the sample before the scale suffix: `energy_Zee_log.png`.
 
