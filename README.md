@@ -203,17 +203,18 @@ branch is a view of neutral Parts with EM calorimeter energy, not pure photon PI
   sum(E_reco)/E_gen, including unmatched zeros; ambiguous sums are undefined.
   Response plots also have `_log` versions. No matched-multiplicity plots remain.
   Matched energy residuals replace the event-level recovery histograms:
-  `(sum(E_reco) - E_gen) / E_gen`, using one Gen photon as the unit. These new
+  `(E_gen - sum(E_reco)) / E_gen`, using one Gen photon as the unit: positive
+  means energy loss, zero means equal energy, and negative means excess Reco energy. These
   distributions require **Gen E ≥ 2 GeV**, at least one associated Reco candidate,
   and a finite, unambiguous energy sum. Unmatched photons remain in the efficiency
   denominator but do not enter this matched-response diagnostic. Both signs are
-  retained in −100% to +200%, with 10 percentage point bins and count errors.
-  Separate one-column legends align Gen selection, `Mean (≤200%)`, and
-  `% (>200%)`, using empty handles for statistics. The mean is conditional on
-  the displayed range and uses unbinned residuals, including exactly +200%;
-  overflow percentages use all finite matched photons passing the energy cut.
-  Overflow is neither folded into the final bin nor clipped. Counts of ambiguous
-  energy sums and overflow are printed to the terminal. Linear-y and `_log`
+  retained in −200% to +100%, with 10 percentage point bins and count errors.
+  Separate one-column legends align Gen selection, `Mean (≥−200%)`, and
+  `% (<−200%)`, using empty handles for statistics. The mean is conditional on
+  the displayed range and uses unbinned residuals, including exactly −200%;
+  underflow percentages use all finite matched photons passing the energy cut.
+  Underflow is neither folded into the first bin nor clipped. Counts of ambiguous
+  energy sums and underflow are printed to the terminal. Linear-y and `_log`
   versions are saved as `matched_energy_residual_<sample>[_log].png`.
 - **05:** Five-sample pooled **truth-matched** non-beam ISR efficiency for
   **Gen E ≥ 2 GeV**, with counts and Clopper–Pearson intervals. All angles is
