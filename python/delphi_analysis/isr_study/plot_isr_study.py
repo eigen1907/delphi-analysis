@@ -308,9 +308,9 @@ def detector_efficiency(study, samples):
                 numerator = np.array([(selected & region & matched).sum() for region in regions.values()])
                 efficiency = numerator / denominator
                 lower, upper = clopper_pearson(numerator, denominator)
-                ax.errorbar(x + (index - 1) * 0.15, efficiency,
+                ax.errorbar(x, efficiency,
                             yerr=[efficiency - lower, upper - efficiency], fmt='o',
-                            color=f'C{index}', capsize=4, markersize=7, label=label)
+                            color=f'C{index}', capsize=4, markersize=9, alpha=0.7, label=label)
                 print(f'{study.name} {method}/{cut_name} {population} detector counts: '
                       f'{dict(zip(regions, zip(numerator, denominator), strict=True))}', flush=True)
             if min_gen_energy:
