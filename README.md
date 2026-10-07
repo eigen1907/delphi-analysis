@@ -216,9 +216,8 @@ sums, as in the Photon-only study.
   excluded in both versions. Each plot compares All, ISR, and no ISR. The plot set
   is efficiency versus Gen E and cos(theta), plus two energy-ratio histograms:
 
-  - **Per Gen photon:** `sum(E_reco) / E_gen`, requiring at least one associated
-    Reco candidate and a finite, unambiguous energy sum. One matched Gen photon
-    contributes one entry; unmatched photons remain in the efficiency denominator.
+  - **Per Gen photon:** `sum(E_reco) / E_gen`, one entry per selected Gen photon.
+    Unmatched photons enter at zero; ambiguous energy sums are excluded.
   - **Per event:** `sum(E_reco) / sum(E_gen)`. The denominator includes every
     selected Gen photon, including unmatched ones. The numerator sums distinct
     associated Reco candidates once; angular matching uses the union of the
@@ -229,18 +228,17 @@ sums, as in the Photon-only study.
   Efficiency counts ≥1 candidate once per Gen photon, even when its energy sum
   is ambiguous. Both ratio histograms span 0–3 in 0.1 bins, without percent
   scaling, with count errors and linear-y/`_log` versions. Ratio one means equal
-  energy. Their filenames are `matched_energy_ratio_<sample>[_log].png` and
+  energy. Their filenames are `gen_energy_ratio_<sample>[_log].png` and
   `event_energy_ratio_<sample>[_log].png`.
   Separate one-column legends align Gen selection and statistics, using empty
-  handles. The matched-photon mean uses unbinned ratios **0 ≤ R ≤ 3**; the event
-  mean uses **0 < R < 3**, excluding both endpoints. Histograms still include
-  zero and three. The event legend also reports `Frac. (=0)`. Zero and >3 tail
-  fractions use the same denominator: all eligible finite event ratios, including
-  zero and overflow. Photon tail fractions use all finite matched-photon ratios.
+  handles. Both means use unbinned ratios **0 < R < 3**, excluding both endpoints.
+  Histograms still include zero and three. Both legends report `Frac. (=0)` and
+  `Frac. (>3)`, each divided by all eligible finite ratios, including zero and
+  overflow: selected Gen photons or events, respectively.
   Tails are neither folded into bins nor clipped; excluded and tail counts are
   printed to the terminal. No Reco energy cut is added.
-- **05:** Five-sample pooled regional efficiency uses the same two matching
-  methods, two Gen energy versions, and three Gen populations for each Reco mode.
+- **05:** Separate plots for each sample use the same two matching methods,
+  two Gen energy versions, and three Gen populations for each Reco mode.
   Each matching/cut case compares all three Gen populations in one plot, using
   points with Clopper–Pearson error bars. Counts are printed to the terminal;
   points have no numerical annotations. Region ticks show the name followed by
@@ -254,7 +252,7 @@ sums, as in the Photon-only study.
   association; angular results use the stage 03 cone cut with no truth gate.
   Missing forward truth links and accidental angular associations limit a direct
   interpretation as detector performance. Filenames are
-  `efficiency_by_detector_combined.png`.
+  `efficiency_by_detector_<sample>.png`.
 
 Nominal truth compares `Part_simIdx → Sim ancestry → first Gen anchor` with
 `Gen-linked Sim → descendants → SimPart_partIdx`. A unique union origin is
@@ -268,8 +266,8 @@ Reco objects have no angular direction. Overlapping saved representations invali
 an energy sum, including parent/descendant Photon rows in the Photon-only study;
 candidate counts and efficiency still retain those rows. Responses can exceed one
 because candidates may contain mixed energy, especially for soft Gen photons.
-The per-photon ratio histogram is conditional on a match; the event ratio also
-includes energy from unmatched Gen photons in its denominator. Angular event sums
+Both ratio histograms include unmatched Gen photons: per-photon ratios enter at
+zero, and event denominators retain their energy. Angular event sums
 count each Reco candidate once, even when it enters several Gen cones. A truth
 link identifies ancestry, not exclusive ownership of the Reco energy.
 Saved Gen-to-Sim coverage is a link diagnostic,

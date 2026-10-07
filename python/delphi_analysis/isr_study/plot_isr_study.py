@@ -22,7 +22,7 @@ GEN_STACKS = dict(gen_gamma=GEN_COMPONENTS, gen_isr=GEN_COMPONENTS[:2],
 XLABELS = dict(energy=r'$E_\gamma^{\rm gen}$ [GeV]', cos_theta=r'$\cos\theta^{\rm gen}$')
 SAMPLE_LABELS = dict(Zee=r'$\boldsymbol{Z\to e^+e^-}$', Zmumu=r'$\boldsymbol{Z\to\mu^+\mu^-}$',
                      Ztautau=r'$\boldsymbol{Z\to\tau^+\tau^-}$', ZKK=r'$\boldsymbol{Z\to K^+K^-}$',
-                     Zpipi=r'$\boldsymbol{Z\to\pi^+\pi^-}$', combined='All samples')
+                     Zpipi=r'$\boldsymbol{Z\to\pi^+\pi^-}$')
 
 
 def clopper_pearson(numerator, denominator):
@@ -194,16 +194,16 @@ def truth_link_validation(study, sample, values):
 
 
 def energy_ratio_distributions(output, sample, values, stats, cut_index):
-    """Matched-photon response and event recovery, including unmatched Gen energy."""
+    """Gen-photon and event energy ratios, including unmatched photons at zero."""
     _, min_gen_energy = ENERGY_CUTS[cut_index]
     energy = values['gamma']['energy']
     event_index = np.repeat(np.arange(values['events']), values['gen_event_counts']['all_gamma'])
-    populations = dict(matched_energy_ratio=[], event_energy_ratio=[])
+    populations = dict(gen_energy_ratio=[], event_energy_ratio=[])
     for index, (population, label) in enumerate(zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True)):
         selected = values['analysis_selections'][population] & (energy >= min_gen_energy)
         matched = selected & (stats['reco_count'] > 0)
         finite = np.isfinite(stats['energy_ratio'])
-        populations['matched_energy_ratio'].append((stats['energy_ratio'][matched & finite], label))
+        populations['gen_energy_ratio'].append((stats['energy_ratio'][selected & finite], label))
         gen_energy = np.bincount(event_index[selected], weights=energy[selected], minlength=values['events'])
         if 'event_energy' in stats:
             # Angular cones can share candidates: the event accumulator takes their union.
@@ -219,7 +219,9 @@ def energy_ratio_distributions(output, sample, values, stats, cut_index):
         defined = has_gen & np.isfinite(reco_energy)
         populations['event_energy_ratio'].append((reco_energy[defined] / gen_energy[defined], label))
         print(f'{sample} {output.parent.name}/{output.name} {population}: '
-              f'matched Gen={matched.sum()}, undefined Gen energy={(matched & ~finite).sum()}; '
+              f'Gen ratios={(selected & finite).sum()}, matched Gen={matched.sum()}, '
+              f'zero Gen ratio={(selected & finite & (stats["energy_ratio"] == 0)).sum()}, '
+              f'undefined Gen energy={(selected & ~finite).sum()}; '
               f'event ratios={defined.sum()}, no selected Gen={(~has_gen).sum()}, '
               f'undefined event energy={(has_gen & ~defined).sum()}, '
               f'zero recovered energy={(defined & (reco_energy == 0)).sum()}', flush=True)
@@ -232,7 +234,7 @@ def energy_ratio_distributions(output, sample, values, stats, cut_index):
             counts = np.histogram(in_range, bins=bins)[0]
             tail = np.count_nonzero(ratio > 3)
             assert counts.sum() + tail == len(ratio)
-            mean_entries = ratio[(ratio > 0) & (ratio < 3)] if name == 'event_energy_ratio' else in_range
+            mean_entries = ratio[(ratio > 0) & (ratio < 3)]
             histograms.append((counts, label, mean_entries.mean(), tail / len(ratio),
                                np.count_nonzero(ratio == 0) / len(ratio)))
             print(f'{sample} {output.parent.name}/{output.name} {label} {name}: '
@@ -247,22 +249,20 @@ def energy_ratio_distributions(output, sample, values, stats, cut_index):
                 ax.errorbar(centers[shown], counts[shown], yerr=np.sqrt(counts[shown]),
                             fmt='none', color=color, capsize=2)
             # Statistics use separate legends with empty handles, aligned to the Gen labels.
-            anchors = (0.27, 0.54, 0.77, 0.99) if name == 'event_energy_ratio' else (0.46, 0.75, 0.99)
-            top = 0.86 if name == 'event_energy_ratio' else 0.96
+            anchors = (0.27, 0.54, 0.77, 0.99)
+            top = 0.86
             groups = ax.legend(title='Gen', loc='upper right', bbox_to_anchor=(anchors[0], top),
                                frameon=False, handleheight=1.6)
             ax.add_artist(groups)
             empty = [Line2D([], [], color='none') for _ in histograms]
-            mean_title = r'Mean $(0<R<3)$' if name == 'event_energy_ratio' else 'Mean (shown)'
             means = ax.legend(empty, [f'{mean:.2f}' for _, _, mean, _, _ in histograms],
-                              title=mean_title, loc='upper right', bbox_to_anchor=(anchors[1], top),
+                              title=r'Mean $(0<R<3)$', loc='upper right', bbox_to_anchor=(anchors[1], top),
                               frameon=False, handlelength=0, handletextpad=0, handleheight=1.6)
             ax.add_artist(means)
-            if name == 'event_energy_ratio':
-                zeros = ax.legend(empty, [f'{fraction:.4f}' for _, _, _, _, fraction in histograms],
-                                  title='Frac. (=0)', loc='upper right', bbox_to_anchor=(anchors[2], top),
-                                  frameon=False, handlelength=0, handletextpad=0, handleheight=1.6)
-                ax.add_artist(zeros)
+            zeros = ax.legend(empty, [f'{fraction:.4f}' for _, _, _, _, fraction in histograms],
+                              title='Frac. (=0)', loc='upper right', bbox_to_anchor=(anchors[2], top),
+                              frameon=False, handlelength=0, handletextpad=0, handleheight=1.6)
+            ax.add_artist(zeros)
             ax.legend(empty, [f'{fraction:.4f}' for _, _, _, fraction, _ in histograms],
                       title='Frac. (>3)', loc='upper right', bbox_to_anchor=(anchors[-1], top),
                       frameon=False, handlelength=0, handletextpad=0, handleheight=1.6)
@@ -277,16 +277,16 @@ def energy_ratio_distributions(output, sample, values, stats, cut_index):
             else:
                 ax.set_ylim(0, maximum * 1.65)
             suffix = '_log' if log else ''
-            xlabel = (r'$\sum E^{\rm reco}/E_\gamma^{\rm gen}$' if name == 'matched_energy_ratio'
+            xlabel = (r'$\sum E^{\rm reco}/E_\gamma^{\rm gen}$' if name == 'gen_energy_ratio'
                       else r'$\sum E^{\rm reco}/\sum E_\gamma^{\rm gen}$')
-            ylabel = 'Gen photons' if name == 'matched_energy_ratio' else 'Events'
+            ylabel = 'Gen photons' if name == 'gen_energy_ratio' else 'Events'
             finish(fig, ax, output / f'{name}_{sample}{suffix}.png', sample, xlabel, ylabel)
 
 
-def detector_efficiency(study, samples):
-    """Pooled regional efficiencies, with the same Gen cuts as stage 04."""
-    energy = np.concatenate([value['gamma']['energy'] for value in samples.values()])
-    cosine = np.concatenate([value['gamma']['cos_theta'] for value in samples.values()])
+def detector_efficiency(study, sample, values):
+    """Regional efficiencies for one sample, with the same Gen cuts as stage 04."""
+    energy = values['gamma']['energy']
+    cosine = values['gamma']['cos_theta']
     theta = np.rad2deg(np.arccos(np.clip(cosine, -1, 1)))
     regions = {'All ranges': np.ones(len(theta), dtype=bool),
                'HPC': (theta > 40) & (theta < 140),
@@ -296,14 +296,13 @@ def detector_efficiency(study, samples):
     region_labels = ('All ranges\n(0-180)', 'HPC\n(40-140)',
                      'FEMC\n(10-37)\n(143-170)', 'STIC\n(2-10)\n(170-178)')
     for source, method in (('reco', 'truth_matching'), ('angular', 'angular_matching')):
-        matched = np.concatenate([value[source]['reco_count'] > 0 for value in samples.values()])
+        matched = values[source]['reco_count'] > 0
         for cut_name, min_gen_energy in ENERGY_CUTS:
             output = study / '05_detector_efficiency' / method / cut_name
             output.mkdir(parents=True, exist_ok=True)
             fig, ax = plt.subplots(figsize=FIGURE_SIZE)
             for index, (population, label) in enumerate(zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True)):
-                selected = np.concatenate([value['analysis_selections'][population] for value in samples.values()])
-                selected &= energy >= min_gen_energy
+                selected = values['analysis_selections'][population] & (energy >= min_gen_energy)
                 denominator = np.array([(selected & region).sum() for region in regions.values()])
                 numerator = np.array([(selected & region & matched).sum() for region in regions.values()])
                 efficiency = numerator / denominator
@@ -311,7 +310,7 @@ def detector_efficiency(study, samples):
                 ax.errorbar(x, efficiency,
                             yerr=[efficiency - lower, upper - efficiency], fmt='o',
                             color=f'C{index}', capsize=4, markersize=9, alpha=0.7, label=label)
-                print(f'{study.name} {method}/{cut_name} {population} detector counts: '
+                print(f'{study.name} {sample} {method}/{cut_name} {population} detector counts: '
                       f'{dict(zip(regions, zip(numerator, denominator), strict=True))}', flush=True)
             if min_gen_energy:
                 ax.text(0.02, 0.89, rf'$E_\gamma^{{\rm gen}}\geq{min_gen_energy}$ GeV',
@@ -321,8 +320,8 @@ def detector_efficiency(study, samples):
             ax.set_xlim(-0.55, 3.55)
             ax.set_ylim(-0.03, 1.35)
             ax.set_yticks(np.linspace(0, 1, 6))
-            finish(fig, ax, output / 'efficiency_by_detector_combined.png',
-                   'combined', 'Region\n' + r'($\theta$ [deg])', 'Efficiency')
+            finish(fig, ax, output / f'efficiency_by_detector_{sample}.png',
+                   sample, 'Region\n' + r'($\theta$ [deg])', 'Efficiency')
 
 
 def matching_results(study, sample, values, bins):
@@ -402,6 +401,6 @@ def plot_isr_study(input_root: Path, output_root: Path):
             truth_link_validation(output, sample, value)
             plot_angle_matching(output / '03_angular_matching_validation', sample, angles[mode][sample], cut)
             matching_results(output, sample, value, gen_bins)
+            detector_efficiency(output, sample, value)
             print(f'plots: {mode} {sample}', flush=True)
-        detector_efficiency(output, values[mode])
         print(f'ISR study: {output}; opening-angle reference {cut:g} deg', flush=True)
