@@ -306,37 +306,42 @@ def gen_reco_energy_histograms(output, sample, values, stats):
 
 
 def detector_efficiency(study, samples):
-    """Pooled non-beam ISR efficiency in the requested angular regions."""
+    """Pooled regional efficiencies for both matching methods and all populations."""
     energy = np.concatenate([value['gamma']['energy'] for value in samples.values()])
     cosine = np.concatenate([value['gamma']['cos_theta'] for value in samples.values()])
-    isr = np.concatenate([value['analysis_selections']['gen_isr'] for value in samples.values()])
-    matched = np.concatenate([value['reco']['reco_count'] > 0 for value in samples.values()])
     theta = np.rad2deg(np.arccos(np.clip(cosine, -1, 1)))
     regions = {'All angles': np.ones(len(theta), dtype=bool),
                'HPC': (theta > 40) & (theta < 140),
                'FEMC': ((theta > 10) & (theta < 37)) | ((theta > 143) & (theta < 170)),
                'STIC': ((theta > 2) & (theta < 10)) | ((theta > 170) & (theta < 178))}
-    selected = isr & (energy >= MIN_GEN_ENERGY)
-    denominator = np.array([(selected & region).sum() for region in regions.values()])
-    numerator = np.array([(selected & region & matched).sum() for region in regions.values()])
-    efficiency = numerator / denominator
-    lower, upper = clopper_pearson(numerator, denominator)
-    fig, ax = plt.subplots(figsize=FIGURE_SIZE)
     x = np.arange(len(regions))
-    ax.bar(x, efficiency, color='C1', width=0.6, label=GEN_LABELS[1])
-    ax.errorbar(x, efficiency, yerr=[efficiency - lower, upper - efficiency],
-                fmt='none', color='black', capsize=4)
-    for position, passed, total, high in zip(x, numerator, denominator, upper, strict=True):
-        ax.text(position, high + 0.025, f'{100 * passed / total:.1f}%\n{passed:,}/{total:,}', ha='center')
-    ax.text(0.02, 0.89, rf'$E_\gamma^{{\rm gen}}\geq{MIN_GEN_ENERGY}$ GeV', transform=ax.transAxes, va='top')
-    ax.set_xticks(x, regions)
-    ax.set_ylim(0, 1.35)
-    ax.set_yticks(np.linspace(0, 1, 6))
-    output = study / '05_detector_efficiency'
-    output.mkdir(parents=True, exist_ok=True)
-    finish(fig, ax, output / 'isr_efficiency_by_detector_combined.png',
-           'combined', 'Region', 'Efficiency')
-    print(f'{study.name} ISR E>={MIN_GEN_ENERGY} detector counts: {dict(zip(regions, zip(numerator, denominator), strict=True))}', flush=True)
+    for source, method in (('reco', 'truth_matching'), ('angular', 'angular_matching')):
+        output = study / '05_detector_efficiency' / method
+        output.mkdir(parents=True, exist_ok=True)
+        matched = np.concatenate([value[source]['reco_count'] > 0 for value in samples.values()])
+        for index, (population, label) in enumerate(zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True)):
+            selected = np.concatenate([value['analysis_selections'][population] for value in samples.values()])
+            selected &= energy >= MIN_GEN_ENERGY
+            denominator = np.array([(selected & region).sum() for region in regions.values()])
+            numerator = np.array([(selected & region & matched).sum() for region in regions.values()])
+            efficiency = numerator / denominator
+            lower, upper = clopper_pearson(numerator, denominator)
+            fig, ax = plt.subplots(figsize=FIGURE_SIZE)
+            ax.bar(x, efficiency, color=f'C{index}', width=0.6, label=label)
+            ax.errorbar(x, efficiency, yerr=[efficiency - lower, upper - efficiency],
+                        fmt='none', color='black', capsize=4)
+            for position, passed, total, high in zip(x, numerator, denominator, upper, strict=True):
+                text = f'{100 * passed / total:.1f}%\n' + rf'$\frac{{{passed:,}}}{{{total:,}}}$'
+                ax.text(position, high + 0.025, text, ha='center', va='bottom')
+            ax.text(0.02, 0.89, rf'$E_\gamma^{{\rm gen}}\geq{MIN_GEN_ENERGY}$ GeV',
+                    transform=ax.transAxes, va='top')
+            ax.set_xticks(x, regions)
+            ax.set_ylim(0, 1.35)
+            ax.set_yticks(np.linspace(0, 1, 6))
+            finish(fig, ax, output / f'efficiency_by_detector_{population}_combined.png',
+                   'combined', 'Region', 'Efficiency')
+            print(f'{study.name} {method} {population} E>={MIN_GEN_ENERGY} detector counts: '
+                  f'{dict(zip(regions, zip(numerator, denominator), strict=True))}', flush=True)
 
 
 def matching_results(study, sample, values, bins):

@@ -134,7 +134,7 @@ plots/20260828_florian/isr_study/
     02_truth_link_matching_validation/
     03_angular_matching_validation/
     04_matching_result/{truth_matching,angular_matching}/
-    05_detector_efficiency/
+    05_detector_efficiency/{truth_matching,angular_matching}/
 ```
 
 Stage 01 keeps four stable Gen selections, including Beam ISR for inspection:
@@ -246,13 +246,18 @@ sums, as in the Photon-only study.
   labelled overflow bin, so large responses are retained rather than dropped.
   The first Gen energy bin starts at 0.1 GeV and ends at 1 GeV; the threshold
   selects Gen photons, without adding a Reco energy requirement.
-- **05:** Five-sample pooled **truth-matched** non-beam ISR efficiency for
-  **Gen E ≥ 0.1 GeV**, with counts and Clopper–Pearson intervals. All angles is
+- **05:** Five-sample pooled regional efficiency for **Gen E ≥ 0.1 GeV**.
+  `truth_matching` and `angular_matching` each contain separate All, ISR, and
+  no ISR plots, with counts and Clopper–Pearson intervals. Beam ISR is excluded
+  from every population, as in stage 04. All angles is
   compared with HPC (40–140°), FEMC (10–37° and 143–170°), and STIC (2–10° and
-  170–178°), using open angular intervals. No Reco energy cut is applied. This measures
-  reconstruction with usable saved truth association. Missing truth links among
-  forward Reco candidates limit the interpretation of the very low STIC fraction
-  as a measure of physical detector performance.
+  170–178°), using open angular intervals. No Reco energy cut is applied.
+  A Gen photon succeeds once when it has at least one matched Reco candidate,
+  even if its associated energy sum is ambiguous. Truth results use the saved
+  association; angular results use the stage 03 cone cut with no truth gate.
+  Missing forward truth links and accidental angular associations limit a direct
+  interpretation as detector performance. Filenames are
+  `efficiency_by_detector_<population>_combined.png`.
 
 Nominal truth compares `Part_simIdx → Sim ancestry → first Gen anchor` with
 `Gen-linked Sim → descendants → SimPart_partIdx`. A unique union origin is
