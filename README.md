@@ -133,8 +133,8 @@ plots/20260828_florian/isr_study/
     01_sample_distribution/{gen_gamma,gen_isr,gen_no_isr,gen_isr_non_beam}/
     02_truth_link_matching_validation/
     03_angular_matching_validation/
-    04_matching_result/{truth_matching,angular_matching}/
-    05_detector_efficiency/{truth_matching,angular_matching}/
+    04_matching_result/{truth_matching,angular_matching}/{no_cut,0p1_cut}/
+    05_detector_efficiency/{truth_matching,angular_matching}/{no_cut,0p1_cut}/
 ```
 
 Stage 01 keeps four stable Gen selections, including Beam ISR for inspection:
@@ -151,11 +151,11 @@ ISR has an electron/positron as its first non-photon ancestor, with no hard pare
 on that path. Beam ISR additionally has `px == py == 0` and a direct, parentless
 incoming electron/positron parent. FSR starts at the hard parent or its direct
 sample-final-state daughter. Decayed is the previous Others category; here it
-contains π⁰, η, and ω decay photons in Ztautau. Efficiency curves retain the full
-Gen energy range. Stage 04 energy-response diagnostics and the stage 05 regional
-summary use Gen E ≥ 0.1 GeV. No additional angular, fiducial, or lock cuts are applied.
+contains π⁰, η, and ω decay photons in Ztautau. Stages 04 and 05 compare the full
+Gen energy range (`no_cut`) with Gen E ≥ 0.1 GeV (`0p1_cut`) for every plot.
+No additional angular, fiducial, or lock cuts are applied.
 
-Stages 02–04 exclude Beam ISR from all Gen selections, numerators, and
+Stages 02–05 exclude Beam ISR from all Gen selections, numerators, and
 denominators, and compare three populations in each plot:
 
 | Legend | Definition |
@@ -209,47 +209,39 @@ sums, as in the Photon-only study.
   Gen photon's own truth-associated candidates. For each Reco
   collection, the reference cut retains ≥99% of pooled non-beam ISR truth successes;
   it is a truth-retention check, not a purity optimum or a nominal truth cut.
-- **04:** Separate `truth_matching` and `angular_matching` directories contain
-  efficiency and energy response versus Gen E and cos(theta). Each plot compares
-  the three Gen selections. Angular matching retains the inclusive Reco pool,
-  without a Reco truth-origin veto, and includes every candidate inside the
-  chosen cone. Efficiency counts ≥1 candidate once per Gen photon. Response is
-  sum(E_reco)/E_gen, including unmatched zeros; ambiguous sums are undefined.
-  Response profiles require **Gen E ≥ 0.1 GeV**; the efficiency curves have no
-  energy threshold. Response plots also have `_log` versions.
-  No matched-multiplicity plots remain.
-  Matched energy distributions use one Gen photon as the unit:
-  `(E_gen - sum(E_reco)) / E_gen` in **−2 to +2**, and
-  `sum(E_reco) / E_gen` in **0 to 3**, without percent scaling. Residual zero
-  and ratio one both mean equal energy; positive residual means energy loss,
-  and negative residual means excess Reco energy. Both distributions require
-  **Gen E ≥ 0.1 GeV**, at least one associated Reco candidate,
-  and a finite, unambiguous energy sum. Unmatched photons remain in the efficiency
-  denominator but do not enter this matched-response diagnostic. Bins have width
-  0.1 and count errors. Reco energies are nonnegative, so residuals cannot exceed
-  one: the +1 to +2 interval is intentionally empty. The two plots show the same
-  information, related by residual = 1 − ratio.
+- **04:** Both `truth_matching` and `angular_matching` contain `no_cut` and
+  `0p1_cut` subdirectories, each saving the same six plots per sample. `no_cut`
+  has no Gen energy threshold; `0p1_cut` requires **Gen E ≥ 0.1 GeV** in every
+  plot, including both the efficiency numerator and denominator. Beam ISR remains
+  excluded in both versions. Each plot compares All, ISR, and no ISR. The plot set
+  is efficiency versus Gen E and cos(theta), plus two energy-ratio histograms:
+
+  - **Per Gen photon:** `sum(E_reco) / E_gen`, requiring at least one associated
+    Reco candidate and a finite, unambiguous energy sum. One matched Gen photon
+    contributes one entry; unmatched photons remain in the efficiency denominator.
+  - **Per event:** `sum(E_reco) / sum(E_gen)`. The denominator includes every
+    selected Gen photon, including unmatched ones. The numerator sums distinct
+    associated Reco candidates once; angular matching uses the union of the
+    selected Gen cones, without a truth gate. Events with selected Gen photons
+    but no associated Reco enter at zero. Events with no selected Gen photons or
+    an ambiguous energy sum are excluded.
+
+  Efficiency counts ≥1 candidate once per Gen photon, even when its energy sum
+  is ambiguous. Both ratio histograms span 0–3 in 0.1 bins, without percent
+  scaling, with count errors and linear-y/`_log` versions. Ratio one means equal
+  energy. Their filenames are `matched_energy_ratio_<sample>[_log].png` and
+  `event_energy_ratio_<sample>[_log].png`.
   Separate one-column legends align Gen selection, `Mean (shown)`, and the tail
   fraction, using empty handles for statistics. The mean uses unbinned values
-  inside the displayed range, including its endpoints. Residual < −2 and ratio > 3
-  are reported as decimal fractions of all finite matched photons passing the
-  energy cut. Out-of-range values are neither folded into bins nor clipped.
-  Counts of ambiguous energy sums and tails are printed to the terminal.
-  Linear-y and `_log` versions are saved as
-  `matched_energy_{residual,ratio}_<sample>[_log].png`.
-  Gen-versus-Reco energy histograms use the same finite matched selection:
-  x = E_gen and y = sum(E_reco), one entry per Gen photon. All, ISR, and no ISR
-  have separate images within each matching directory, named
-  `gen_reco_energy_2d_<population>_<sample>[_log].png`. Both energy axes are linear;
-  `_log` uses a logarithmic count color scale. Empty cells are blank and the
-  dashed diagonal denotes equal energies. All Reco sums ≥ 50 GeV enter the
-  labelled overflow bin, so large responses are retained rather than dropped.
-  The first Gen energy bin starts at 0.1 GeV and ends at 1 GeV; the threshold
-  selects Gen photons, without adding a Reco energy requirement.
-- **05:** Five-sample pooled regional efficiency for **Gen E ≥ 0.1 GeV**.
-  `truth_matching` and `angular_matching` each contain separate All, ISR, and
-  no ISR plots, with counts and Clopper–Pearson intervals. Beam ISR is excluded
-  from every population, as in stage 04. All angles is
+  inside 0–3, including its endpoints. Ratio >3 is reported as a decimal fraction
+  of all eligible finite entries: matched photons or events, respectively.
+  Tails are neither folded into bins nor clipped; excluded and tail counts are
+  printed to the terminal. No Reco energy cut is added.
+- **05:** Five-sample pooled regional efficiency uses the same two matching
+  methods, two Gen energy versions, and three Gen populations for each Reco mode.
+  Each case has a separate plot with counts and Clopper–Pearson intervals. The
+  Gen threshold applies to both numerator and denominator; Beam ISR is excluded.
+  All angles is
   compared with HPC (40–140°), FEMC (10–37° and 143–170°), and STIC (2–10° and
   170–178°), using open angular intervals. No Reco energy cut is applied.
   A Gen photon succeeds once when it has at least one matched Reco candidate,
@@ -271,21 +263,22 @@ Reco objects have no angular direction. Overlapping saved representations invali
 an energy sum, including parent/descendant Photon rows in the Photon-only study;
 candidate counts and efficiency still retain those rows. Responses can exceed one
 because candidates may contain mixed energy, especially for soft Gen photons.
-Response profiles average per-Gen ratios, not total recovered energy divided by
-total Gen energy. The stage 04 Gen energy cut limits sensitivity to very soft photons with large ratios;
-a truth link identifies ancestry, not exclusive ownership of the Reco energy.
+The per-photon ratio histogram is conditional on a match; the event ratio also
+includes energy from unmatched Gen photons in its denominator. Angular event sums
+count each Reco candidate once, even when it enters several Gen cones. A truth
+link identifies ancestry, not exclusive ownership of the Reco energy.
 Saved Gen-to-Sim coverage is a link diagnostic,
 not detector transport efficiency; missing links and reverse-only Beam associations
 remain limitations. No summary JSON, note, or validation text files are produced.
 
-CMS/mplhep defaults and DELPHI Simulation are retained. Legends use one column
-at the upper right without a frame; a bold symbolic sample label appears separately
+CMS/mplhep defaults and DELPHI Simulation are retained, with slightly thicker
+curves. Legends use one column at the upper right without a frame; a bold symbolic
+sample label appears separately
 at the upper left, e.g. Z → μ⁺μ⁻. No detector-region guides are drawn.
 Counts use sqrt(N) errors; efficiencies use 68.27% Clopper–Pearson intervals.
 Linear energy bins start at 1 GeV width and widen at higher energies; this adds
 no energy selection. Log-energy plots retain equally spaced logarithmic bins.
-Response profiles show the standard error of the mean where estimable. Filenames
-place the sample before the scale suffix: `energy_Zee_log.png`.
+Filenames place the sample before the scale suffix: `energy_Zee_log.png`.
 
 ## BDT Classification
 

@@ -4,18 +4,16 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import mplhep as mh
 import numpy as np
-from matplotlib.colors import LogNorm
 from matplotlib.lines import Line2D
 from matplotlib.ticker import MaxNLocator
 from scipy.stats import beta
 
 from .angle_matching import accumulate, angular_stats, choose_cut, new_accumulator, plot_angle_matching
-from .data import ANALYSIS_SELECTIONS, GEN_LABELS, GEN_SELECTIONS, LINK_STATUSES, RECO_LABELS, SAMPLES, read_sample
+from .data import ANALYSIS_SELECTIONS, ENERGY_CUTS, GEN_LABELS, GEN_SELECTIONS, LINK_STATUSES, RECO_LABELS, SAMPLES, read_sample
 
 FIGURE_SIZE = (11, 9)
 COVERAGE = 0.6826894921370859
 ENERGY_EDGES = np.array([0, 1, 2, 3, 5, 7, 10, 15, 20, 30, 50])
-MIN_GEN_ENERGY = 0.1
 GEN_COMPONENTS = (('beam_isr', r'$\gamma_{\mathrm{BeamISR}}$'),
                   ('nonbeam_isr', r'$\gamma_{\mathrm{NonBeamISR}}$'),
                   ('fsr', r'$\gamma_{\mathrm{FSR}}$'), ('decayed', r'$\gamma_{\mathrm{Decayed}}$'))
@@ -82,7 +80,7 @@ def gen_spectrum(ax, entries, category, components, bins, events, logarithmic):
         counts = np.histogram(selected, bins=bins)[0]
         assert counts.sum() == len(selected), 'Spectrum must retain all finite entries'
         ax.stairs(bottom + counts / events, bins, baseline=bottom, fill=True,
-                  label=f'Gen {label}', color=f'C{index}', linewidth=0.7)
+                  label=f'Gen {label}', color=f'C{index}', linewidth=0.9)
         bottom += counts / events
     total = np.histogram(entries[np.isfinite(entries)], bins=bins)[0]
     assert np.allclose(bottom * events, total)
@@ -98,7 +96,7 @@ def reco_spectrum(ax, entries, bins, events, logarithmic, label):
     counts = np.histogram(entries, bins=bins)[0]
     assert counts.sum() == len(entries)
     ax.stairs(counts / events, bins, fill=True, facecolor='none', edgecolor='black',
-              hatch='///', linewidth=1.8, label=f'Reco {label}')
+              hatch='///', linewidth=2.1, label=f'Reco {label}')
     shown = counts > 0
     ax.errorbar(centers[shown], counts[shown] / events, yerr=np.sqrt(counts[shown]) / events,
                 fmt='none', ecolor='black', capsize=2, elinewidth=0.8)
@@ -195,47 +193,48 @@ def truth_link_validation(study, sample, values):
            'Link status', f"# of linked {values['reco_label']}")
 
 
-def profile_points(coordinate, response, bins):
-    defined = np.isfinite(response)
-    count = np.histogram(coordinate[defined], bins=bins)[0]
-    sums = np.histogram(coordinate[defined], bins=bins, weights=response[defined])[0]
-    squares = np.histogram(coordinate[defined], bins=bins, weights=response[defined] ** 2)[0]
-    assert count.sum() == defined.sum()
-    mean = np.divide(sums, count, out=np.full(len(count), np.nan), where=count > 0)
-    error = np.full(len(count), np.nan)
-    measured = count > 1
-    error[measured] = np.sqrt(np.maximum(squares[measured] - sums[measured] ** 2 / count[measured], 0)
-                              / (count[measured] * (count[measured] - 1)))
-    return mean, error
-
-
-def matched_energy_distributions(output, sample, values, stats):
-    """Dimensionless loss and ratio for matched Gen photons above the energy cut."""
-    populations = []
-    for population, label in zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True):
-        selected = (values['analysis_selections'][population]
-                    & (values['gamma']['energy'] >= MIN_GEN_ENERGY) & (stats['reco_count'] > 0))
-        defined = selected & np.isfinite(stats['energy_ratio'])
-        populations.append((stats['energy_ratio'][defined], label))
-        print(f'{sample} {output.parents[1].name}/{output.name} {population}: '
-              f'matched E>={MIN_GEN_ENERGY}={selected.sum()}, undefined energy={(selected & ~defined).sum()}', flush=True)
-    for name, bins, xlabel, tail_title in (
-        ('residual', np.linspace(-2, 2, 41),
-         r'$(E_\gamma^{\rm gen}-\sum E^{\rm reco})/E_\gamma^{\rm gen}$', 'Frac. (<−2)'),
-        ('ratio', np.linspace(0, 3, 31),
-         r'$\sum E^{\rm reco}/E_\gamma^{\rm gen}$', 'Frac. (>3)'),
-    ):
-        centers = (bins[:-1] + bins[1:]) / 2
+def energy_ratio_distributions(output, sample, values, stats, cut_index):
+    """Matched-photon response and event recovery, including unmatched Gen energy."""
+    _, min_gen_energy = ENERGY_CUTS[cut_index]
+    energy = values['gamma']['energy']
+    event_index = np.repeat(np.arange(values['events']), values['gen_event_counts']['all_gamma'])
+    populations = dict(matched_energy_ratio=[], event_energy_ratio=[])
+    for index, (population, label) in enumerate(zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True)):
+        selected = values['analysis_selections'][population] & (energy >= min_gen_energy)
+        matched = selected & (stats['reco_count'] > 0)
+        finite = np.isfinite(stats['energy_ratio'])
+        populations['matched_energy_ratio'].append((stats['energy_ratio'][matched & finite], label))
+        gen_energy = np.bincount(event_index[selected], weights=energy[selected], minlength=values['events'])
+        if 'event_energy' in stats:
+            # Angular cones can share candidates: the event accumulator takes their union.
+            reco_energy = stats['event_energy'][:, cut_index, index]
+        else:
+            usable = selected & finite
+            reco_energy = np.bincount(event_index[usable],
+                                      weights=energy[usable] * stats['energy_ratio'][usable],
+                                      minlength=values['events'])
+            ambiguous = np.bincount(event_index[selected & ~finite], minlength=values['events']) > 0
+            reco_energy[ambiguous] = np.nan
+        has_gen = gen_energy > 0
+        defined = has_gen & np.isfinite(reco_energy)
+        populations['event_energy_ratio'].append((reco_energy[defined] / gen_energy[defined], label))
+        print(f'{sample} {output.parent.name}/{output.name} {population}: '
+              f'matched Gen={matched.sum()}, undefined Gen energy={(matched & ~finite).sum()}; '
+              f'event ratios={defined.sum()}, no selected Gen={(~has_gen).sum()}, '
+              f'undefined event energy={(has_gen & ~defined).sum()}, '
+              f'zero recovered energy={(defined & (reco_energy == 0)).sum()}', flush=True)
+    bins = np.linspace(0, 3, 31)
+    centers = (bins[:-1] + bins[1:]) / 2
+    for name, entries in populations.items():
         histograms = []
-        for ratio, label in populations:
-            entries = 1 - ratio if name == 'residual' else ratio
-            in_range = entries[(entries >= bins[0]) & (entries <= bins[-1])]
+        for ratio, label in entries:
+            in_range = ratio[(ratio >= 0) & (ratio <= 3)]
             counts = np.histogram(in_range, bins=bins)[0]
-            tail = len(entries) - len(in_range)
-            assert counts.sum() + tail == len(entries)
-            histograms.append((counts, label, in_range.mean(), tail / len(entries)))
-            print(f'{sample} {output.parents[1].name}/{output.name} {label} {name}: '
-                  f'outside [{bins[0]:g}, {bins[-1]:g}]={tail}/{len(entries)}', flush=True)
+            tail = np.count_nonzero(ratio > 3)
+            assert counts.sum() + tail == len(ratio)
+            histograms.append((counts, label, in_range.mean(), tail / len(ratio)))
+            print(f'{sample} {output.parent.name}/{output.name} {label} {name}: '
+                  f'>3={tail}/{len(ratio)}', flush=True)
         maximum = max(counts.max() for counts, _, _, _ in histograms)
         for log in (False, True):
             fig, ax = plt.subplots(figsize=FIGURE_SIZE)
@@ -245,7 +244,7 @@ def matched_energy_distributions(output, sample, values, stats):
                 shown = counts > 0
                 ax.errorbar(centers[shown], counts[shown], yerr=np.sqrt(counts[shown]),
                             fmt='none', color=color, capsize=2)
-            # Three single-column legends; statistics use empty handles.
+            # Statistics use separate legends with empty handles, aligned to the Gen labels.
             groups = ax.legend(title='Gen', loc='upper right', bbox_to_anchor=(0.46, 0.96),
                                frameon=False, handleheight=1.6)
             ax.add_artist(groups)
@@ -255,58 +254,27 @@ def matched_energy_distributions(output, sample, values, stats):
                               frameon=False, handlelength=0, handletextpad=0, handleheight=1.6)
             ax.add_artist(means)
             ax.legend(empty, [f'{fraction:.4f}' for _, _, _, fraction in histograms],
-                      title=tail_title, loc='upper right', bbox_to_anchor=(0.99, 0.96),
+                      title='Frac. (>3)', loc='upper right', bbox_to_anchor=(0.99, 0.96),
                       frameon=False, handlelength=0, handletextpad=0, handleheight=1.6)
-            ax.text(0.02, 0.89, rf'$E_\gamma^{{\rm gen}}\geq{MIN_GEN_ENERGY}$ GeV',
-                    transform=ax.transAxes, va='top')
-            ax.set_xlim(bins[0], bins[-1])
-            ax.set_xticks(np.arange(bins[0], bins[-1] + 0.5, 0.5))
+            cut_label = (rf'$E_\gamma^{{\rm gen}}\geq{min_gen_energy}$ GeV'
+                         if min_gen_energy else 'No Gen E cut')
+            ax.text(0.02, 0.89, cut_label, transform=ax.transAxes, va='top')
+            ax.set_xlim(0, 3)
+            ax.set_xticks(np.arange(0, 3.5, 0.5))
             if log:
                 ax.set_yscale('log')
                 ax.set_ylim(0.5, 0.5 * (maximum / 0.5) ** 1.65)
             else:
                 ax.set_ylim(0, maximum * 1.65)
             suffix = '_log' if log else ''
-            finish(fig, ax, output / f'matched_energy_{name}_{sample}{suffix}.png',
-                   sample, xlabel, 'Gen photons')
-
-
-def gen_reco_energy_histograms(output, sample, values, stats):
-    """One matched Gen photon per entry; sum every associated Reco energy."""
-    gen_energy = values['gamma']['energy']
-    gen_edges = np.r_[MIN_GEN_ENERGY, ENERGY_EDGES[ENERGY_EDGES > MIN_GEN_ENERGY]]
-    reco_edges = np.r_[ENERGY_EDGES, 60]
-    for population, label in zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True):
-        selected = (values['analysis_selections'][population] & (gen_energy >= MIN_GEN_ENERGY)
-                    & (stats['reco_count'] > 0) & np.isfinite(stats['energy_ratio']))
-        energy = stats['energy_ratio'][selected] * gen_energy[selected]
-        # Keep the full Reco tail in the labelled E >= 50 GeV bin.
-        energy = np.minimum(energy, np.nextafter(reco_edges[-1], -np.inf))
-        counts = np.histogram2d(gen_energy[selected], energy, bins=(gen_edges, reco_edges))[0]
-        assert counts.sum() == selected.sum()
-        for log in (False, True):
-            fig, ax = plt.subplots(figsize=FIGURE_SIZE)
-            norm = LogNorm(vmin=1, vmax=counts.max()) if log else None
-            mesh = ax.pcolormesh(gen_edges, reco_edges, np.ma.masked_equal(counts.T, 0),
-                                 norm=norm, cmap='viridis', shading='flat')
-            fig.colorbar(mesh, ax=ax, label='Gen photons')
-            ax.plot([gen_edges[0], gen_edges[-1]], [gen_edges[0], gen_edges[-1]],
-                    color='grey', linestyle='--', linewidth=1)
-            # One population label, using the same empty-handle convention as the statistics.
-            ax.legend([Line2D([], [], color='none')], [label], loc='upper right',
-                      frameon=False, handlelength=0, handletextpad=0)
-            ax.set_xlim(gen_edges[0], gen_edges[-1])
-            # Leave a white band above the overflow bin for the sample and population.
-            ax.set_ylim(reco_edges[0], reco_edges[-1] + 10)
-            ax.set_xticks([MIN_GEN_ENERGY, 10, 20, 30, 40, 50])
-            ax.set_yticks([0, 10, 20, 30, 40, 55], ['0', '10', '20', '30', '40', r'$\geq50$'])
-            suffix = '_log' if log else ''
-            finish(fig, ax, output / f'gen_reco_energy_2d_{population}_{sample}{suffix}.png',
-                   sample, XLABELS['energy'], r'$\sum E^{\rm reco}$ [GeV]')
+            xlabel = (r'$\sum E^{\rm reco}/E_\gamma^{\rm gen}$' if name == 'matched_energy_ratio'
+                      else r'$\sum E^{\rm reco}/\sum E_\gamma^{\rm gen}$')
+            ylabel = 'Gen photons' if name == 'matched_energy_ratio' else 'Events'
+            finish(fig, ax, output / f'{name}_{sample}{suffix}.png', sample, xlabel, ylabel)
 
 
 def detector_efficiency(study, samples):
-    """Pooled regional efficiencies for both matching methods and all populations."""
+    """Pooled regional efficiencies, with the same Gen cuts as stage 04."""
     energy = np.concatenate([value['gamma']['energy'] for value in samples.values()])
     cosine = np.concatenate([value['gamma']['cos_theta'] for value in samples.values()])
     theta = np.rad2deg(np.arccos(np.clip(cosine, -1, 1)))
@@ -316,96 +284,81 @@ def detector_efficiency(study, samples):
                'STIC': ((theta > 2) & (theta < 10)) | ((theta > 170) & (theta < 178))}
     x = np.arange(len(regions))
     for source, method in (('reco', 'truth_matching'), ('angular', 'angular_matching')):
-        output = study / '05_detector_efficiency' / method
-        output.mkdir(parents=True, exist_ok=True)
         matched = np.concatenate([value[source]['reco_count'] > 0 for value in samples.values()])
-        for index, (population, label) in enumerate(zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True)):
-            selected = np.concatenate([value['analysis_selections'][population] for value in samples.values()])
-            selected &= energy >= MIN_GEN_ENERGY
-            denominator = np.array([(selected & region).sum() for region in regions.values()])
-            numerator = np.array([(selected & region & matched).sum() for region in regions.values()])
-            efficiency = numerator / denominator
-            lower, upper = clopper_pearson(numerator, denominator)
-            fig, ax = plt.subplots(figsize=FIGURE_SIZE)
-            ax.bar(x, efficiency, color=f'C{index}', width=0.6, label=label)
-            ax.errorbar(x, efficiency, yerr=[efficiency - lower, upper - efficiency],
-                        fmt='none', color='black', capsize=4)
-            for position, passed, total, high in zip(x, numerator, denominator, upper, strict=True):
-                text = f'{100 * passed / total:.1f}%\n' + rf'$\frac{{{passed:,}}}{{{total:,}}}$'
-                ax.text(position, high + 0.025, text, ha='center', va='bottom')
-            ax.text(0.02, 0.89, rf'$E_\gamma^{{\rm gen}}\geq{MIN_GEN_ENERGY}$ GeV',
-                    transform=ax.transAxes, va='top')
-            ax.set_xticks(x, regions)
-            ax.set_ylim(0, 1.35)
-            ax.set_yticks(np.linspace(0, 1, 6))
-            finish(fig, ax, output / f'efficiency_by_detector_{population}_combined.png',
-                   'combined', 'Region', 'Efficiency')
-            print(f'{study.name} {method} {population} E>={MIN_GEN_ENERGY} detector counts: '
-                  f'{dict(zip(regions, zip(numerator, denominator), strict=True))}', flush=True)
+        for cut_name, min_gen_energy in ENERGY_CUTS:
+            output = study / '05_detector_efficiency' / method / cut_name
+            output.mkdir(parents=True, exist_ok=True)
+            for index, (population, label) in enumerate(zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True)):
+                selected = np.concatenate([value['analysis_selections'][population] for value in samples.values()])
+                selected &= energy >= min_gen_energy
+                denominator = np.array([(selected & region).sum() for region in regions.values()])
+                numerator = np.array([(selected & region & matched).sum() for region in regions.values()])
+                efficiency = numerator / denominator
+                lower, upper = clopper_pearson(numerator, denominator)
+                fig, ax = plt.subplots(figsize=FIGURE_SIZE)
+                ax.bar(x, efficiency, color=f'C{index}', width=0.6, label=label)
+                ax.errorbar(x, efficiency, yerr=[efficiency - lower, upper - efficiency],
+                            fmt='none', color='black', capsize=4)
+                for position, passed, total, high in zip(x, numerator, denominator, upper, strict=True):
+                    text = f'{100 * passed / total:.1f}%\n' + rf'$\frac{{{passed:,}}}{{{total:,}}}$'
+                    ax.text(position, high + 0.025, text, ha='center', va='bottom')
+                cut_label = (rf'$E_\gamma^{{\rm gen}}\geq{min_gen_energy}$ GeV'
+                             if min_gen_energy else 'No Gen E cut')
+                ax.text(0.02, 0.89, cut_label, transform=ax.transAxes, va='top')
+                ax.set_xticks(x, regions)
+                ax.set_ylim(0, 1.35)
+                ax.set_yticks(np.linspace(0, 1, 6))
+                finish(fig, ax, output / f'efficiency_by_detector_{population}_combined.png',
+                       'combined', 'Region', 'Efficiency')
+                print(f'{study.name} {method}/{cut_name} {population} detector counts: '
+                      f'{dict(zip(regions, zip(numerator, denominator), strict=True))}', flush=True)
 
 
 def matching_results(study, sample, values, bins):
     gamma = values['gamma']
     for source, method in (('reco', 'truth_matching'), ('angular', 'angular_matching')):
-        output = study / '04_matching_result' / method
-        output.mkdir(parents=True, exist_ok=True)
         stats = values[source]
-        matched_energy_distributions(output, sample, values, stats)
-        gen_reco_energy_histograms(output, sample, values, stats)
-        for coordinate in ('cos_theta', 'energy'):
-            edges = bins[coordinate]
-            centers = (edges[:-1] + edges[1:]) / 2
-            fig, ax = plt.subplots(figsize=FIGURE_SIZE)
-            for index, (gen_name, label) in enumerate(zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True)):
-                color = f'C{index}'
-                selected = values['analysis_selections'][gen_name]
-                x = gamma[coordinate][selected]
-                denominator = np.histogram(x, bins=edges)[0]
-                assert denominator.sum() == selected.sum()
-                matched = stats['reco_count'][selected] > 0
-                numerator = np.histogram(x[matched], bins=edges)[0]
-                assert numerator.sum() == matched.sum() and np.all(numerator <= denominator)
-                shown = denominator > 0
-                ratio = np.divide(numerator, denominator, out=np.full(len(denominator), np.nan), where=shown)
-                lower, upper = clopper_pearson(numerator, denominator)
-                ax.stairs(ratio, edges, baseline=None, color=color, label=label)
-                ax.errorbar(centers[shown], ratio[shown], yerr=np.maximum([ratio[shown] - lower[shown], upper[shown] - ratio[shown]], 0),
-                            fmt='none', color=color, capsize=2)
-            ax.set_xlim(edges[0], edges[-1])
-            ax.set_ylim(0, 1.5)
-            ax.set_yticks(np.linspace(0, 1, 6))
-            finish(fig, ax, output / f'efficiency_vs_{coordinate}_{sample}.png', sample, XLABELS[coordinate], 'Efficiency')
-            profiles = []
-            for index, (gen_name, label) in enumerate(zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True)):
-                selected = values['analysis_selections'][gen_name] & (gamma['energy'] >= MIN_GEN_ENERGY)
-                x = gamma[coordinate][selected]
-                mean, error = profile_points(x, stats['energy_ratio'][selected], edges)
-                profiles.append((mean, error, f'C{index}', label))
-            upper = max(np.nanmax(mean + np.nan_to_num(error, nan=0)) for mean, error, _, _ in profiles)
-            for log_y in (False, True):
+        for cut_index, (cut_name, min_gen_energy) in enumerate(ENERGY_CUTS):
+            output = study / '04_matching_result' / method / cut_name
+            output.mkdir(parents=True, exist_ok=True)
+            cut_label = (rf'$E_\gamma^{{\rm gen}}\geq{min_gen_energy}$ GeV'
+                         if min_gen_energy else 'No Gen E cut')
+            # The same Gen selection defines every observable, including efficiency.
+            selections = {name: selected & (gamma['energy'] >= min_gen_energy)
+                          for name, selected in values['analysis_selections'].items()}
+            energy_ratio_distributions(output, sample, values, stats, cut_index)
+            for coordinate in ('cos_theta', 'energy'):
+                edges = (np.r_[min_gen_energy, bins[coordinate][bins[coordinate] > min_gen_energy]]
+                         if coordinate == 'energy' else bins[coordinate])
+                centers = (edges[:-1] + edges[1:]) / 2
                 fig, ax = plt.subplots(figsize=FIGURE_SIZE)
-                for mean, error, color, label in profiles:
-                    ax.stairs(mean, edges, baseline=None, color=color, label=label)
-                    ax.errorbar(centers, mean, yerr=error, fmt='none', color=color, capsize=2)
-                ax.set_xlim(MIN_GEN_ENERGY if coordinate == 'energy' else edges[0], edges[-1])
-                ax.text(0.02, 0.89, rf'$E_\gamma^{{\rm gen}}\geq{MIN_GEN_ENERGY}$ GeV',
-                        transform=ax.transAxes, va='top')
-                if log_y:
-                    ax.set_yscale('log')
-                    positive = np.concatenate([mean for mean, _, _, _ in profiles])
-                    positive = positive[np.isfinite(positive) & (positive > 0)]
-                    lower = positive.min() / 3
-                    # Reserve the same upper fraction as in the linear plot for the legend.
-                    ax.set_ylim(lower, lower * (upper / lower) ** 1.65)
-                else:
-                    ax.set_ylim(0, upper * 1.65)
-                suffix = '_log' if log_y else ''
-                finish(fig, ax, output / f'energy_response_vs_{coordinate}_{sample}{suffix}.png', sample,
-                       XLABELS[coordinate], r'$\langle\sum E^{\rm reco}/E_\gamma^{\rm gen}\rangle$')
+                for index, (gen_name, label) in enumerate(zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True)):
+                    color = f'C{index}'
+                    selected = selections[gen_name]
+                    x = gamma[coordinate][selected]
+                    denominator = np.histogram(x, bins=edges)[0]
+                    assert denominator.sum() == selected.sum()
+                    matched = stats['reco_count'][selected] > 0
+                    numerator = np.histogram(x[matched], bins=edges)[0]
+                    assert numerator.sum() == matched.sum() and np.all(numerator <= denominator)
+                    shown = denominator > 0
+                    ratio = np.divide(numerator, denominator, out=np.full(len(denominator), np.nan), where=shown)
+                    lower, upper = clopper_pearson(numerator, denominator)
+                    ax.stairs(ratio, edges, baseline=None, color=color, label=label)
+                    ax.errorbar(centers[shown], ratio[shown], yerr=np.maximum([ratio[shown] - lower[shown], upper[shown] - ratio[shown]], 0),
+                                fmt='none', color=color, capsize=2)
+                ax.set_xlim(edges[0], edges[-1])
+                ax.set_ylim(0, 1.5)
+                ax.set_yticks(np.linspace(0, 1, 6))
+                ax.text(0.02, 0.89, cut_label, transform=ax.transAxes, va='top')
+                finish(fig, ax, output / f'efficiency_vs_{coordinate}_{sample}.png', sample,
+                       XLABELS[coordinate], 'Efficiency')
 
 
 def plot_isr_study(input_root: Path, output_root: Path):
     mh.style.use(mh.styles.CMS)
+    plt.rcParams['lines.linewidth'] = 2
+    plt.rcParams['patch.linewidth'] = 1.5
     study = output_root / 'isr_study'
     study.mkdir(parents=True, exist_ok=True)
     # Read each event once: Gen selection, truth association, and angular scan.

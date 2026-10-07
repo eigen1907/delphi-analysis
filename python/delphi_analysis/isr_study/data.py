@@ -15,6 +15,7 @@ CONV_P4 = tuple(f"PhotonConv_fourMomentum.fCoordinates.f{axis}" for axis in "XYZ
 GEN_SELECTIONS = ("gen_gamma", "gen_isr", "gen_no_isr", "gen_isr_non_beam")
 ANALYSIS_SELECTIONS = ("gen_gamma", "gen_isr", "gen_no_isr")
 GEN_LABELS = (r"$\gamma_{\mathrm{all}}$", r"$\gamma_{\mathrm{ISR}}$", r"$\gamma_{\mathrm{no\ ISR}}$")
+ENERGY_CUTS = (("no_cut", 0), ("0p1_cut", 0.1))
 RECO_LABELS = {"gamma": r"$\gamma$", "gamma_plus_conversion": r"$\gamma+\gamma_{\mathrm{conv}}$",
                "gamma_pid": r"$\gamma_{\mathrm{Part}}$"}
 LINK_STATUSES = ("agreement", "forward_only", "reverse_only", "conflict", "no_origin")
