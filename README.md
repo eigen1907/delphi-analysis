@@ -134,6 +134,7 @@ plots/20260828_florian/isr_study/
     02_truth_link_matching_validation/
     03_angular_matching_validation/
     04_matching_result/{truth_matching,angular_matching}/
+    05_detector_efficiency/
 ```
 
 Stage 01 keeps four stable Gen selections, including Beam ISR for inspection:
@@ -150,8 +151,8 @@ ISR has an electron/positron as its first non-photon ancestor, with no hard pare
 on that path. Beam ISR additionally has `px == py == 0` and a direct, parentless
 incoming electron/positron parent. FSR starts at the hard parent or its direct
 sample-final-state daughter. Decayed is the previous Others category; here it
-contains π⁰, η, and ω decay photons in Ztautau. Nominal truth results have no
-energy, angular, fiducial, PID, or lock cuts.
+contains π⁰, η, and ω decay photons in Ztautau. The existing efficiency and
+response profiles have no energy, angular, fiducial, PID, or lock cuts.
 
 Stages 02–04 exclude Beam ISR from all Gen selections, numerators, and
 denominators, and compare three populations in each plot:
@@ -201,20 +202,27 @@ branch is a view of neutral Parts with EM calorimeter energy, not pure photon PI
   chosen cone. Efficiency counts ≥1 candidate once per Gen photon. Response is
   sum(E_reco)/E_gen, including unmatched zeros; ambiguous sums are undefined.
   Response plots also have `_log` versions. No matched-multiplicity plots remain.
-  Event-level energy recovery compares All, ISR, and no ISR on one axis, using
-  sum(E of distinct associated Reco objects) / sum(E of selected Gen photons).
-  Beam ISR is excluded from each population. Angular matching uses the union
-  of selected cones so a candidate is counted once per population per event.
-  Histograms span 0–100% in 5% bins with count errors. Unmatched events enter at 0%;
-  events with no selected Gen photons or undefined energy sums are excluded, with
-  their counts printed to the terminal. Values above 100% are reported in each
-  population's `% (>100%)` legend column, not merged into the last bin.
-  Separate one-column legends align Gen selection, `Mean (≤100%)`, and overflow;
-  the two statistic columns use empty Line2D handles. The mean uses unbinned
-  event recovery values
-  in 0–100%, including unmatched zeros and exactly 100% but excluding overflow.
-  Overflow percentages use the sample's full event count. Both linear-y and
-  `_log` versions are saved as `event_energy_recovery_<sample>[_log].png`.
+  Matched energy residuals replace the event-level recovery histograms:
+  `(sum(E_reco) - E_gen) / E_gen`, using one Gen photon as the unit. These new
+  distributions require **Gen E ≥ 2 GeV**, at least one associated Reco candidate,
+  and a finite, unambiguous energy sum. Unmatched photons remain in the efficiency
+  denominator but do not enter this matched-response diagnostic. Both signs are
+  retained in −100% to +200%, with 10 percentage point bins and count errors.
+  Separate one-column legends align Gen selection, `Mean (≤200%)`, and
+  `% (>200%)`, using empty handles for statistics. The mean is conditional on
+  the displayed range and uses unbinned residuals, including exactly +200%;
+  overflow percentages use all finite matched photons passing the energy cut.
+  Overflow is neither folded into the final bin nor clipped. Counts of ambiguous
+  energy sums and overflow are printed to the terminal. Linear-y and `_log`
+  versions are saved as `matched_energy_residual_<sample>[_log].png`.
+- **05:** Five-sample pooled **truth-matched** non-beam ISR efficiency for
+  **Gen E ≥ 2 GeV**, with counts and Clopper–Pearson intervals. All angles is
+  compared with HPC (40–140°), FEMC (10–37° and 143–170°), and STIC (2–10° and
+  170–178°), using open angular intervals. No Reco energy cut is applied. Photon
+  + conversion gives HPC 739/937, FEMC 864/1,275, and STIC 0/1,431. This measures
+  reconstruction with usable saved truth association: the STIC zero cannot be
+  interpreted as zero physical detector efficiency, since forward Reco candidates
+  exist without usable truth links in these samples.
 
 Nominal truth compares `Part_simIdx → Sim ancestry → first Gen anchor` with
 `Gen-linked Sim → descendants → SimPart_partIdx`. A unique union origin is

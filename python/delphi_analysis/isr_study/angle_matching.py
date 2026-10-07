@@ -18,7 +18,7 @@ def new_accumulator():
             truth_energy_square_sum=np.zeros(len(CUTS_DEG)),
         ) for population in ANALYSIS_SELECTIONS
     }, angular={name: dict(pending=[], blocks=[])
-                for name in ("reco_count", "energy_ratio", "event_energy")})
+                for name in ("reco_count", "energy_ratio")})
 
 
 def accumulate(accumulator, event, objects):
@@ -42,14 +42,6 @@ def accumulate(accumulator, event, objects):
     stored = accumulator["angular"]
     stored["reco_count"]["pending"].append(multiplicity.astype(np.uint16))
     stored["energy_ratio"]["pending"].append(np.where(valid_cones, energy_ratio, np.nan))
-    # For each population, use the union of cones: count each candidate once per event.
-    event_energies = []
-    for population in ANALYSIS_SELECTIONS:
-        selected_cones = cones[event["analysis_selections"][population]].any(axis=0)
-        event_energy = (selected_cones * p4[:, 3, None]).sum(axis=0)
-        event_valid = ~(selected_cones & ~geometric_valid[:, None]).any(axis=0)
-        event_energies.append(np.where(event_valid, event_energy, np.nan))
-    stored["event_energy"]["pending"].append(np.asarray(event_energies)[None, :, :])
     # Combine small event arrays to avoid one Python object per event.
     if len(stored["reco_count"]["pending"]) == 1024:
         for field in stored.values():
@@ -82,7 +74,6 @@ def angular_stats(accumulator, cut_degrees):
         if field["pending"]:
             field["blocks"].append(np.concatenate(field["pending"]))
         stats[name] = np.concatenate([block[..., index] for block in field["blocks"]])
-    stats["event_energy"] = dict(zip(ANALYSIS_SELECTIONS, stats["event_energy"].T, strict=True))
     stats["energy_valid"] = np.isfinite(stats["energy_ratio"])
     return stats
 

@@ -22,7 +22,7 @@ GEN_STACKS = dict(gen_gamma=GEN_COMPONENTS, gen_isr=GEN_COMPONENTS[:2],
 XLABELS = dict(energy=r'$E_\gamma^{\rm gen}$ [GeV]', cos_theta=r'$\cos\theta^{\rm gen}$')
 SAMPLE_LABELS = dict(Zee=r'$\boldsymbol{Z\to e^+e^-}$', Zmumu=r'$\boldsymbol{Z\to\mu^+\mu^-}$',
                      Ztautau=r'$\boldsymbol{Z\to\tau^+\tau^-}$', ZKK=r'$\boldsymbol{Z\to K^+K^-}$',
-                     Zpipi=r'$\boldsymbol{Z\to\pi^+\pi^-}$')
+                     Zpipi=r'$\boldsymbol{Z\to\pi^+\pi^-}$', combined='All samples')
 
 
 def clopper_pearson(numerator, denominator):
@@ -207,27 +207,25 @@ def profile_points(coordinate, response, bins):
     return mean, error
 
 
-def event_energy_recovery(output, sample, values, recovered_energy):
-    """Compare event energy sums; overflow percentages refer to all sample events."""
-    bins = np.linspace(0, 100, 21)
+def matched_energy_residual(output, sample, values, stats):
+    """Matched Gen photons above 2 GeV; exclude ambiguous energy sums."""
+    bins = np.linspace(-100, 200, 31)
     centers = (bins[:-1] + bins[1:]) / 2
     histograms = []
     for population, label in zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True):
-        gen_energy = values['event_gen_energy'][population]
-        energy = recovered_energy[population]
-        has_gen = gen_energy > 0
-        defined = has_gen & np.isfinite(energy)
-        recovery = 100 * energy[defined] / gen_energy[defined]
-        overflow = np.count_nonzero(recovery > 100)
-        no_gen = np.count_nonzero(~has_gen)
-        undefined = np.count_nonzero(has_gen & ~defined)
-        in_range = recovery[recovery <= 100]
+        selected = (values['analysis_selections'][population]
+                    & (values['gamma']['energy'] >= 2) & (stats['reco_count'] > 0))
+        defined = selected & np.isfinite(stats['energy_ratio'])
+        residual = 100 * (stats['energy_ratio'][defined] - 1)
+        overflow = np.count_nonzero(residual > bins[-1])
+        in_range = residual[(residual >= bins[0]) & (residual <= bins[-1])]
         counts = np.histogram(in_range, bins=bins)[0]
-        assert counts.sum() + overflow + no_gen + undefined == values['events']
+        assert counts.sum() + overflow == len(residual), 'Unexpected residual below -100%'
         mean = in_range.mean()
-        histograms.append((counts, label, mean, 100 * overflow / values['events']))
+        histograms.append((counts, label, mean, 100 * overflow / len(residual)))
         print(f'{sample} {output.parents[1].name}/{output.name} {population}: '
-              f'no Gen={no_gen}, undefined={undefined}, overflow={overflow}', flush=True)
+              f'matched E>=2={selected.sum()}, undefined energy={(selected & ~defined).sum()}, '
+              f'residual >200%={overflow}/{len(residual)}', flush=True)
     maximum = max(counts.max() for counts, _, _, _ in histograms)
     for log in (False, True):
         fig, ax = plt.subplots(figsize=FIGURE_SIZE)
@@ -243,22 +241,57 @@ def event_energy_recovery(output, sample, values, recovered_energy):
         ax.add_artist(groups)
         empty = [Line2D([], [], color='none') for _ in histograms]
         means = ax.legend(empty, [f'{mean:.2f}' for _, _, mean, _ in histograms],
-                          title='Mean (≤100%)', loc='upper right', bbox_to_anchor=(0.75, 0.96),
+                          title='Mean (≤200%)', loc='upper right', bbox_to_anchor=(0.75, 0.96),
                           frameon=False, handlelength=0, handletextpad=0, handleheight=1.6)
         ax.add_artist(means)
         ax.legend(empty, [f'{overflow:.2f}' for _, _, _, overflow in histograms],
-                  title='% (>100%)', loc='upper right', bbox_to_anchor=(0.99, 0.96),
+                  title='% (>200%)', loc='upper right', bbox_to_anchor=(0.99, 0.96),
                   frameon=False, handlelength=0, handletextpad=0, handleheight=1.6)
-        ax.set_xlim(0, 100)
-        ax.set_xticks(np.arange(0, 101, 20))
+        ax.text(0.02, 0.89, r'$E_\gamma^{\rm gen}\geq2$ GeV', transform=ax.transAxes, va='top')
+        ax.set_xlim(bins[0], bins[-1])
+        ax.set_xticks(np.arange(-100, 201, 50))
         if log:
             ax.set_yscale('log')
             ax.set_ylim(0.5, 0.5 * (maximum / 0.5) ** 1.65)
         else:
             ax.set_ylim(0, maximum * 1.65)
         suffix = '_log' if log else ''
-        finish(fig, ax, output / f'event_energy_recovery_{sample}{suffix}.png',
-               sample, 'Energy recovery [%]', 'Events')
+        finish(fig, ax, output / f'matched_energy_residual_{sample}{suffix}.png', sample,
+               r'$(\sum E^{\rm reco}-E_\gamma^{\rm gen})/E_\gamma^{\rm gen}$ [%]', 'Gen photons')
+
+
+def detector_efficiency(study, samples):
+    """Pooled non-beam ISR efficiency in the requested angular regions."""
+    energy = np.concatenate([value['gamma']['energy'] for value in samples.values()])
+    cosine = np.concatenate([value['gamma']['cos_theta'] for value in samples.values()])
+    isr = np.concatenate([value['analysis_selections']['gen_isr'] for value in samples.values()])
+    matched = np.concatenate([value['reco']['reco_count'] > 0 for value in samples.values()])
+    theta = np.rad2deg(np.arccos(np.clip(cosine, -1, 1)))
+    regions = {'All angles': np.ones(len(theta), dtype=bool),
+               'HPC': (theta > 40) & (theta < 140),
+               'FEMC': ((theta > 10) & (theta < 37)) | ((theta > 143) & (theta < 170)),
+               'STIC': ((theta > 2) & (theta < 10)) | ((theta > 170) & (theta < 178))}
+    selected = isr & (energy >= 2)
+    denominator = np.array([(selected & region).sum() for region in regions.values()])
+    numerator = np.array([(selected & region & matched).sum() for region in regions.values()])
+    efficiency = numerator / denominator
+    lower, upper = clopper_pearson(numerator, denominator)
+    fig, ax = plt.subplots(figsize=FIGURE_SIZE)
+    x = np.arange(len(regions))
+    ax.bar(x, efficiency, color='C1', width=0.6, label=GEN_LABELS[1])
+    ax.errorbar(x, efficiency, yerr=[efficiency - lower, upper - efficiency],
+                fmt='none', color='black', capsize=4)
+    for position, passed, total, high in zip(x, numerator, denominator, upper, strict=True):
+        ax.text(position, high + 0.025, f'{100 * passed / total:.1f}%\n{passed:,}/{total:,}', ha='center')
+    ax.text(0.02, 0.89, r'$E_\gamma^{\rm gen}\geq2$ GeV', transform=ax.transAxes, va='top')
+    ax.set_xticks(x, regions)
+    ax.set_ylim(0, 1.35)
+    ax.set_yticks(np.linspace(0, 1, 6))
+    output = study / '05_detector_efficiency'
+    output.mkdir(parents=True, exist_ok=True)
+    finish(fig, ax, output / 'isr_efficiency_by_detector_combined.png',
+           'combined', 'Region', 'Efficiency')
+    print(f'{study.name} ISR E>=2 detector counts: {dict(zip(regions, zip(numerator, denominator), strict=True))}', flush=True)
 
 
 def matching_results(study, sample, values, bins):
@@ -267,8 +300,7 @@ def matching_results(study, sample, values, bins):
         output = study / '04_matching_result' / method
         output.mkdir(parents=True, exist_ok=True)
         stats = values[source]
-        recovered_energy = values['event_truth_energy'] if source == 'reco' else stats['event_energy']
-        event_energy_recovery(output, sample, values, recovered_energy)
+        matched_energy_residual(output, sample, values, stats)
         for coordinate in ('cos_theta', 'energy'):
             edges = bins[coordinate]
             centers = (edges[:-1] + edges[1:]) / 2
@@ -352,4 +384,5 @@ def plot_isr_study(input_root: Path, output_root: Path):
             plot_angle_matching(output / '03_angular_matching_validation', sample, angles[mode][sample], cut)
             matching_results(output, sample, value, gen_bins)
             print(f'plots: {mode} {sample}', flush=True)
+        detector_efficiency(output, values[mode])
         print(f'ISR study: {output}; opening-angle reference {cut:g} deg', flush=True)
