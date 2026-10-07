@@ -129,7 +129,7 @@ Code and recipes are grouped under `isr_study/`.
 
 ```text
 plots/20260828_florian/isr_study/
-  {gamma,gamma_plus_conversion}/
+  {gamma,gamma_plus_conversion,gamma_pid}/
     01_sample_distribution/{gen_gamma,gen_isr,gen_no_isr,gen_isr_non_beam}/
     02_truth_link_matching_validation/
     03_angular_matching_validation/
@@ -151,8 +151,9 @@ ISR has an electron/positron as its first non-photon ancestor, with no hard pare
 on that path. Beam ISR additionally has `px == py == 0` and a direct, parentless
 incoming electron/positron parent. FSR starts at the hard parent or its direct
 sample-final-state daughter. Decayed is the previous Others category; here it
-contains π⁰, η, and ω decay photons in Ztautau. The existing efficiency and
-response profiles have no energy, angular, fiducial, PID, or lock cuts.
+contains π⁰, η, and ω decay photons in Ztautau. Efficiency curves retain the full
+Gen energy range. Stage 04 energy-response diagnostics and the stage 05 regional
+summary use Gen E ≥ 1 GeV. No additional angular, fiducial, or lock cuts are applied.
 
 Stages 02–04 exclude Beam ISR from all Gen selections, numerators, and
 denominators, and compare three populations in each plot:
@@ -167,13 +168,25 @@ This exclusion uses the Beam ISR ancestry and exact `px == py == 0` definition;
 it is not an energy threshold or detector acceptance cut. It changes only the
 study populations: the original Gen particles and truth ancestry remain intact.
 
-The same study runs for two Reco collections: **Photon only** (`gamma`) and
-**Photon + conversion** (`gamma_plus_conversion`). Photon only retains every
-original Photon row. The combined collection replaces overlapping Photon
-representations once by the conversion candidate. Both use the same Gen
-populations, bins, and truth definitions, reading each event once. The Photon
+The same study runs for three Reco collections: **Photon only** (`gamma`),
+**Photon + conversion** (`gamma_plus_conversion`), and **Part gamma mass code**
+(`gamma_pid`). Photon only retains every original Photon row. The combined
+collection replaces overlapping Photon representations once by the conversion
+candidate. `gamma_pid` selects **all Parts with `Part_pdgId == 21`**, uses
+`Part_fourMomentum`, and appears as gamma_Part in Reco legends. It does not
+require membership in Photon or add PhotonConv candidates. All three use the
+same Gen populations, bins, and truth definitions, reading each event once. The Photon
 branch is a view of neutral Parts with EM calorimeter energy, not pure photon PID.
 `Part_pdgId` and `SimPart_pdgId` use DELPHI mass codes: gamma=21, e±=±2.
+The `gamma_pid` name describes the stored Part classification, not a strict
+photon-ID working point: the DST writer also assigns code 21 to unidentified
+neutral Parts. The original identification before that fallback is not saved
+separately. `Part_massId` is a packed identification/topology word, so requiring
+`massId == 21` or `massId != 0` would not recover an explicit gamma PID. No such
+condition, charge cut, or lock cut is added. Code-21 Parts can include conversion
+parents and neutral objects outside the Photon view. Overlapping saved
+parent/descendant representations retain their counts but have undefined energy
+sums, as in the Photon-only study.
 
 - **01:** Stacked Gen colors and one inclusive Reco outline with
   hatching on one axis. Reco is identical across the four Gen selections. Energy and
@@ -192,7 +205,8 @@ branch is a view of neutral Parts with EM calorimeter energy, not pure photon PI
   Beam ISR and another origin remains a Conflict. Conflict is a link diagnostic,
   not an accepted match.
 - **03:** The three Gen selections scan the 3D opening angle, displayed to 10°.
-  Curves retain each Gen photon's own truth-associated candidates. For each Reco
+  This truth-retention scan uses the full Gen energy range. Curves retain each
+  Gen photon's own truth-associated candidates. For each Reco
   collection, the reference cut retains ≥99% of pooled non-beam ISR truth successes;
   it is a truth-retention check, not a purity optimum or a nominal truth cut.
 - **04:** Separate `truth_matching` and `angular_matching` directories contain
@@ -201,13 +215,15 @@ branch is a view of neutral Parts with EM calorimeter energy, not pure photon PI
   without a Reco truth-origin veto, and includes every candidate inside the
   chosen cone. Efficiency counts ≥1 candidate once per Gen photon. Response is
   sum(E_reco)/E_gen, including unmatched zeros; ambiguous sums are undefined.
-  Response plots also have `_log` versions. No matched-multiplicity plots remain.
+  Response profiles require **Gen E ≥ 1 GeV**; the efficiency curves have no
+  energy threshold. Response plots also have `_log` versions.
+  No matched-multiplicity plots remain.
   Matched energy distributions use one Gen photon as the unit:
   `(E_gen - sum(E_reco)) / E_gen` in **−2 to +2**, and
   `sum(E_reco) / E_gen` in **0 to 3**, without percent scaling. Residual zero
   and ratio one both mean equal energy; positive residual means energy loss,
   and negative residual means excess Reco energy. Both distributions require
-  **Gen E ≥ 2 GeV**, at least one associated Reco candidate,
+  **Gen E ≥ 1 GeV**, at least one associated Reco candidate,
   and a finite, unambiguous energy sum. Unmatched photons remain in the efficiency
   denominator but do not enter this matched-response diagnostic. Bins have width
   0.1 and count errors. Reco energies are nonnegative, so residuals cannot exceed
@@ -221,11 +237,17 @@ branch is a view of neutral Parts with EM calorimeter energy, not pure photon PI
   Counts of ambiguous energy sums and tails are printed to the terminal.
   Linear-y and `_log` versions are saved as
   `matched_energy_{residual,ratio}_<sample>[_log].png`.
+  Gen-versus-Reco energy histograms use the same finite matched selection:
+  x = E_gen and y = sum(E_reco), one entry per Gen photon. All, ISR, and no ISR
+  have separate images within each matching directory, named
+  `gen_reco_energy_2d_<population>_<sample>[_log].png`. Both energy axes are linear;
+  `_log` uses a logarithmic count color scale. Empty cells are blank and the
+  dashed diagonal denotes equal energies. All Reco sums ≥ 50 GeV enter the
+  labelled overflow bin, so large responses are retained rather than dropped.
 - **05:** Five-sample pooled **truth-matched** non-beam ISR efficiency for
-  **Gen E ≥ 2 GeV**, with counts and Clopper–Pearson intervals. All angles is
+  **Gen E ≥ 1 GeV**, with counts and Clopper–Pearson intervals. All angles is
   compared with HPC (40–140°), FEMC (10–37° and 143–170°), and STIC (2–10° and
-  170–178°), using open angular intervals. No Reco energy cut is applied. Photon
-  + conversion gives HPC 739/937, FEMC 864/1,275, and STIC 0/1,431. This measures
+  170–178°), using open angular intervals. No Reco energy cut is applied. This measures
   reconstruction with usable saved truth association: the STIC zero cannot be
   interpreted as zero physical detector efficiency, since forward Reco candidates
   exist without usable truth links in these samples.
@@ -243,7 +265,7 @@ an energy sum, including parent/descendant Photon rows in the Photon-only study;
 candidate counts and efficiency still retain those rows. Responses can exceed one
 because candidates may contain mixed energy, especially for soft Gen photons.
 Response profiles average per-Gen ratios, not total recovered energy divided by
-total Gen energy. Very soft photons with large ratios can dominate this mean;
+total Gen energy. The stage 04 Gen energy cut limits sensitivity to very soft photons with large ratios;
 a truth link identifies ancestry, not exclusive ownership of the Reco energy.
 Saved Gen-to-Sim coverage is a link diagnostic,
 not detector transport efficiency; missing links and reverse-only Beam associations
