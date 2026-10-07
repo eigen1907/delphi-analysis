@@ -202,20 +202,25 @@ branch is a view of neutral Parts with EM calorimeter energy, not pure photon PI
   chosen cone. Efficiency counts ≥1 candidate once per Gen photon. Response is
   sum(E_reco)/E_gen, including unmatched zeros; ambiguous sums are undefined.
   Response plots also have `_log` versions. No matched-multiplicity plots remain.
-  Matched energy residuals replace the event-level recovery histograms:
-  `(E_gen - sum(E_reco)) / E_gen`, using one Gen photon as the unit: positive
-  means energy loss, zero means equal energy, and negative means excess Reco energy. These
-  distributions require **Gen E ≥ 2 GeV**, at least one associated Reco candidate,
+  Matched energy distributions use one Gen photon as the unit:
+  `(E_gen - sum(E_reco)) / E_gen` in **−2 to +2**, and
+  `sum(E_reco) / E_gen` in **0 to 3**, without percent scaling. Residual zero
+  and ratio one both mean equal energy; positive residual means energy loss,
+  and negative residual means excess Reco energy. Both distributions require
+  **Gen E ≥ 2 GeV**, at least one associated Reco candidate,
   and a finite, unambiguous energy sum. Unmatched photons remain in the efficiency
-  denominator but do not enter this matched-response diagnostic. Both signs are
-  retained in −200% to +100%, with 10 percentage point bins and count errors.
-  Separate one-column legends align Gen selection, `Mean (≥−200%)`, and
-  `% (<−200%)`, using empty handles for statistics. The mean is conditional on
-  the displayed range and uses unbinned residuals, including exactly −200%;
-  underflow percentages use all finite matched photons passing the energy cut.
-  Underflow is neither folded into the first bin nor clipped. Counts of ambiguous
-  energy sums and underflow are printed to the terminal. Linear-y and `_log`
-  versions are saved as `matched_energy_residual_<sample>[_log].png`.
+  denominator but do not enter this matched-response diagnostic. Bins have width
+  0.1 and count errors. Reco energies are nonnegative, so residuals cannot exceed
+  one: the +1 to +2 interval is intentionally empty. The two plots show the same
+  information, related by residual = 1 − ratio.
+  Separate one-column legends align Gen selection, `Mean (shown)`, and the tail
+  fraction, using empty handles for statistics. The mean uses unbinned values
+  inside the displayed range, including its endpoints. Residual < −2 and ratio > 3
+  are reported as decimal fractions of all finite matched photons passing the
+  energy cut. Out-of-range values are neither folded into bins nor clipped.
+  Counts of ambiguous energy sums and tails are printed to the terminal.
+  Linear-y and `_log` versions are saved as
+  `matched_energy_{residual,ratio}_<sample>[_log].png`.
 - **05:** Five-sample pooled **truth-matched** non-beam ISR efficiency for
   **Gen E ≥ 2 GeV**, with counts and Clopper–Pearson intervals. All angles is
   compared with HPC (40–140°), FEMC (10–37° and 143–170°), and STIC (2–10° and

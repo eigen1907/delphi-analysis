@@ -207,57 +207,65 @@ def profile_points(coordinate, response, bins):
     return mean, error
 
 
-def matched_energy_residual(output, sample, values, stats):
-    """Matched Gen photons above 2 GeV; exclude ambiguous energy sums."""
-    bins = np.linspace(-200, 100, 31)
-    centers = (bins[:-1] + bins[1:]) / 2
-    histograms = []
+def matched_energy_distributions(output, sample, values, stats):
+    """Dimensionless loss and ratio for matched Gen photons above 2 GeV."""
+    populations = []
     for population, label in zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True):
         selected = (values['analysis_selections'][population]
                     & (values['gamma']['energy'] >= 2) & (stats['reco_count'] > 0))
         defined = selected & np.isfinite(stats['energy_ratio'])
-        residual = 100 * (1 - stats['energy_ratio'][defined])
-        underflow = np.count_nonzero(residual < bins[0])
-        in_range = residual[(residual >= bins[0]) & (residual <= bins[-1])]
-        counts = np.histogram(in_range, bins=bins)[0]
-        assert counts.sum() + underflow == len(residual), 'Unexpected residual above 100%'
-        mean = in_range.mean()
-        histograms.append((counts, label, mean, 100 * underflow / len(residual)))
+        populations.append((stats['energy_ratio'][defined], label))
         print(f'{sample} {output.parents[1].name}/{output.name} {population}: '
-              f'matched E>=2={selected.sum()}, undefined energy={(selected & ~defined).sum()}, '
-              f'residual <-200%={underflow}/{len(residual)}', flush=True)
-    maximum = max(counts.max() for counts, _, _, _ in histograms)
-    for log in (False, True):
-        fig, ax = plt.subplots(figsize=FIGURE_SIZE)
-        for index, (counts, label, _, _) in enumerate(histograms):
-            color = f'C{index}'
-            ax.stairs(counts, bins, label=label, color=color)
-            shown = counts > 0
-            ax.errorbar(centers[shown], counts[shown], yerr=np.sqrt(counts[shown]),
-                        fmt='none', color=color, capsize=2)
-        # Keep three single-column legends aligned, with empty handles for the statistics.
-        groups = ax.legend(title='Gen', loc='upper right', bbox_to_anchor=(0.46, 0.96),
-                           frameon=False, handleheight=1.6)
-        ax.add_artist(groups)
-        empty = [Line2D([], [], color='none') for _ in histograms]
-        means = ax.legend(empty, [f'{mean:.2f}' for _, _, mean, _ in histograms],
-                          title='Mean (≥−200%)', loc='upper right', bbox_to_anchor=(0.75, 0.96),
-                          frameon=False, handlelength=0, handletextpad=0, handleheight=1.6)
-        ax.add_artist(means)
-        ax.legend(empty, [f'{underflow:.2f}' for _, _, _, underflow in histograms],
-                  title='% (<−200%)', loc='upper right', bbox_to_anchor=(0.99, 0.96),
-                  frameon=False, handlelength=0, handletextpad=0, handleheight=1.6)
-        ax.text(0.02, 0.89, r'$E_\gamma^{\rm gen}\geq2$ GeV', transform=ax.transAxes, va='top')
-        ax.set_xlim(bins[0], bins[-1])
-        ax.set_xticks(np.arange(-200, 101, 50))
-        if log:
-            ax.set_yscale('log')
-            ax.set_ylim(0.5, 0.5 * (maximum / 0.5) ** 1.65)
-        else:
-            ax.set_ylim(0, maximum * 1.65)
-        suffix = '_log' if log else ''
-        finish(fig, ax, output / f'matched_energy_residual_{sample}{suffix}.png', sample,
-               r'$(E_\gamma^{\rm gen}-\sum E^{\rm reco})/E_\gamma^{\rm gen}$ [%]', 'Gen photons')
+              f'matched E>=2={selected.sum()}, undefined energy={(selected & ~defined).sum()}', flush=True)
+    for name, bins, xlabel, tail_title in (
+        ('residual', np.linspace(-2, 2, 41),
+         r'$(E_\gamma^{\rm gen}-\sum E^{\rm reco})/E_\gamma^{\rm gen}$', 'Frac. (<−2)'),
+        ('ratio', np.linspace(0, 3, 31),
+         r'$\sum E^{\rm reco}/E_\gamma^{\rm gen}$', 'Frac. (>3)'),
+    ):
+        centers = (bins[:-1] + bins[1:]) / 2
+        histograms = []
+        for ratio, label in populations:
+            entries = 1 - ratio if name == 'residual' else ratio
+            in_range = entries[(entries >= bins[0]) & (entries <= bins[-1])]
+            counts = np.histogram(in_range, bins=bins)[0]
+            tail = len(entries) - len(in_range)
+            assert counts.sum() + tail == len(entries)
+            histograms.append((counts, label, in_range.mean(), tail / len(entries)))
+            print(f'{sample} {output.parents[1].name}/{output.name} {label} {name}: '
+                  f'outside [{bins[0]:g}, {bins[-1]:g}]={tail}/{len(entries)}', flush=True)
+        maximum = max(counts.max() for counts, _, _, _ in histograms)
+        for log in (False, True):
+            fig, ax = plt.subplots(figsize=FIGURE_SIZE)
+            for index, (counts, label, _, _) in enumerate(histograms):
+                color = f'C{index}'
+                ax.stairs(counts, bins, label=label, color=color)
+                shown = counts > 0
+                ax.errorbar(centers[shown], counts[shown], yerr=np.sqrt(counts[shown]),
+                            fmt='none', color=color, capsize=2)
+            # Three single-column legends; statistics use empty handles.
+            groups = ax.legend(title='Gen', loc='upper right', bbox_to_anchor=(0.46, 0.96),
+                               frameon=False, handleheight=1.6)
+            ax.add_artist(groups)
+            empty = [Line2D([], [], color='none') for _ in histograms]
+            means = ax.legend(empty, [f'{mean:.2f}' for _, _, mean, _ in histograms],
+                              title='Mean (shown)', loc='upper right', bbox_to_anchor=(0.75, 0.96),
+                              frameon=False, handlelength=0, handletextpad=0, handleheight=1.6)
+            ax.add_artist(means)
+            ax.legend(empty, [f'{fraction:.4f}' for _, _, _, fraction in histograms],
+                      title=tail_title, loc='upper right', bbox_to_anchor=(0.99, 0.96),
+                      frameon=False, handlelength=0, handletextpad=0, handleheight=1.6)
+            ax.text(0.02, 0.89, r'$E_\gamma^{\rm gen}\geq2$ GeV', transform=ax.transAxes, va='top')
+            ax.set_xlim(bins[0], bins[-1])
+            ax.set_xticks(np.arange(bins[0], bins[-1] + 0.5, 0.5))
+            if log:
+                ax.set_yscale('log')
+                ax.set_ylim(0.5, 0.5 * (maximum / 0.5) ** 1.65)
+            else:
+                ax.set_ylim(0, maximum * 1.65)
+            suffix = '_log' if log else ''
+            finish(fig, ax, output / f'matched_energy_{name}_{sample}{suffix}.png',
+                   sample, xlabel, 'Gen photons')
 
 
 def detector_efficiency(study, samples):
@@ -300,7 +308,7 @@ def matching_results(study, sample, values, bins):
         output = study / '04_matching_result' / method
         output.mkdir(parents=True, exist_ok=True)
         stats = values[source]
-        matched_energy_residual(output, sample, values, stats)
+        matched_energy_distributions(output, sample, values, stats)
         for coordinate in ('cos_theta', 'energy'):
             edges = bins[coordinate]
             centers = (edges[:-1] + edges[1:]) / 2
