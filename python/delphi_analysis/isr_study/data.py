@@ -1,4 +1,4 @@
-"""Stable Gen photons and truth-linked Photon or Photon+conversion candidates."""
+"""Stable Gen photons and truth-linked Reco photon candidates."""
 from collections import Counter
 from pathlib import Path
 
@@ -10,15 +10,17 @@ TARGET_PDG = {"Zee": 11, "Zmumu": 13, "Ztautau": 15, "ZKK": 321, "Zpipi": 211}
 SIM_GAMMA_CODE = 21  # Part/SimPart use DELPHI mass codes; GenPart uses PDG IDs.
 GEN_P4 = tuple(f"GenPart_vector.fCoordinates.f{axis}" for axis in "XYZT")
 RECO_P4 = tuple(f"Photon_fourMomentum.fCoordinates.f{axis}" for axis in "XYZT")
+PART_P4 = tuple(f"Part_fourMomentum.fCoordinates.f{axis}" for axis in "XYZT")
 CONV_P4 = tuple(f"PhotonConv_fourMomentum.fCoordinates.f{axis}" for axis in "XYZT")
 GEN_SELECTIONS = ("gen_gamma", "gen_isr", "gen_no_isr", "gen_isr_non_beam")
 ANALYSIS_SELECTIONS = ("gen_gamma", "gen_isr", "gen_no_isr")
 GEN_LABELS = (r"$\gamma_{\mathrm{all}}$", r"$\gamma_{\mathrm{ISR}}$", r"$\gamma_{\mathrm{no\ ISR}}$")
-RECO_LABELS = {"gamma": r"$\gamma$", "gamma_plus_conversion": r"$\gamma+\gamma_{\mathrm{conv}}$"}
+RECO_LABELS = {"gamma": r"$\gamma$", "gamma_plus_conversion": r"$\gamma+\gamma_{\mathrm{conv}}$",
+               "gamma_pid": r"$\gamma_{\mathrm{Part}}$"}
 LINK_STATUSES = ("agreement", "forward_only", "reverse_only", "conflict", "no_origin")
 BRANCHES = (
     "GenPart_pdgId", "GenPart_status", "GenPart_parentIdx", *GEN_P4,
-    "Photon_partIdx", *RECO_P4, "Part_simIdx", "Part_charge", "Part_pdgId",
+    "Photon_partIdx", *RECO_P4, "Part_simIdx", "Part_charge", "Part_pdgId", *PART_P4,
     "Part_originVtxIdx", "Part_decayVtxIdx", "Vtx_incomingIdx",
     "SimPart_genIdx", "SimPart_partIdx",
     "SimPart_originVtxIdx", "SimVtx_incomingIdx", *CONV_P4,
@@ -314,16 +316,36 @@ def analyze_event(raw, sample):
     ], dtype=bool) & photon_geometry_valid
     photon_stats = response(all_gamma_idx, all_gamma_p4, photon_origins, photon_p4,
                             photon_valid, photon_origins, set())
+
+    # This selection starts from all Parts, independent of the Photon collection.
+    # Part_pdgId stores the DELPHI mass code, not the standard PDG ID.
+    # Neutral Parts without an identification can also receive the default code 21.
+    pid_parts = np.flatnonzero(np.asarray(raw["Part_pdgId"]) == SIM_GAMMA_CODE)
+    pid_p4 = np.column_stack([raw[name] for name in PART_P4])[pid_parts]
+    pid_origins = part_origins[pid_parts]
+    all_pid_parts = set(pid_parts)
+    pid_geometry_valid = np.asarray([
+        not (part_descendants.get(part, set()) & all_pid_parts) for part in pid_parts
+    ], dtype=bool)
+    pid_valid = np.asarray([
+        part not in bad_parts and len(known[part]) <= 1 for part in pid_parts
+    ], dtype=bool) & pid_geometry_valid
+    pid_stats = response(all_gamma_idx, all_gamma_p4, pid_origins, pid_p4,
+                         pid_valid, pid_origins, set())
     reco = dict(
         gamma=dict(p4=photon_p4, gen_idx=photon_origins, energy_valid=photon_valid,
                    geometric_energy_valid=photon_geometry_valid, stats=photon_stats),
         gamma_plus_conversion=dict(p4=gamma_p4, gen_idx=gamma_origins, energy_valid=gamma_valid,
                                    geometric_energy_valid=gamma_geometry_valid, stats=combined_stats),
+        gamma_pid=dict(p4=pid_p4, gen_idx=pid_origins, energy_valid=pid_valid,
+                       geometric_energy_valid=pid_geometry_valid, stats=pid_stats),
     )
     links = dict(
         gamma=([{int(forward[p])} if forward[p] >= 0 else set() for p in photon_parts],
                [reverse[p] for p in photon_parts]),
         gamma_plus_conversion=(gamma_forward, gamma_reverse),
+        gamma_pid=([{int(forward[p])} if forward[p] >= 0 else set() for p in pid_parts],
+                   [reverse[p] for p in pid_parts]),
     )
     matching_validation = {}
     selected_origins = {name: set(all_gamma_idx[mask]) for name, mask in analysis.items()}
