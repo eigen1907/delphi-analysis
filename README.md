@@ -153,7 +153,7 @@ incoming electron/positron parent. FSR starts at the hard parent or its direct
 sample-final-state daughter. Decayed is the previous Others category; here it
 contains π⁰, η, and ω decay photons in Ztautau. Efficiency curves retain the full
 Gen energy range. Stage 04 energy-response diagnostics and the stage 05 regional
-summary use Gen E ≥ 1 GeV. No additional angular, fiducial, or lock cuts are applied.
+summary use Gen E ≥ 0.1 GeV. No additional angular, fiducial, or lock cuts are applied.
 
 Stages 02–04 exclude Beam ISR from all Gen selections, numerators, and
 denominators, and compare three populations in each plot:
@@ -215,7 +215,7 @@ sums, as in the Photon-only study.
   without a Reco truth-origin veto, and includes every candidate inside the
   chosen cone. Efficiency counts ≥1 candidate once per Gen photon. Response is
   sum(E_reco)/E_gen, including unmatched zeros; ambiguous sums are undefined.
-  Response profiles require **Gen E ≥ 1 GeV**; the efficiency curves have no
+  Response profiles require **Gen E ≥ 0.1 GeV**; the efficiency curves have no
   energy threshold. Response plots also have `_log` versions.
   No matched-multiplicity plots remain.
   Matched energy distributions use one Gen photon as the unit:
@@ -223,7 +223,7 @@ sums, as in the Photon-only study.
   `sum(E_reco) / E_gen` in **0 to 3**, without percent scaling. Residual zero
   and ratio one both mean equal energy; positive residual means energy loss,
   and negative residual means excess Reco energy. Both distributions require
-  **Gen E ≥ 1 GeV**, at least one associated Reco candidate,
+  **Gen E ≥ 0.1 GeV**, at least one associated Reco candidate,
   and a finite, unambiguous energy sum. Unmatched photons remain in the efficiency
   denominator but do not enter this matched-response diagnostic. Bins have width
   0.1 and count errors. Reco energies are nonnegative, so residuals cannot exceed
@@ -244,13 +244,15 @@ sums, as in the Photon-only study.
   `_log` uses a logarithmic count color scale. Empty cells are blank and the
   dashed diagonal denotes equal energies. All Reco sums ≥ 50 GeV enter the
   labelled overflow bin, so large responses are retained rather than dropped.
+  The first Gen energy bin starts at 0.1 GeV and ends at 1 GeV; the threshold
+  selects Gen photons, without adding a Reco energy requirement.
 - **05:** Five-sample pooled **truth-matched** non-beam ISR efficiency for
-  **Gen E ≥ 1 GeV**, with counts and Clopper–Pearson intervals. All angles is
+  **Gen E ≥ 0.1 GeV**, with counts and Clopper–Pearson intervals. All angles is
   compared with HPC (40–140°), FEMC (10–37° and 143–170°), and STIC (2–10° and
   170–178°), using open angular intervals. No Reco energy cut is applied. This measures
-  reconstruction with usable saved truth association: the STIC zero cannot be
-  interpreted as zero physical detector efficiency, since forward Reco candidates
-  exist without usable truth links in these samples.
+  reconstruction with usable saved truth association. Missing truth links among
+  forward Reco candidates limit the interpretation of the very low STIC fraction
+  as a measure of physical detector performance.
 
 Nominal truth compares `Part_simIdx → Sim ancestry → first Gen anchor` with
 `Gen-linked Sim → descendants → SimPart_partIdx`. A unique union origin is

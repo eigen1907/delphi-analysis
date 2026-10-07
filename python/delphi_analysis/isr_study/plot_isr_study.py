@@ -15,7 +15,7 @@ from .data import ANALYSIS_SELECTIONS, GEN_LABELS, GEN_SELECTIONS, LINK_STATUSES
 FIGURE_SIZE = (11, 9)
 COVERAGE = 0.6826894921370859
 ENERGY_EDGES = np.array([0, 1, 2, 3, 5, 7, 10, 15, 20, 30, 50])
-MIN_GEN_ENERGY = 1
+MIN_GEN_ENERGY = 0.1
 GEN_COMPONENTS = (('beam_isr', r'$\gamma_{\mathrm{BeamISR}}$'),
                   ('nonbeam_isr', r'$\gamma_{\mathrm{NonBeamISR}}$'),
                   ('fsr', r'$\gamma_{\mathrm{FSR}}$'), ('decayed', r'$\gamma_{\mathrm{Decayed}}$'))
@@ -210,7 +210,7 @@ def profile_points(coordinate, response, bins):
 
 
 def matched_energy_distributions(output, sample, values, stats):
-    """Dimensionless loss and ratio for matched Gen photons above 1 GeV."""
+    """Dimensionless loss and ratio for matched Gen photons above the energy cut."""
     populations = []
     for population, label in zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True):
         selected = (values['analysis_selections'][population]
@@ -274,7 +274,7 @@ def matched_energy_distributions(output, sample, values, stats):
 def gen_reco_energy_histograms(output, sample, values, stats):
     """One matched Gen photon per entry; sum every associated Reco energy."""
     gen_energy = values['gamma']['energy']
-    gen_edges = ENERGY_EDGES[ENERGY_EDGES >= MIN_GEN_ENERGY]
+    gen_edges = np.r_[MIN_GEN_ENERGY, ENERGY_EDGES[ENERGY_EDGES > MIN_GEN_ENERGY]]
     reco_edges = np.r_[ENERGY_EDGES, 60]
     for population, label in zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True):
         selected = (values['analysis_selections'][population] & (gen_energy >= MIN_GEN_ENERGY)
@@ -298,7 +298,7 @@ def gen_reco_energy_histograms(output, sample, values, stats):
             ax.set_xlim(gen_edges[0], gen_edges[-1])
             # Leave a white band above the overflow bin for the sample and population.
             ax.set_ylim(reco_edges[0], reco_edges[-1] + 10)
-            ax.set_xticks([1, 10, 20, 30, 40, 50])
+            ax.set_xticks([MIN_GEN_ENERGY, 10, 20, 30, 40, 50])
             ax.set_yticks([0, 10, 20, 30, 40, 55], ['0', '10', '20', '30', '40', r'$\geq50$'])
             suffix = '_log' if log else ''
             finish(fig, ax, output / f'gen_reco_energy_2d_{population}_{sample}{suffix}.png',
