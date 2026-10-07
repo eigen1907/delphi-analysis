@@ -243,8 +243,8 @@ sums, as in the Photon-only study.
   methods, two Gen energy versions, and three Gen populations for each Reco mode.
   Each matching/cut case compares all three Gen populations in one plot, using
   points with Clopper–Pearson error bars. Counts are printed to the terminal;
-  points have no numerical annotations. Region ticks show names and theta ranges
-  on two lines, with angles in degrees. The
+  points have no numerical annotations. Region ticks show the name followed by
+  each theta range on its own line, with angles in degrees. The
   Gen threshold applies to both numerator and denominator; Beam ISR is excluded.
   All ranges (0–180°) is
   compared with HPC (40–140°), FEMC (10–37° and 143–170°), and STIC (2–10° and
@@ -278,7 +278,9 @@ remain limitations. No summary JSON, note, or validation text files are produced
 
 CMS/mplhep style and DELPHI Simulation are retained, with slightly thicker curves.
 Legends use 22 pt text in one column at the upper right without a frame; other
-text keeps the CMS defaults. A bold symbolic sample label appears separately
+text keeps the CMS defaults, except regional x ticks and labels, also at 22 pt.
+All ISR study figures use an 11 × 9 inch canvas. A bold symbolic sample label
+appears separately
 at the upper left, e.g. Z → μ⁺μ⁻. Only `0p1_cut` plots display the Gen energy cut
 caption. No detector-region guides are drawn.
 Counts use sqrt(N) errors; efficiencies use 68.27% Clopper–Pearson intervals.

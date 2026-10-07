@@ -293,14 +293,14 @@ def detector_efficiency(study, samples):
                'FEMC': ((theta > 10) & (theta < 37)) | ((theta > 143) & (theta < 170)),
                'STIC': ((theta > 2) & (theta < 10)) | ((theta > 170) & (theta < 178))}
     x = np.arange(len(regions))
-    region_labels = ('All ranges\n(0–180)', 'HPC\n(40–140)',
-                     'FEMC\n(10–37, 143–170)', 'STIC\n(2–10, 170–178)')
+    region_labels = ('All ranges\n(0-180)', 'HPC\n(40-140)',
+                     'FEMC\n(10-37)\n(143-170)', 'STIC\n(2-10)\n(170-178)')
     for source, method in (('reco', 'truth_matching'), ('angular', 'angular_matching')):
         matched = np.concatenate([value[source]['reco_count'] > 0 for value in samples.values()])
         for cut_name, min_gen_energy in ENERGY_CUTS:
             output = study / '05_detector_efficiency' / method / cut_name
             output.mkdir(parents=True, exist_ok=True)
-            fig, ax = plt.subplots(figsize=(12.5, 9))
+            fig, ax = plt.subplots(figsize=FIGURE_SIZE)
             for index, (population, label) in enumerate(zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True)):
                 selected = np.concatenate([value['analysis_selections'][population] for value in samples.values()])
                 selected &= energy >= min_gen_energy
@@ -316,7 +316,8 @@ def detector_efficiency(study, samples):
             if min_gen_energy:
                 ax.text(0.02, 0.89, rf'$E_\gamma^{{\rm gen}}\geq{min_gen_energy}$ GeV',
                         transform=ax.transAxes, va='top')
-            ax.set_xticks(x, region_labels)
+            ax.set_xticks(x, region_labels, fontsize=22)
+            ax.xaxis.label.set_fontsize(22)
             ax.set_xlim(-0.55, 3.55)
             ax.set_ylim(-0.03, 1.35)
             ax.set_yticks(np.linspace(0, 1, 6))
