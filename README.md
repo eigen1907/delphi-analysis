@@ -241,9 +241,12 @@ sums, as in the Photon-only study.
   printed to the terminal. No Reco energy cut is added.
 - **05:** Five-sample pooled regional efficiency uses the same two matching
   methods, two Gen energy versions, and three Gen populations for each Reco mode.
-  Each case has a separate plot with counts and Clopper–Pearson intervals. The
+  Each matching/cut case compares all three Gen populations in one plot, using
+  points with Clopper–Pearson error bars. Counts are printed to the terminal;
+  points have no numerical annotations. Region ticks show names and theta ranges
+  on two lines, with angles in degrees. The
   Gen threshold applies to both numerator and denominator; Beam ISR is excluded.
-  All angles is
+  All ranges (0–180°) is
   compared with HPC (40–140°), FEMC (10–37° and 143–170°), and STIC (2–10° and
   170–178°), using open angular intervals. No Reco energy cut is applied.
   A Gen photon succeeds once when it has at least one matched Reco candidate,
@@ -251,7 +254,7 @@ sums, as in the Photon-only study.
   association; angular results use the stage 03 cone cut with no truth gate.
   Missing forward truth links and accidental angular associations limit a direct
   interpretation as detector performance. Filenames are
-  `efficiency_by_detector_<population>_combined.png`.
+  `efficiency_by_detector_combined.png`.
 
 Nominal truth compares `Part_simIdx → Sim ancestry → first Gen anchor` with
 `Gen-linked Sim → descendants → SimPart_partIdx`. A unique union origin is

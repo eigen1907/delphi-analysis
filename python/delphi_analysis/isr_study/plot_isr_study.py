@@ -288,16 +288,19 @@ def detector_efficiency(study, samples):
     energy = np.concatenate([value['gamma']['energy'] for value in samples.values()])
     cosine = np.concatenate([value['gamma']['cos_theta'] for value in samples.values()])
     theta = np.rad2deg(np.arccos(np.clip(cosine, -1, 1)))
-    regions = {'All angles': np.ones(len(theta), dtype=bool),
+    regions = {'All ranges': np.ones(len(theta), dtype=bool),
                'HPC': (theta > 40) & (theta < 140),
                'FEMC': ((theta > 10) & (theta < 37)) | ((theta > 143) & (theta < 170)),
                'STIC': ((theta > 2) & (theta < 10)) | ((theta > 170) & (theta < 178))}
     x = np.arange(len(regions))
+    region_labels = ('All ranges\n(0–180)', 'HPC\n(40–140)',
+                     'FEMC\n(10–37, 143–170)', 'STIC\n(2–10, 170–178)')
     for source, method in (('reco', 'truth_matching'), ('angular', 'angular_matching')):
         matched = np.concatenate([value[source]['reco_count'] > 0 for value in samples.values()])
         for cut_name, min_gen_energy in ENERGY_CUTS:
             output = study / '05_detector_efficiency' / method / cut_name
             output.mkdir(parents=True, exist_ok=True)
+            fig, ax = plt.subplots(figsize=(12.5, 9))
             for index, (population, label) in enumerate(zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True)):
                 selected = np.concatenate([value['analysis_selections'][population] for value in samples.values()])
                 selected &= energy >= min_gen_energy
@@ -305,23 +308,20 @@ def detector_efficiency(study, samples):
                 numerator = np.array([(selected & region & matched).sum() for region in regions.values()])
                 efficiency = numerator / denominator
                 lower, upper = clopper_pearson(numerator, denominator)
-                fig, ax = plt.subplots(figsize=FIGURE_SIZE)
-                ax.bar(x, efficiency, color=f'C{index}', width=0.6, label=label)
-                ax.errorbar(x, efficiency, yerr=[efficiency - lower, upper - efficiency],
-                            fmt='none', color='black', capsize=4)
-                for position, passed, total, high in zip(x, numerator, denominator, upper, strict=True):
-                    text = f'{100 * passed / total:.1f}%\n' + rf'$\frac{{{passed:,}}}{{{total:,}}}$'
-                    ax.text(position, high + 0.025, text, ha='center', va='bottom')
-                if min_gen_energy:
-                    ax.text(0.02, 0.89, rf'$E_\gamma^{{\rm gen}}\geq{min_gen_energy}$ GeV',
-                            transform=ax.transAxes, va='top')
-                ax.set_xticks(x, regions)
-                ax.set_ylim(0, 1.35)
-                ax.set_yticks(np.linspace(0, 1, 6))
-                finish(fig, ax, output / f'efficiency_by_detector_{population}_combined.png',
-                       'combined', 'Region', 'Efficiency')
+                ax.errorbar(x + (index - 1) * 0.15, efficiency,
+                            yerr=[efficiency - lower, upper - efficiency], fmt='o',
+                            color=f'C{index}', capsize=4, markersize=7, label=label)
                 print(f'{study.name} {method}/{cut_name} {population} detector counts: '
                       f'{dict(zip(regions, zip(numerator, denominator), strict=True))}', flush=True)
+            if min_gen_energy:
+                ax.text(0.02, 0.89, rf'$E_\gamma^{{\rm gen}}\geq{min_gen_energy}$ GeV',
+                        transform=ax.transAxes, va='top')
+            ax.set_xticks(x, region_labels)
+            ax.set_xlim(-0.55, 3.55)
+            ax.set_ylim(-0.03, 1.35)
+            ax.set_yticks(np.linspace(0, 1, 6))
+            finish(fig, ax, output / 'efficiency_by_detector_combined.png',
+                   'combined', 'Region\n' + r'($\theta$ [deg])', 'Efficiency')
 
 
 def matching_results(study, sample, values, bins):
