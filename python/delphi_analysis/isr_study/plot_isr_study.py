@@ -232,33 +232,43 @@ def energy_ratio_distributions(output, sample, values, stats, cut_index):
             counts = np.histogram(in_range, bins=bins)[0]
             tail = np.count_nonzero(ratio > 3)
             assert counts.sum() + tail == len(ratio)
-            histograms.append((counts, label, in_range.mean(), tail / len(ratio)))
+            mean_entries = ratio[(ratio > 0) & (ratio < 3)] if name == 'event_energy_ratio' else in_range
+            histograms.append((counts, label, mean_entries.mean(), tail / len(ratio),
+                               np.count_nonzero(ratio == 0) / len(ratio)))
             print(f'{sample} {output.parent.name}/{output.name} {label} {name}: '
                   f'>3={tail}/{len(ratio)}', flush=True)
-        maximum = max(counts.max() for counts, _, _, _ in histograms)
+        maximum = max(counts.max() for counts, _, _, _, _ in histograms)
         for log in (False, True):
             fig, ax = plt.subplots(figsize=FIGURE_SIZE)
-            for index, (counts, label, _, _) in enumerate(histograms):
+            for index, (counts, label, _, _, _) in enumerate(histograms):
                 color = f'C{index}'
                 ax.stairs(counts, bins, label=label, color=color)
                 shown = counts > 0
                 ax.errorbar(centers[shown], counts[shown], yerr=np.sqrt(counts[shown]),
                             fmt='none', color=color, capsize=2)
             # Statistics use separate legends with empty handles, aligned to the Gen labels.
-            groups = ax.legend(title='Gen', loc='upper right', bbox_to_anchor=(0.46, 0.96),
+            anchors = (0.27, 0.54, 0.77, 0.99) if name == 'event_energy_ratio' else (0.46, 0.75, 0.99)
+            top = 0.86 if name == 'event_energy_ratio' else 0.96
+            groups = ax.legend(title='Gen', loc='upper right', bbox_to_anchor=(anchors[0], top),
                                frameon=False, handleheight=1.6)
             ax.add_artist(groups)
             empty = [Line2D([], [], color='none') for _ in histograms]
-            means = ax.legend(empty, [f'{mean:.2f}' for _, _, mean, _ in histograms],
-                              title='Mean (shown)', loc='upper right', bbox_to_anchor=(0.75, 0.96),
+            mean_title = r'Mean $(0<R<3)$' if name == 'event_energy_ratio' else 'Mean (shown)'
+            means = ax.legend(empty, [f'{mean:.2f}' for _, _, mean, _, _ in histograms],
+                              title=mean_title, loc='upper right', bbox_to_anchor=(anchors[1], top),
                               frameon=False, handlelength=0, handletextpad=0, handleheight=1.6)
             ax.add_artist(means)
-            ax.legend(empty, [f'{fraction:.4f}' for _, _, _, fraction in histograms],
-                      title='Frac. (>3)', loc='upper right', bbox_to_anchor=(0.99, 0.96),
+            if name == 'event_energy_ratio':
+                zeros = ax.legend(empty, [f'{fraction:.4f}' for _, _, _, _, fraction in histograms],
+                                  title='Frac. (=0)', loc='upper right', bbox_to_anchor=(anchors[2], top),
+                                  frameon=False, handlelength=0, handletextpad=0, handleheight=1.6)
+                ax.add_artist(zeros)
+            ax.legend(empty, [f'{fraction:.4f}' for _, _, _, fraction, _ in histograms],
+                      title='Frac. (>3)', loc='upper right', bbox_to_anchor=(anchors[-1], top),
                       frameon=False, handlelength=0, handletextpad=0, handleheight=1.6)
-            cut_label = (rf'$E_\gamma^{{\rm gen}}\geq{min_gen_energy}$ GeV'
-                         if min_gen_energy else 'No Gen E cut')
-            ax.text(0.02, 0.89, cut_label, transform=ax.transAxes, va='top')
+            if min_gen_energy:
+                ax.text(0.02, 0.89, rf'$E_\gamma^{{\rm gen}}\geq{min_gen_energy}$ GeV',
+                        transform=ax.transAxes, va='top')
             ax.set_xlim(0, 3)
             ax.set_xticks(np.arange(0, 3.5, 0.5))
             if log:
@@ -302,9 +312,9 @@ def detector_efficiency(study, samples):
                 for position, passed, total, high in zip(x, numerator, denominator, upper, strict=True):
                     text = f'{100 * passed / total:.1f}%\n' + rf'$\frac{{{passed:,}}}{{{total:,}}}$'
                     ax.text(position, high + 0.025, text, ha='center', va='bottom')
-                cut_label = (rf'$E_\gamma^{{\rm gen}}\geq{min_gen_energy}$ GeV'
-                             if min_gen_energy else 'No Gen E cut')
-                ax.text(0.02, 0.89, cut_label, transform=ax.transAxes, va='top')
+                if min_gen_energy:
+                    ax.text(0.02, 0.89, rf'$E_\gamma^{{\rm gen}}\geq{min_gen_energy}$ GeV',
+                            transform=ax.transAxes, va='top')
                 ax.set_xticks(x, regions)
                 ax.set_ylim(0, 1.35)
                 ax.set_yticks(np.linspace(0, 1, 6))
@@ -321,8 +331,6 @@ def matching_results(study, sample, values, bins):
         for cut_index, (cut_name, min_gen_energy) in enumerate(ENERGY_CUTS):
             output = study / '04_matching_result' / method / cut_name
             output.mkdir(parents=True, exist_ok=True)
-            cut_label = (rf'$E_\gamma^{{\rm gen}}\geq{min_gen_energy}$ GeV'
-                         if min_gen_energy else 'No Gen E cut')
             # The same Gen selection defines every observable, including efficiency.
             selections = {name: selected & (gamma['energy'] >= min_gen_energy)
                           for name, selected in values['analysis_selections'].items()}
@@ -350,7 +358,9 @@ def matching_results(study, sample, values, bins):
                 ax.set_xlim(edges[0], edges[-1])
                 ax.set_ylim(0, 1.5)
                 ax.set_yticks(np.linspace(0, 1, 6))
-                ax.text(0.02, 0.89, cut_label, transform=ax.transAxes, va='top')
+                if min_gen_energy:
+                    ax.text(0.02, 0.89, rf'$E_\gamma^{{\rm gen}}\geq{min_gen_energy}$ GeV',
+                            transform=ax.transAxes, va='top')
                 finish(fig, ax, output / f'efficiency_vs_{coordinate}_{sample}.png', sample,
                        XLABELS[coordinate], 'Efficiency')
 
@@ -359,6 +369,8 @@ def plot_isr_study(input_root: Path, output_root: Path):
     mh.style.use(mh.styles.CMS)
     plt.rcParams['lines.linewidth'] = 2
     plt.rcParams['patch.linewidth'] = 1.5
+    plt.rcParams['legend.fontsize'] = 22
+    plt.rcParams['legend.title_fontsize'] = 22
     study = output_root / 'isr_study'
     study.mkdir(parents=True, exist_ok=True)
     # Read each event once: Gen selection, truth association, and angular scan.

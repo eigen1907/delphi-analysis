@@ -231,10 +231,12 @@ sums, as in the Photon-only study.
   scaling, with count errors and linear-y/`_log` versions. Ratio one means equal
   energy. Their filenames are `matched_energy_ratio_<sample>[_log].png` and
   `event_energy_ratio_<sample>[_log].png`.
-  Separate one-column legends align Gen selection, `Mean (shown)`, and the tail
-  fraction, using empty handles for statistics. The mean uses unbinned values
-  inside 0–3, including its endpoints. Ratio >3 is reported as a decimal fraction
-  of all eligible finite entries: matched photons or events, respectively.
+  Separate one-column legends align Gen selection and statistics, using empty
+  handles. The matched-photon mean uses unbinned ratios **0 ≤ R ≤ 3**; the event
+  mean uses **0 < R < 3**, excluding both endpoints. Histograms still include
+  zero and three. The event legend also reports `Frac. (=0)`. Zero and >3 tail
+  fractions use the same denominator: all eligible finite event ratios, including
+  zero and overflow. Photon tail fractions use all finite matched-photon ratios.
   Tails are neither folded into bins nor clipped; excluded and tail counts are
   printed to the terminal. No Reco energy cut is added.
 - **05:** Five-sample pooled regional efficiency uses the same two matching
@@ -271,10 +273,11 @@ Saved Gen-to-Sim coverage is a link diagnostic,
 not detector transport efficiency; missing links and reverse-only Beam associations
 remain limitations. No summary JSON, note, or validation text files are produced.
 
-CMS/mplhep defaults and DELPHI Simulation are retained, with slightly thicker
-curves. Legends use one column at the upper right without a frame; a bold symbolic
-sample label appears separately
-at the upper left, e.g. Z → μ⁺μ⁻. No detector-region guides are drawn.
+CMS/mplhep style and DELPHI Simulation are retained, with slightly thicker curves.
+Legends use 22 pt text in one column at the upper right without a frame; other
+text keeps the CMS defaults. A bold symbolic sample label appears separately
+at the upper left, e.g. Z → μ⁺μ⁻. Only `0p1_cut` plots display the Gen energy cut
+caption. No detector-region guides are drawn.
 Counts use sqrt(N) errors; efficiencies use 68.27% Clopper–Pearson intervals.
 Linear energy bins start at 1 GeV width and widen at higher energies; this adds
 no energy selection. Log-energy plots retain equally spaced logarithmic bins.
