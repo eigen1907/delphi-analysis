@@ -129,7 +129,7 @@ Code and recipes are grouped under `isr_study/`.
 
 ```text
 plots/20260828_florian/isr_study/
-  {gamma,gamma_plus_conversion,gamma_pid}/
+  {gamma,gamma_plus_conversion,gamma_pid,gamma_plus_conversion_acceptance}/
     01_sample_distribution/{gen_gamma,gen_isr,gen_no_isr,gen_isr_non_beam}/
     02_truth_link_matching_validation/
     03_angular_matching_validation/
@@ -153,7 +153,7 @@ incoming electron/positron parent. FSR starts at the hard parent or its direct
 sample-final-state daughter. Decayed is the previous Others category; here it
 contains π⁰, η, and ω decay photons in Ztautau. Stages 04 and 05 compare the full
 Gen energy range (`no_cut`) with Gen E ≥ 0.1 GeV (`0p1_cut`) for every plot.
-No additional angular, fiducial, or lock cuts are applied.
+The three standard modes have no additional angular, fiducial, or lock cuts.
 
 Stages 02–05 exclude Beam ISR from all Gen selections, numerators, and
 denominators, and compare three populations in each plot:
@@ -187,6 +187,30 @@ condition, charge cut, or lock cut is added. Code-21 Parts can include conversio
 parents and neutral objects outside the Photon view. Overlapping saved
 parent/descendant representations retain their counts but have undefined energy
 sums, as in the Photon-only study.
+
+`gamma_plus_conversion_acceptance` repeats stages 01–05 with the same inclusive
+Photon + conversion Reco pool and stable Gen photons restricted to the union of
+these **Gen theta** intervals, in degrees, with strict endpoints:
+
+| Region | Gen theta intervals |
+| --- | --- |
+| STIC | 1.66–10.60, 169.40–178.34 |
+| FEMC | 10–36.5, 143.5–170 |
+| HPC | 43.1–88.7, 91.3–136.9 |
+
+This Gen selection applies to every Gen population, efficiency numerator and
+denominator, both energy-ratio histograms, and the angular truth-retention scan
+and event cone union. Truth origins are resolved using all original anchors
+before this selection. Reco candidates have no acceptance cut: stage 01 Reco
+spectra and event counts are identical to `gamma_plus_conversion`. All 449,999
+events remain, including events with no accepted Gen photons; their Gen
+multiplicity is zero and their undefined event ratio is excluded. Beam ISR lies
+outside the acceptance naturally. The angular cone cut remains the one selected
+for baseline `gamma_plus_conversion`; acceptance changes only the Gen selection.
+Stage 05 uses these exact intervals in this
+mode; the standard modes retain their existing region intervals. STIC and FEMC
+overlap at 10–10.60 and 169.40–170: regional counts may overlap, but the Gen
+acceptance union counts each photon once.
 
 - **01:** Stacked Gen colors and one inclusive Reco outline with
   hatching on one axis. Reco is identical across the four Gen selections. Energy and
@@ -244,7 +268,7 @@ sums, as in the Photon-only study.
   points have no numerical annotations. Region ticks show the name followed by
   each theta range on its own line, with angles in degrees. The
   Gen threshold applies to both numerator and denominator; Beam ISR is excluded.
-  All ranges (0–180°) is
+  In the standard modes, All ranges (0–180°) is
   compared with HPC (40–140°), FEMC (10–37° and 143–170°), and STIC (2–10° and
   170–178°), using open angular intervals. No Reco energy cut is applied.
   A Gen photon succeeds once when it has at least one matched Reco candidate,

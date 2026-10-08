@@ -16,8 +16,13 @@ GEN_SELECTIONS = ("gen_gamma", "gen_isr", "gen_no_isr", "gen_isr_non_beam")
 ANALYSIS_SELECTIONS = ("gen_gamma", "gen_isr", "gen_no_isr")
 GEN_LABELS = (r"$\gamma_{\mathrm{all}}$", r"$\gamma_{\mathrm{ISR}}$", r"$\gamma_{\mathrm{no\ ISR}}$")
 ENERGY_CUTS = (("no_cut", 0), ("0p1_cut", 0.1))
+ACCEPTANCE_MODE = "gamma_plus_conversion_acceptance"
+EM_REGIONS = {"HPC": ((43.1, 88.7), (91.3, 136.9)),
+              "FEMC": ((10, 36.5), (143.5, 170)),
+              "STIC": ((1.66, 10.6), (169.4, 178.34))}
 RECO_LABELS = {"gamma": r"$\gamma$", "gamma_plus_conversion": r"$\gamma+\gamma_{\mathrm{conv}}$",
-               "gamma_pid": r"$\gamma_{\mathrm{Part}}$"}
+               "gamma_pid": r"$\gamma_{\mathrm{Part}}$",
+               ACCEPTANCE_MODE: r"$\gamma+\gamma_{\mathrm{conv}}$"}
 LINK_STATUSES = ("agreement", "forward_only", "reverse_only", "conflict", "no_origin")
 BRANCHES = (
     "GenPart_pdgId", "GenPart_status", "GenPart_parentIdx", *GEN_P4,
@@ -39,6 +44,27 @@ def analysis_selections(category):
     """Matching studies exclude the beam-collinear generator component."""
     return dict(gen_gamma=category != "beam_isr", gen_isr=category == "nonbeam_isr",
                 gen_no_isr=np.isin(category, ("fsr", "decayed")))
+
+
+def em_regions(theta):
+    """Electromagnetic calorimeter regions, with theta in degrees and open bounds."""
+    theta = np.asarray(theta)
+    return {name: np.logical_or.reduce([(theta > low) & (theta < high)
+                                       for low, high in intervals])
+            for name, intervals in EM_REGIONS.items()}
+
+
+def em_acceptance(cos_theta):
+    """Gen acceptance from the union of the same theta regions used in plots."""
+    theta = np.rad2deg(np.arccos(np.clip(cos_theta, -1, 1)))
+    return np.logical_or.reduce(list(em_regions(theta).values()))
+
+
+def with_gen_acceptance(event):
+    """Select accepted Gen photons while retaining the full truth and Reco records."""
+    accepted = em_acceptance(unit_momenta(event["all_gamma_p4"])[:, 2])
+    return dict(event, **{field: {name: mask & accepted for name, mask in event[field].items()}
+                         for field in ("selections", "analysis_selections")})
 
 
 def unit_momenta(p4):
@@ -128,7 +154,7 @@ def analyze_event(raw, sample):
     hard_parent = parents[daughters[0]]
     all_gamma_idx = np.flatnonzero((pdgs == 22) & (statuses == 1))
     all_gamma_p4 = np.column_stack([raw[name] for name in GEN_P4])[all_gamma_idx]
-    unit_momenta(all_gamma_p4)
+    accepted = em_acceptance(unit_momenta(all_gamma_p4)[:, 2])
     all_gamma_category = []
     for gen, p4 in zip(all_gamma_idx, all_gamma_p4, strict=True):
         origin = photon_origin(gen, pdgs, parents, hard_parent, TARGET_PDG[sample])
@@ -341,6 +367,7 @@ def analyze_event(raw, sample):
         gamma_pid=dict(p4=pid_p4, gen_idx=pid_origins, energy_valid=pid_valid,
                        geometric_energy_valid=pid_geometry_valid, stats=pid_stats),
     )
+    reco[ACCEPTANCE_MODE] = reco["gamma_plus_conversion"]
     links = dict(
         gamma=([{int(forward[p])} if forward[p] >= 0 else set() for p in photon_parts],
                [reverse[p] for p in photon_parts]),
@@ -348,13 +375,16 @@ def analyze_event(raw, sample):
         gamma_pid=([{int(forward[p])} if forward[p] >= 0 else set() for p in pid_parts],
                    [reverse[p] for p in pid_parts]),
     )
+    links[ACCEPTANCE_MODE] = links["gamma_plus_conversion"]
     matching_validation = {}
     selected_origins = {name: set(all_gamma_idx[mask]) for name, mask in analysis.items()}
+    accepted_origins = {name: set(all_gamma_idx[mask & accepted]) for name, mask in analysis.items()}
     for mode, (forward_links, reverse_links) in links.items():
         counts = {gen: Counter(dict.fromkeys(LINK_STATUSES, 0)) for gen in ANALYSIS_SELECTIONS}
+        origins = accepted_origins if mode == ACCEPTANCE_MODE else selected_origins
         for first, second in zip(forward_links, reverse_links, strict=True):
             status = link_status(first, second)
-            for gen_name, selected in selected_origins.items():
+            for gen_name, selected in origins.items():
                 if (first | second) & selected:
                     counts[gen_name][status] += 1
         matching_validation[mode] = counts
@@ -375,6 +405,7 @@ def read_sample(input_root: Path, sample: str, angle_accumulator):
     ) for mode in RECO_LABELS}
     gen_event_counts = {name: [] for name in
                         ("all_gamma", "all_isr", "beam_isr", "nonbeam_isr", "fsr", "decayed")}
+    accepted_gen_event_counts = {name: [] for name in gen_event_counts}
     events = 0
     directory = input_root / f"20260828_100kTest_{sample}_photosFSR" / "final_root"
     paths = sorted(directory.glob("job_*/nanoaod.root"))
@@ -389,14 +420,19 @@ def read_sample(input_root: Path, sample: str, angle_accumulator):
                 event = analyze_event({name: values[entry] for name, values in columns.items()}, sample)
                 gamma_p4 = event["all_gamma_p4"]
                 categories = event["all_gamma_category"]
-                counts = dict(all_gamma=len(categories),
-                              all_isr=int(event["selections"]["gen_isr"].sum()))
-                counts.update({name: int(np.count_nonzero(categories == name))
-                               for name in ("beam_isr", "nonbeam_isr", "fsr", "decayed")})
-                for name, count in counts.items():
-                    gen_event_counts[name].append(count)
+                cos_theta = unit_momenta(gamma_p4)[:, 2]
+                for event_counts, selected in (
+                    (gen_event_counts, np.ones(len(categories), dtype=bool)),
+                    (accepted_gen_event_counts, em_acceptance(cos_theta)),
+                ):
+                    counts = dict(all_gamma=int(selected.sum()),
+                                  all_isr=int((event["selections"]["gen_isr"] & selected).sum()))
+                    counts.update({name: int(np.count_nonzero(categories[selected] == name))
+                                   for name in ("beam_isr", "nonbeam_isr", "fsr", "decayed")})
+                    for name, count in counts.items():
+                        event_counts[name].append(count)
                 gamma["energy"].extend(gamma_p4[:, 3])
-                gamma["cos_theta"].extend(unit_momenta(gamma_p4)[:, 2])
+                gamma["cos_theta"].extend(cos_theta)
                 gamma["category"].extend(categories)
                 for mode, objects in event["reco"].items():
                     values = results[mode]
@@ -414,9 +450,12 @@ def read_sample(input_root: Path, sample: str, angle_accumulator):
         print(f"{sample} {path.parent.name}: {events} events", flush=True)
     gamma = {name: np.asarray(values) for name, values in gamma.items()}
     gen_event_counts = {name: np.asarray(values) for name, values in gen_event_counts.items()}
+    accepted_gen_event_counts = {name: np.asarray(values) for name, values in accepted_gen_event_counts.items()}
     selections = gen_selections(gamma["category"])
+    accepted = em_acceptance(gamma["cos_theta"])
     shared = dict(events=events, gamma=gamma, selections=selections,
-                  analysis_selections=analysis_selections(gamma["category"]), gen_event_counts=gen_event_counts)
+                  analysis_selections=analysis_selections(gamma["category"]), gen_event_counts=gen_event_counts,
+                  gen_event_index=np.repeat(np.arange(events), gen_event_counts["all_gamma"]))
     for mode, values in results.items():
         values["reco"] = {field: np.asarray(entries) for field, entries in values["reco"].items()}
         values["reco_distributions"] = {field: np.asarray(entries)
@@ -424,7 +463,12 @@ def read_sample(input_root: Path, sample: str, angle_accumulator):
         values["reco_event_counts"] = np.asarray(values["reco_event_counts"])
         values["matching_validation"] = {gen: dict(counts) for gen, counts in values["matching_validation"].items()}
         values.update(shared, reco_label=RECO_LABELS[mode])
+        if mode == ACCEPTANCE_MODE:
+            values.update({field: {name: mask & accepted for name, mask in shared[field].items()}
+                           for field in ("selections", "analysis_selections")})
+            values["gen_event_counts"] = accepted_gen_event_counts
         reco = values["reco"]
-        print(f"{sample} {mode}: Gen={len(gamma['energy'])}, with Reco={np.count_nonzero(reco['reco_count'])}, "
-              f"associated objects={reco['reco_count'].sum()}", flush=True)
+        selected = values["selections"]["gen_gamma"]
+        print(f"{sample} {mode}: Gen={selected.sum()}, with Reco={np.count_nonzero(reco['reco_count'][selected])}, "
+              f"associated objects={reco['reco_count'][selected].sum()}", flush=True)
     return results

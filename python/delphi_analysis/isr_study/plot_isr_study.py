@@ -9,7 +9,11 @@ from matplotlib.ticker import MaxNLocator
 from scipy.stats import beta
 
 from .angle_matching import accumulate, angular_stats, choose_cut, new_accumulator, plot_angle_matching
-from .data import ANALYSIS_SELECTIONS, ENERGY_CUTS, GEN_LABELS, GEN_SELECTIONS, LINK_STATUSES, RECO_LABELS, SAMPLES, read_sample
+from .data import (
+    ACCEPTANCE_MODE, ANALYSIS_SELECTIONS, EM_REGIONS, ENERGY_CUTS, GEN_LABELS,
+    GEN_SELECTIONS, LINK_STATUSES, RECO_LABELS, SAMPLES, em_regions, read_sample,
+    with_gen_acceptance,
+)
 
 FIGURE_SIZE = (11, 9)
 COVERAGE = 0.6826894921370859
@@ -126,7 +130,8 @@ def sample_distributions(study, sample, values, bins):
                 gen_spectrum(ax, gen_entries[gen_selected], gamma['category'][gen_selected],
                              GEN_STACKS[gen_name], edges, values['events'], log_energy)
                 reco_height = reco_spectrum(ax, reco_entries, edges, values['events'], log_energy, values['reco_label'])
-                all_gen_counts = np.histogram(gen_entries[np.isfinite(gen_entries)], bins=edges)[0]
+                all_gen_entries = gen_entries[values['selections']['gen_gamma']]
+                all_gen_counts = np.histogram(all_gen_entries[np.isfinite(all_gen_entries)], bins=edges)[0]
                 # Use one y range for all four Gen selections.
                 height = max(all_gen_counts.max() / values['events'], reco_height.max(), 1 / values['events'])
                 if log:
@@ -197,7 +202,7 @@ def energy_ratio_distributions(output, sample, values, stats, cut_index):
     """Gen-photon and event energy ratios, including unmatched photons at zero."""
     _, min_gen_energy = ENERGY_CUTS[cut_index]
     energy = values['gamma']['energy']
-    event_index = np.repeat(np.arange(values['events']), values['gen_event_counts']['all_gamma'])
+    event_index = values['gen_event_index']
     populations = dict(gen_energy_ratio=[], event_energy_ratio=[])
     for index, (population, label) in enumerate(zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True)):
         selected = values['analysis_selections'][population] & (energy >= min_gen_energy)
@@ -295,6 +300,10 @@ def detector_efficiency(study, sample, values):
     x = np.arange(len(regions))
     region_labels = ('All ranges\n(0-180)', 'HPC\n(40-140)',
                      'FEMC\n(10-37)\n(143-170)', 'STIC\n(2-10)\n(170-178)')
+    if study.name == ACCEPTANCE_MODE:
+        regions.update(em_regions(theta))
+        region_labels = [region_labels[0]] + [name + '\n' + '\n'.join(
+            f'({low:g}-{high:g})' for low, high in intervals) for name, intervals in EM_REGIONS.items()]
     for source, method in (('reco', 'truth_matching'), ('angular', 'angular_matching')):
         matched = values[source]['reco_count'] > 0
         for cut_name, min_gen_energy in ENERGY_CUTS:
@@ -381,7 +390,8 @@ def plot_isr_study(input_root: Path, output_root: Path):
             angles[mode][sample] = new_accumulator()
         def scan(event):
             for mode, objects in event['reco'].items():
-                accumulate(angles[mode][sample], event, objects)
+                selected_event = with_gen_acceptance(event) if mode == ACCEPTANCE_MODE else event
+                accumulate(angles[mode][sample], selected_event, objects)
         samples = read_sample(input_root, sample, scan)
         for mode, value in samples.items():
             values[mode][sample] = value
@@ -393,8 +403,9 @@ def plot_isr_study(input_root: Path, output_root: Path):
     gen_bins = dict(bins, energy=energy_bins(np.concatenate([value['gamma']['energy'] for value in values['gamma'].values()])))
     for mode in RECO_LABELS:
         output = study / mode
-        # Apply the same 99% pooled non-beam ISR truth-retention criterion to each mode.
-        cut = choose_cut(angles[mode].values())
+        # Keep the gamma+conversion cone cut for an acceptance-only comparison.
+        reference = 'gamma_plus_conversion' if mode == ACCEPTANCE_MODE else mode
+        cut = choose_cut(angles[reference].values())
         for sample, value in values[mode].items():
             value['angular'] = angular_stats(angles[mode][sample], cut)
             sample_distributions(output, sample, value, bins)
