@@ -298,6 +298,26 @@ Saved Gen-to-Sim coverage is a link diagnostic,
 not detector transport efficiency; missing links and reverse-only Beam associations
 remain limitations. No summary JSON, note, or validation text files are produced.
 
+### Part gamma angular-only check
+
+Run `bash runs/isr_study/plot_part_gamma_angular.sh` for a separate output in
+`isr_study/part_gamma_angular/`. It reuses the `gamma_pid` candidate pool:
+`Part_pdgId == 21` and `Part_fourMomentum`, without Photon membership, additional
+PhotonConv candidates, or truth-link requirements. Matching uses only a **3D
+opening angle ≤ 3°**, fixed to the current study's reference cut. No Reco energy,
+charge, lock, or detector-acceptance cut is applied. Zero-momentum candidates
+have no direction and cannot be angular-matched.
+
+Stages 04 and 05 retain the existing All / ISR / no ISR Gen populations,
+excluding Beam ISR, with `no_cut` and Gen E ≥ 0.1 GeV (`0p1_cut`). Outputs are
+efficiency versus Gen energy and cos(theta), per-Gen and per-event energy ratios
+(linear and log-y), and regional efficiencies. Candidates can enter multiple Gen
+cones; event energy counts each candidate once. Saved parent/descendant energy
+overlaps exclude ambiguous ratios but still count for efficiency. Code 21 also
+includes unidentified neutral Parts, so this is a geometric candidate check,
+not a strict photon-ID efficiency or a purity measurement. The main study's
+truth matching and selected cut are unchanged.
+
 CMS/mplhep style and DELPHI Simulation are retained, with slightly thicker curves.
 Legends use 22 pt text in one column at the upper right without a frame; other
 text keeps the CMS defaults, except regional x ticks and labels, also at 22 pt.

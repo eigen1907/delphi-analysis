@@ -288,7 +288,7 @@ def energy_ratio_distributions(output, sample, values, stats, cut_index):
             finish(fig, ax, output / f'{name}_{sample}{suffix}.png', sample, xlabel, ylabel)
 
 
-def detector_efficiency(study, sample, values):
+def detector_efficiency(study, sample, values, stats, method):
     """Regional efficiencies for one sample, with the same Gen cuts as stage 04."""
     energy = values['gamma']['energy']
     cosine = values['gamma']['cos_theta']
@@ -304,82 +304,83 @@ def detector_efficiency(study, sample, values):
         regions.update(em_regions(theta))
         region_labels = [region_labels[0]] + [name + '\n' + '\n'.join(
             f'({low:g}-{high:g})' for low, high in intervals) for name, intervals in EM_REGIONS.items()]
-    for source, method in (('reco', 'truth_matching'), ('angular', 'angular_matching')):
-        matched = values[source]['reco_count'] > 0
-        for cut_name, min_gen_energy in ENERGY_CUTS:
-            output = study / '05_detector_efficiency' / method / cut_name
-            output.mkdir(parents=True, exist_ok=True)
+    matched = stats['reco_count'] > 0
+    for cut_name, min_gen_energy in ENERGY_CUTS:
+        output = study / '05_detector_efficiency' / method / cut_name
+        output.mkdir(parents=True, exist_ok=True)
+        fig, ax = plt.subplots(figsize=FIGURE_SIZE)
+        for index, (population, label) in enumerate(zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True)):
+            selected = values['analysis_selections'][population] & (energy >= min_gen_energy)
+            denominator = np.array([(selected & region).sum() for region in regions.values()])
+            numerator = np.array([(selected & region & matched).sum() for region in regions.values()])
+            efficiency = numerator / denominator
+            lower, upper = clopper_pearson(numerator, denominator)
+            ax.errorbar(x, efficiency,
+                        yerr=[efficiency - lower, upper - efficiency], fmt='o',
+                        color=f'C{index}', capsize=4, markersize=9, alpha=0.7, label=label)
+            print(f'{study.name} {sample} {method}/{cut_name} {population} detector counts: '
+                  f'{dict(zip(regions, zip(numerator, denominator), strict=True))}', flush=True)
+        if min_gen_energy:
+            ax.text(0.02, 0.89, rf'$E_\gamma^{{\rm gen}}\geq{min_gen_energy}$ GeV',
+                    transform=ax.transAxes, va='top')
+        ax.set_xticks(x, region_labels, fontsize=22)
+        ax.xaxis.label.set_fontsize(22)
+        ax.set_xlim(-0.55, 3.55)
+        ax.set_ylim(-0.03, 1.35)
+        ax.set_yticks(np.linspace(0, 1, 6))
+        finish(fig, ax, output / f'efficiency_by_detector_{sample}.png',
+               sample, 'Region\n' + r'($\theta$ [deg])', 'Efficiency')
+
+
+def matching_results(study, sample, values, bins, stats, method):
+    gamma = values['gamma']
+    for cut_index, (cut_name, min_gen_energy) in enumerate(ENERGY_CUTS):
+        output = study / '04_matching_result' / method / cut_name
+        output.mkdir(parents=True, exist_ok=True)
+        # The same Gen selection defines every observable, including efficiency.
+        selections = {name: selected & (gamma['energy'] >= min_gen_energy)
+                      for name, selected in values['analysis_selections'].items()}
+        energy_ratio_distributions(output, sample, values, stats, cut_index)
+        for coordinate in ('cos_theta', 'energy'):
+            edges = (np.r_[min_gen_energy, bins[coordinate][bins[coordinate] > min_gen_energy]]
+                     if coordinate == 'energy' else bins[coordinate])
+            centers = (edges[:-1] + edges[1:]) / 2
             fig, ax = plt.subplots(figsize=FIGURE_SIZE)
-            for index, (population, label) in enumerate(zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True)):
-                selected = values['analysis_selections'][population] & (energy >= min_gen_energy)
-                denominator = np.array([(selected & region).sum() for region in regions.values()])
-                numerator = np.array([(selected & region & matched).sum() for region in regions.values()])
-                efficiency = numerator / denominator
+            for index, (gen_name, label) in enumerate(zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True)):
+                color = f'C{index}'
+                selected = selections[gen_name]
+                x = gamma[coordinate][selected]
+                denominator = np.histogram(x, bins=edges)[0]
+                assert denominator.sum() == selected.sum()
+                matched = stats['reco_count'][selected] > 0
+                numerator = np.histogram(x[matched], bins=edges)[0]
+                assert numerator.sum() == matched.sum() and np.all(numerator <= denominator)
+                shown = denominator > 0
+                ratio = np.divide(numerator, denominator, out=np.full(len(denominator), np.nan), where=shown)
                 lower, upper = clopper_pearson(numerator, denominator)
-                ax.errorbar(x, efficiency,
-                            yerr=[efficiency - lower, upper - efficiency], fmt='o',
-                            color=f'C{index}', capsize=4, markersize=9, alpha=0.7, label=label)
-                print(f'{study.name} {sample} {method}/{cut_name} {population} detector counts: '
-                      f'{dict(zip(regions, zip(numerator, denominator), strict=True))}', flush=True)
+                ax.stairs(ratio, edges, baseline=None, color=color, label=label)
+                ax.errorbar(centers[shown], ratio[shown], yerr=np.maximum([ratio[shown] - lower[shown], upper[shown] - ratio[shown]], 0),
+                            fmt='none', color=color, capsize=2)
+            ax.set_xlim(edges[0], edges[-1])
+            ax.set_ylim(0, 1.5)
+            ax.set_yticks(np.linspace(0, 1, 6))
             if min_gen_energy:
                 ax.text(0.02, 0.89, rf'$E_\gamma^{{\rm gen}}\geq{min_gen_energy}$ GeV',
                         transform=ax.transAxes, va='top')
-            ax.set_xticks(x, region_labels, fontsize=22)
-            ax.xaxis.label.set_fontsize(22)
-            ax.set_xlim(-0.55, 3.55)
-            ax.set_ylim(-0.03, 1.35)
-            ax.set_yticks(np.linspace(0, 1, 6))
-            finish(fig, ax, output / f'efficiency_by_detector_{sample}.png',
-                   sample, 'Region\n' + r'($\theta$ [deg])', 'Efficiency')
+            finish(fig, ax, output / f'efficiency_vs_{coordinate}_{sample}.png', sample,
+                   XLABELS[coordinate], 'Efficiency')
 
 
-def matching_results(study, sample, values, bins):
-    gamma = values['gamma']
-    for source, method in (('reco', 'truth_matching'), ('angular', 'angular_matching')):
-        stats = values[source]
-        for cut_index, (cut_name, min_gen_energy) in enumerate(ENERGY_CUTS):
-            output = study / '04_matching_result' / method / cut_name
-            output.mkdir(parents=True, exist_ok=True)
-            # The same Gen selection defines every observable, including efficiency.
-            selections = {name: selected & (gamma['energy'] >= min_gen_energy)
-                          for name, selected in values['analysis_selections'].items()}
-            energy_ratio_distributions(output, sample, values, stats, cut_index)
-            for coordinate in ('cos_theta', 'energy'):
-                edges = (np.r_[min_gen_energy, bins[coordinate][bins[coordinate] > min_gen_energy]]
-                         if coordinate == 'energy' else bins[coordinate])
-                centers = (edges[:-1] + edges[1:]) / 2
-                fig, ax = plt.subplots(figsize=FIGURE_SIZE)
-                for index, (gen_name, label) in enumerate(zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True)):
-                    color = f'C{index}'
-                    selected = selections[gen_name]
-                    x = gamma[coordinate][selected]
-                    denominator = np.histogram(x, bins=edges)[0]
-                    assert denominator.sum() == selected.sum()
-                    matched = stats['reco_count'][selected] > 0
-                    numerator = np.histogram(x[matched], bins=edges)[0]
-                    assert numerator.sum() == matched.sum() and np.all(numerator <= denominator)
-                    shown = denominator > 0
-                    ratio = np.divide(numerator, denominator, out=np.full(len(denominator), np.nan), where=shown)
-                    lower, upper = clopper_pearson(numerator, denominator)
-                    ax.stairs(ratio, edges, baseline=None, color=color, label=label)
-                    ax.errorbar(centers[shown], ratio[shown], yerr=np.maximum([ratio[shown] - lower[shown], upper[shown] - ratio[shown]], 0),
-                                fmt='none', color=color, capsize=2)
-                ax.set_xlim(edges[0], edges[-1])
-                ax.set_ylim(0, 1.5)
-                ax.set_yticks(np.linspace(0, 1, 6))
-                if min_gen_energy:
-                    ax.text(0.02, 0.89, rf'$E_\gamma^{{\rm gen}}\geq{min_gen_energy}$ GeV',
-                            transform=ax.transAxes, va='top')
-                finish(fig, ax, output / f'efficiency_vs_{coordinate}_{sample}.png', sample,
-                       XLABELS[coordinate], 'Efficiency')
-
-
-def plot_isr_study(input_root: Path, output_root: Path):
+def set_style():
     mh.style.use(mh.styles.CMS)
     plt.rcParams['lines.linewidth'] = 2
     plt.rcParams['patch.linewidth'] = 1.5
     plt.rcParams['legend.fontsize'] = 22
     plt.rcParams['legend.title_fontsize'] = 22
+
+
+def plot_isr_study(input_root: Path, output_root: Path):
+    set_style()
     study = output_root / 'isr_study'
     study.mkdir(parents=True, exist_ok=True)
     # Read each event once: Gen selection, truth association, and angular scan.
@@ -411,7 +412,8 @@ def plot_isr_study(input_root: Path, output_root: Path):
             sample_distributions(output, sample, value, bins)
             truth_link_validation(output, sample, value)
             plot_angle_matching(output / '03_angular_matching_validation', sample, angles[mode][sample], cut)
-            matching_results(output, sample, value, gen_bins)
-            detector_efficiency(output, sample, value)
+            for source, method in (('reco', 'truth_matching'), ('angular', 'angular_matching')):
+                matching_results(output, sample, value, gen_bins, value[source], method)
+                detector_efficiency(output, sample, value, value[source], method)
             print(f'plots: {mode} {sample}', flush=True)
         print(f'ISR study: {output}; opening-angle reference {cut:g} deg', flush=True)
