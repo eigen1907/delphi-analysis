@@ -4,7 +4,7 @@ import numpy as np
 
 from .angle_matching import accumulate, angular_stats, new_accumulator
 from .data import SAMPLES, read_sample
-from .plot_isr_study import detector_efficiency, energy_bins, matching_results, set_style
+from .plot_isr_study import COS_THETA_EDGES, energy_bins, matching_results, set_style
 
 
 OPENING_ANGLE_DEG = 3
@@ -27,9 +27,8 @@ def plot_part_gamma_angular(input_root, output_root):
 
     bins = dict(energy=energy_bins(np.concatenate([values['gamma']['energy']
                                                   for values in samples.values()])),
-                cos_theta=np.linspace(-1, 1, 21))
+                cos_theta=COS_THETA_EDGES)
     for sample, values in samples.items():
         stats = values['angular']
         matching_results(study, sample, values, bins, stats, 'angular_matching')
-        detector_efficiency(study, sample, values, stats, 'angular_matching')
     print(f'Part gamma angular study: {study}; opening angle <= {OPENING_ANGLE_DEG} deg', flush=True)

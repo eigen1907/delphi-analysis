@@ -134,7 +134,6 @@ plots/20260828_florian/isr_study/
     02_truth_link_matching_validation/
     03_angular_matching_validation/
     04_matching_result/{truth_matching,angular_matching}/{no_cut,0p1_cut}/
-    05_detector_efficiency/{truth_matching,angular_matching}/{no_cut,0p1_cut}/
 ```
 
 Stage 01 keeps four stable Gen selections, including Beam ISR for inspection:
@@ -151,11 +150,11 @@ ISR has an electron/positron as its first non-photon ancestor, with no hard pare
 on that path. Beam ISR additionally has `px == py == 0` and a direct, parentless
 incoming electron/positron parent. FSR starts at the hard parent or its direct
 sample-final-state daughter. Decayed is the previous Others category; here it
-contains π⁰, η, and ω decay photons in Ztautau. Stages 04 and 05 compare the full
+contains π⁰, η, and ω decay photons in Ztautau. Stage 04 compares the full
 Gen energy range (`no_cut`) with Gen E ≥ 0.1 GeV (`0p1_cut`) for every plot.
 The three standard modes have no additional angular, fiducial, or lock cuts.
 
-Stages 02–05 exclude Beam ISR from all Gen selections, numerators, and
+Stages 02–04 exclude Beam ISR from all Gen selections, numerators, and
 denominators, and compare three populations in each plot:
 
 | Legend | Definition |
@@ -188,15 +187,15 @@ parents and neutral objects outside the Photon view. Overlapping saved
 parent/descendant representations retain their counts but have undefined energy
 sums, as in the Photon-only study.
 
-`gamma_plus_conversion_acceptance` repeats stages 01–05 with the same inclusive
+`gamma_plus_conversion_acceptance` repeats stages 01–04 with the same inclusive
 Photon + conversion Reco pool and stable Gen photons restricted to the union of
 these **Gen theta** intervals, in degrees, with strict endpoints:
 
 | Region | Gen theta intervals |
 | --- | --- |
-| STIC | 1.66–10.60, 169.40–178.34 |
-| FEMC | 10–36.5, 143.5–170 |
-| HPC | 43.1–88.7, 91.3–136.9 |
+| HPC | 44–88, 92–136 |
+| FEMC | 11–36, 144–169 |
+| STIC | 2–10, 170–178 |
 
 This Gen selection applies to every Gen population, efficiency numerator and
 denominator, both energy-ratio histograms, and the angular truth-retention scan
@@ -207,10 +206,6 @@ events remain, including events with no accepted Gen photons; their Gen
 multiplicity is zero and their undefined event ratio is excluded. Beam ISR lies
 outside the acceptance naturally. The angular cone cut remains the one selected
 for baseline `gamma_plus_conversion`; acceptance changes only the Gen selection.
-Stage 05 uses these exact intervals in this
-mode; the standard modes retain their existing region intervals. STIC and FEMC
-overlap at 10–10.60 and 169.40–170: regional counts may overlap, but the Gen
-acceptance union counts each photon once.
 
 - **01:** Stacked Gen colors and one inclusive Reco outline with
   hatching on one axis. Reco is identical across the four Gen selections. Energy and
@@ -261,22 +256,6 @@ acceptance union counts each photon once.
   overflow: selected Gen photons or events, respectively.
   Tails are neither folded into bins nor clipped; excluded and tail counts are
   printed to the terminal. No Reco energy cut is added.
-- **05:** Separate plots for each sample use the same two matching methods,
-  two Gen energy versions, and three Gen populations for each Reco mode.
-  Each matching/cut case compares all three Gen populations in one plot, using
-  points with Clopper–Pearson error bars. Counts are printed to the terminal;
-  points have no numerical annotations. Region ticks show the name followed by
-  each theta range on its own line, with angles in degrees. The
-  Gen threshold applies to both numerator and denominator; Beam ISR is excluded.
-  In the standard modes, All ranges (0–180°) is
-  compared with HPC (40–140°), FEMC (10–37° and 143–170°), and STIC (2–10° and
-  170–178°), using open angular intervals. No Reco energy cut is applied.
-  A Gen photon succeeds once when it has at least one matched Reco candidate,
-  even if its associated energy sum is ambiguous. Truth results use the saved
-  association; angular results use the stage 03 cone cut with no truth gate.
-  Missing forward truth links and accidental angular associations limit a direct
-  interpretation as detector performance. Filenames are
-  `efficiency_by_detector_<sample>.png`.
 
 Nominal truth compares `Part_simIdx → Sim ancestry → first Gen anchor` with
 `Gen-linked Sim → descendants → SimPart_partIdx`. A unique union origin is
@@ -308,10 +287,10 @@ opening angle ≤ 3°**, fixed to the current study's reference cut. No Reco ene
 charge, lock, or detector-acceptance cut is applied. Zero-momentum candidates
 have no direction and cannot be angular-matched.
 
-Stages 04 and 05 retain the existing All / ISR / no ISR Gen populations,
-excluding Beam ISR, with `no_cut` and Gen E ≥ 0.1 GeV (`0p1_cut`). Outputs are
+Stage 04 retains the existing All / ISR / no ISR Gen populations,
+excluding Beam ISR, with `no_cut` and Gen E ≥ 0.1 GeV (`0p1_cut`). Its 60 PNGs are
 efficiency versus Gen energy and cos(theta), per-Gen and per-event energy ratios
-(linear and log-y), and regional efficiencies. Candidates can enter multiple Gen
+(linear and log-y). Candidates can enter multiple Gen
 cones; event energy counts each candidate once. Saved parent/descendant energy
 overlaps exclude ambiguous ratios but still count for efficiency. Code 21 also
 includes unidentified neutral Parts, so this is a geometric candidate check,
@@ -320,12 +299,13 @@ truth matching and selected cut are unchanged.
 
 CMS/mplhep style and DELPHI Simulation are retained, with slightly thicker curves.
 Legends use 22 pt text in one column at the upper right without a frame; other
-text keeps the CMS defaults, except regional x ticks and labels, also at 22 pt.
+text keeps the CMS defaults.
 All ISR study figures use an 11 × 9 inch canvas. A bold symbolic sample label
 appears separately
 at the upper left, e.g. Z → μ⁺μ⁻. Only `0p1_cut` plots display the Gen energy cut
 caption. No detector-region guides are drawn.
 Counts use sqrt(N) errors; efficiencies use 68.27% Clopper–Pearson intervals.
+All five studies use 100 uniform cos(theta) bins from −1 to 1, with bin width 0.02.
 Linear energy bins start at 1 GeV width and widen at higher energies; this adds
 no energy selection. Log-energy plots retain equally spaced logarithmic bins.
 Filenames place the sample before the scale suffix: `energy_Zee_log.png`.

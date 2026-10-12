@@ -17,9 +17,9 @@ ANALYSIS_SELECTIONS = ("gen_gamma", "gen_isr", "gen_no_isr")
 GEN_LABELS = (r"$\gamma_{\mathrm{all}}$", r"$\gamma_{\mathrm{ISR}}$", r"$\gamma_{\mathrm{no\ ISR}}$")
 ENERGY_CUTS = (("no_cut", 0), ("0p1_cut", 0.1))
 ACCEPTANCE_MODE = "gamma_plus_conversion_acceptance"
-EM_REGIONS = {"HPC": ((43.1, 88.7), (91.3, 136.9)),
-              "FEMC": ((10, 36.5), (143.5, 170)),
-              "STIC": ((1.66, 10.6), (169.4, 178.34))}
+EM_REGIONS = {"HPC": ((44, 88), (92, 136)),
+              "FEMC": ((11, 36), (144, 169)),
+              "STIC": ((2, 10), (170, 178))}
 RECO_LABELS = {"gamma": r"$\gamma$", "gamma_plus_conversion": r"$\gamma+\gamma_{\mathrm{conv}}$",
                "gamma_pid": r"$\gamma_{\mathrm{Part}}$",
                ACCEPTANCE_MODE: r"$\gamma+\gamma_{\mathrm{conv}}$"}
@@ -47,7 +47,7 @@ def analysis_selections(category):
 
 
 def em_regions(theta):
-    """Electromagnetic calorimeter regions, with theta in degrees and open bounds."""
+    """Conservative Gen acceptance, with theta in degrees and open bounds."""
     theta = np.asarray(theta)
     return {name: np.logical_or.reduce([(theta > low) & (theta < high)
                                        for low, high in intervals])

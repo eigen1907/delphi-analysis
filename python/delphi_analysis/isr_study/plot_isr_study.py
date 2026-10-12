@@ -10,14 +10,15 @@ from scipy.stats import beta
 
 from .angle_matching import accumulate, angular_stats, choose_cut, new_accumulator, plot_angle_matching
 from .data import (
-    ACCEPTANCE_MODE, ANALYSIS_SELECTIONS, EM_REGIONS, ENERGY_CUTS, GEN_LABELS,
-    GEN_SELECTIONS, LINK_STATUSES, RECO_LABELS, SAMPLES, em_regions, read_sample,
+    ACCEPTANCE_MODE, ANALYSIS_SELECTIONS, ENERGY_CUTS, GEN_LABELS,
+    GEN_SELECTIONS, LINK_STATUSES, RECO_LABELS, SAMPLES, read_sample,
     with_gen_acceptance,
 )
 
 FIGURE_SIZE = (11, 9)
 COVERAGE = 0.6826894921370859
 ENERGY_EDGES = np.array([0, 1, 2, 3, 5, 7, 10, 15, 20, 30, 50])
+COS_THETA_EDGES = np.linspace(-1, 1, 101)
 GEN_COMPONENTS = (('beam_isr', r'$\gamma_{\mathrm{BeamISR}}$'),
                   ('nonbeam_isr', r'$\gamma_{\mathrm{NonBeamISR}}$'),
                   ('fsr', r'$\gamma_{\mathrm{FSR}}$'), ('decayed', r'$\gamma_{\mathrm{Decayed}}$'))
@@ -288,50 +289,6 @@ def energy_ratio_distributions(output, sample, values, stats, cut_index):
             finish(fig, ax, output / f'{name}_{sample}{suffix}.png', sample, xlabel, ylabel)
 
 
-def detector_efficiency(study, sample, values, stats, method):
-    """Regional efficiencies for one sample, with the same Gen cuts as stage 04."""
-    energy = values['gamma']['energy']
-    cosine = values['gamma']['cos_theta']
-    theta = np.rad2deg(np.arccos(np.clip(cosine, -1, 1)))
-    regions = {'All ranges': np.ones(len(theta), dtype=bool),
-               'HPC': (theta > 40) & (theta < 140),
-               'FEMC': ((theta > 10) & (theta < 37)) | ((theta > 143) & (theta < 170)),
-               'STIC': ((theta > 2) & (theta < 10)) | ((theta > 170) & (theta < 178))}
-    x = np.arange(len(regions))
-    region_labels = ('All ranges\n(0-180)', 'HPC\n(40-140)',
-                     'FEMC\n(10-37)\n(143-170)', 'STIC\n(2-10)\n(170-178)')
-    if study.name == ACCEPTANCE_MODE:
-        regions.update(em_regions(theta))
-        region_labels = [region_labels[0]] + [name + '\n' + '\n'.join(
-            f'({low:g}-{high:g})' for low, high in intervals) for name, intervals in EM_REGIONS.items()]
-    matched = stats['reco_count'] > 0
-    for cut_name, min_gen_energy in ENERGY_CUTS:
-        output = study / '05_detector_efficiency' / method / cut_name
-        output.mkdir(parents=True, exist_ok=True)
-        fig, ax = plt.subplots(figsize=FIGURE_SIZE)
-        for index, (population, label) in enumerate(zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True)):
-            selected = values['analysis_selections'][population] & (energy >= min_gen_energy)
-            denominator = np.array([(selected & region).sum() for region in regions.values()])
-            numerator = np.array([(selected & region & matched).sum() for region in regions.values()])
-            efficiency = numerator / denominator
-            lower, upper = clopper_pearson(numerator, denominator)
-            ax.errorbar(x, efficiency,
-                        yerr=[efficiency - lower, upper - efficiency], fmt='o',
-                        color=f'C{index}', capsize=4, markersize=9, alpha=0.7, label=label)
-            print(f'{study.name} {sample} {method}/{cut_name} {population} detector counts: '
-                  f'{dict(zip(regions, zip(numerator, denominator), strict=True))}', flush=True)
-        if min_gen_energy:
-            ax.text(0.02, 0.89, rf'$E_\gamma^{{\rm gen}}\geq{min_gen_energy}$ GeV',
-                    transform=ax.transAxes, va='top')
-        ax.set_xticks(x, region_labels, fontsize=22)
-        ax.xaxis.label.set_fontsize(22)
-        ax.set_xlim(-0.55, 3.55)
-        ax.set_ylim(-0.03, 1.35)
-        ax.set_yticks(np.linspace(0, 1, 6))
-        finish(fig, ax, output / f'efficiency_by_detector_{sample}.png',
-               sample, 'Region\n' + r'($\theta$ [deg])', 'Efficiency')
-
-
 def matching_results(study, sample, values, bins, stats, method):
     gamma = values['gamma']
     for cut_index, (cut_name, min_gen_energy) in enumerate(ENERGY_CUTS):
@@ -400,7 +357,7 @@ def plot_isr_study(input_root: Path, output_root: Path):
     all_energy = np.concatenate([np.r_[value['gamma']['energy'], value['reco_distributions']['energy']]
                                  for samples in values.values() for value in samples.values()])
     bins = dict(energy=np.r_[ENERGY_EDGES, 60], energy_log=energy_bins(all_energy, True),
-                cos_theta=np.linspace(-1, 1, 21))
+                cos_theta=COS_THETA_EDGES)
     gen_bins = dict(bins, energy=energy_bins(np.concatenate([value['gamma']['energy'] for value in values['gamma'].values()])))
     for mode in RECO_LABELS:
         output = study / mode
@@ -414,6 +371,5 @@ def plot_isr_study(input_root: Path, output_root: Path):
             plot_angle_matching(output / '03_angular_matching_validation', sample, angles[mode][sample], cut)
             for source, method in (('reco', 'truth_matching'), ('angular', 'angular_matching')):
                 matching_results(output, sample, value, gen_bins, value[source], method)
-                detector_efficiency(output, sample, value, value[source], method)
             print(f'plots: {mode} {sample}', flush=True)
         print(f'ISR study: {output}; opening-angle reference {cut:g} deg', flush=True)
