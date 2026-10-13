@@ -1,0 +1,33 @@
+"""Validate both truth-link directions and draw the nominal truth result."""
+import matplotlib.pyplot as plt
+import numpy as np
+
+from common.plot_utils import FIGURE_SIZE, finish, plot_path
+from .data import ANALYSIS_SELECTIONS, GEN_CUTS, GEN_LABELS, LINK_STATUSES
+from .results import matching_results
+
+def truth_link_validation(study, sample, values, cut_name):
+    """Count candidates with known selected origins; No origin is shown in stage 00."""
+    labels = ('Agree', 'Forward\nonly', 'Reverse\nonly', 'Conflict', 'No origin')
+    output = plot_path(study, '02_gamma', '03_truth_link_matching', sample, values['source'],
+                       values['collection'], 'matching_validation', cut_name)
+    fig, ax = plt.subplots(figsize=FIGURE_SIZE)
+    x = np.arange(len(labels))
+    maximum = 0
+    for index, (population, label) in enumerate(zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True)):
+        counts = np.array([values['matching_validation'][cut_name][population][key] for key in LINK_STATUSES])
+        positions = x + (index - 1) * 0.25
+        ax.bar(positions, counts, width=0.25, color=f'C{index}', label=label)
+        ax.errorbar(positions, counts, yerr=np.sqrt(counts), fmt='none', color=f'C{index}', capsize=2)
+        maximum = max(maximum, counts.max())
+    ax.set_xticks(x, labels)
+    ax.set_yscale('log')
+    ax.set_ylim(0.5, max(maximum * 100, 1))
+    finish(fig, ax, output / f'truth_link_status_{sample}.png', sample,
+           'Link status', f"# of linked {values['reco_label']}")
+
+
+def plot(study, sample, values, bins):
+    for cut_name, _, _ in GEN_CUTS:
+        truth_link_validation(study, sample, values, cut_name)
+    matching_results(study, sample, values, bins, values['reco'], '03_truth_link_matching')
