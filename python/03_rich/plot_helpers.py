@@ -45,7 +45,8 @@ def matching_results(values, method, output, sample):
             plot_efficiency(ax, entries, result[key], edges, label, f"C{index}")
         if name == "p":
             momentum_axis(ax)
-        ax.set_ylim(0, 1.4)
+        ax.set_ylim(0, 1.35)
+        ax.axhline(1, color='0.5', linestyle='--', linewidth=1.5)
         ax.text(0.02, 0.86, CAPTION, transform=ax.transAxes, fontsize=18)
         finish(fig, ax, output / f"track_plus_saved_angle_vs_gen_{name}.png", sample,
                "Gen " + LABELS[name], "Gen coverage")
@@ -57,7 +58,8 @@ def matching_results(values, method, output, sample):
             plot_efficiency(ax, entries, result[f"track_{key}"], edges, label, f"C{index + 1}")
         if name == "p":
             momentum_axis(ax)
-        ax.set_ylim(0, 1.4)
+        ax.set_ylim(0, 1.35)
+        ax.axhline(1, color='0.5', linestyle='--', linewidth=1.5)
         ax.text(0.02, 0.86, CAPTION, transform=ax.transAxes, fontsize=18)
         finish(fig, ax, output / f"saved_angle_given_track_vs_reco_{name}.png", sample,
                "Reco " + LABELS[name], "Saved angle / matched track")

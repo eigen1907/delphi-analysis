@@ -46,7 +46,8 @@ def matching_result(root, dataset, source, collection, values, method):
         bins = momentum_bins(values['gen'][name], name)
         fig, ax = plt.subplots(figsize=FIGURE_SIZE)
         plot_efficiency(ax, values['gen'][name], stats['matched'], bins, 'Gen → Reco', 'C0')
-        ax.set_ylim(0, 1.4)
+        ax.set_ylim(0, 1.35)
+        ax.axhline(1, color='0.5', linestyle='--', linewidth=1.5)
         finish(fig, ax, output / f'efficiency_vs_{name}.png', dataset, LABELS[name], 'Efficiency')
     for name, xlabel in (('pt_response', r'$(p_{T,\rm reco}-p_{T,\rm gen})/p_{T,\rm gen}$'),
                          ('theta_residual', r'$\theta_{\rm reco}-\theta_{\rm gen}$ [rad]'),

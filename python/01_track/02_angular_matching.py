@@ -19,6 +19,7 @@ def plot(root, dataset, source, collection, values):
     ax.plot(SCAN_CUTS, success / denominator, color='C0', label='Same charge, one-to-one')
     ax.fill_between(SCAN_CUTS, lower, upper, color='C0', alpha=0.2)
     ax.axvline(ANGLE_CUT, color='black', linestyle='--', linewidth=2)
-    ax.set_ylim(0, 1.4)
+    ax.set_ylim(0, 1.35)
+    ax.axhline(1, color='0.5', linestyle='--', linewidth=1.5)
     finish(fig, ax, output / 'efficiency_vs_opening_angle.png', dataset, 'Opening-angle cut [rad]', 'Efficiency')
     matching_result(root, dataset, source, collection, values, 'angular')

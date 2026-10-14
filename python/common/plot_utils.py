@@ -377,7 +377,7 @@ def set_style():
     mh.style.use(mh.styles.CMS)
     plt.rcParams['lines.linewidth'] = 2
     plt.rcParams['patch.linewidth'] = 1.5
-    plt.rcParams['legend.fontsize'] = 22
+    plt.rcParams['legend.fontsize'] = 20
     plt.rcParams['legend.title_fontsize'] = 22
 
 
