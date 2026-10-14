@@ -17,17 +17,22 @@ CONV_P4 = tuple(f"PhotonConv_fourMomentum.fCoordinates.f{axis}" for axis in "XYZ
 GEN_SELECTIONS = ("gen_gamma", "gen_isr", "gen_no_isr", "gen_isr_non_beam")
 ANALYSIS_SELECTIONS = ("gen_gamma", "gen_isr", "gen_no_isr")
 GEN_LABELS = (r"$\gamma_{\mathrm{all}}$", r"$\gamma_{\mathrm{ISR}}$", r"$\gamma_{\mathrm{no\ ISR}}$")
-GEN_CUTS = (("cut_no", 0, False), ("cut_energy_0p1", 0.1, False),
-            ("cut_fiducial", 0, True), ("cut_fiducial_energy_0p1", 0.1, True))
+ENERGY_RANGES = (("all", 0, np.inf), ("energy0-2", 0, 2),
+                 ("energy2-10", 2, 10), ("energy10-", 10, np.inf))
+ENERGY_LABELS = {"all": "", "energy0-2": r"$0\leq E_\gamma^{\rm gen}<2$ GeV",
+                 "energy2-10": r"$2\leq E_\gamma^{\rm gen}<10$ GeV",
+                 "energy10-": r"$E_\gamma^{\rm gen}\geq10$ GeV"}
 EM_REGIONS = {"HPC": ((44, 88), (92, 136)),
               "FEMC": ((11, 36), (144, 169)),
               "STIC": ((2, 10), (170, 178))}
+DETECTORS = tuple(EM_REGIONS)
 RECO_LABELS = {"Photon": r"$\gamma$", "Photon_PhotonConv": r"$\gamma+\gamma_{\mathrm{conv}}$",
                "Part_pdgId_21": r"$\gamma_{\mathrm{Part}}$"}
 LINK_STATUSES = ("agreement", "forward_only", "reverse_only", "conflict", "no_origin")
 BRANCHES = (
     "GenPart_pdgId", "GenPart_status", "GenPart_parentIdx", *GEN_P4,
-    "Photon_partIdx", *RECO_P4, "Part_simIdx", "Part_charge", "Part_pdgId", *PART_P4,
+    "Photon_partIdx", *RECO_P4, *(f"Photon_is{name}" for name in DETECTORS),
+    "Part_simIdx", "Part_charge", "Part_pdgId", *PART_P4,
     "Part_originVtxIdx", "Part_decayVtxIdx", "Vtx_incomingIdx",
     "SimPart_genIdx", "SimPart_partIdx",
     "SimPart_originVtxIdx", "SimVtx_incomingIdx", *CONV_P4,
@@ -41,10 +46,12 @@ def gen_selections(category):
                 gen_no_isr=~isr, gen_isr_non_beam=category == "nonbeam_isr")
 
 
-def analysis_selections(category):
-    """Matching studies exclude the beam-collinear generator component."""
-    return dict(gen_gamma=category != "beam_isr", gen_isr=category == "nonbeam_isr",
-                gen_no_isr=np.isin(category, ("fsr", "decayed")))
+def analysis_selections(category, cos_theta):
+    """Matching studies use fiducial Gen photons and exclude Beam ISR."""
+    accepted = em_acceptance(cos_theta)
+    return dict(gen_gamma=(category != "beam_isr") & accepted,
+                gen_isr=(category == "nonbeam_isr") & accepted,
+                gen_no_isr=np.isin(category, ("fsr", "decayed")) & accepted)
 
 
 def em_regions(theta):
@@ -61,13 +68,11 @@ def em_acceptance(cos_theta):
     return np.logical_or.reduce(list(em_regions(theta).values()))
 
 
-def matching_masks(energy, cos_theta, category):
-    """All four cuts apply to Gen only, after the Beam ISR exclusion."""
-    populations = analysis_selections(category)
-    accepted = em_acceptance(cos_theta)
-    return {name: {population: selected & (energy >= minimum) & (accepted if fiducial else True)
+def energy_selections(energy, populations):
+    """Half-open Gen energy ranges; All has no upper energy cut."""
+    return {name: {population: selected & (energy >= low) & (energy < high)
                    for population, selected in populations.items()}
-            for name, minimum, fiducial in GEN_CUTS}
+            for name, low, high in ENERGY_RANGES}
 
 
 def unit_momenta(p4):
@@ -127,10 +132,11 @@ def gen_event(raw, sample, p4_branches=GEN_P4):
         all_gamma_category.append("beam_isr" if is_beam else "nonbeam_isr" if origin == "isr"
                                   else "fsr" if origin == "fsr" else "decayed")
     all_gamma_category = np.asarray(all_gamma_category)
+    populations = analysis_selections(all_gamma_category, unit_momenta(all_gamma_p4)[:, 2])
     return dict(all_gamma_idx=all_gamma_idx, all_gamma_p4=all_gamma_p4,
                 all_gamma_category=all_gamma_category, selections=gen_selections(all_gamma_category),
-                analysis_selections=analysis_selections(all_gamma_category),
-                cuts=matching_masks(all_gamma_p4[:, 3], unit_momenta(all_gamma_p4)[:, 2], all_gamma_category))
+                analysis_selections=populations,
+                energy_selections=energy_selections(all_gamma_p4[:, 3], populations))
 
 
 def analyze_event(raw, sample):
@@ -144,6 +150,8 @@ def analyze_event(raw, sample):
     part_origins = truth["origin"]
     photon_parts = np.asarray(raw["Photon_partIdx"], dtype=int)
     photon_p4 = np.column_stack([raw[name] for name in RECO_P4])
+    # Stored flags are used unchanged, including corrupted STIC values.
+    photon_detectors = np.column_stack([raw[f'Photon_is{name}'] for name in DETECTORS]).astype(bool)
     assert np.all((photon_parts >= 0) & (photon_parts < n_part))
     assert len(set(photon_parts)) == len(photon_parts)
     # Only reciprocal saved Reco vertex relations define parent/child structure.
@@ -295,12 +303,24 @@ def analyze_event(raw, sample):
                          pid_valid, pid_origins, set())
     reco = dict(
         Photon=dict(p4=photon_p4, gen_idx=photon_origins, energy_valid=photon_valid,
-                   geometric_energy_valid=photon_geometry_valid, stats=photon_stats),
+                   geometric_energy_valid=photon_geometry_valid, stats=photon_stats,
+                   detector_flags=photon_detectors),
         Photon_PhotonConv=dict(p4=gamma_p4, gen_idx=gamma_origins, energy_valid=gamma_valid,
-                                   geometric_energy_valid=gamma_geometry_valid, stats=combined_stats),
+                              geometric_energy_valid=gamma_geometry_valid, stats=combined_stats,
+                              detector_flags=np.concatenate((photon_detectors[kept_photons],
+                                  np.zeros((len(kept_convs), len(DETECTORS)), dtype=bool)))),
         Part_pdgId_21=dict(p4=pid_p4, gen_idx=pid_origins, energy_valid=pid_valid,
                        geometric_energy_valid=pid_geometry_valid, stats=pid_stats),
     )
+    # PhotonConv has no calorimeter tag. A Part outside Photon also has no
+    # saved Photon tag; do not infer a detector from its angle or PID code.
+    part_detectors = np.zeros((n_part, len(DETECTORS)), dtype=bool)
+    part_detectors[photon_parts] = photon_detectors
+    reco['Part_pdgId_21']['detector_flags'] = part_detectors[pid_parts]
+    for objects in reco.values():
+        own_origin = all_gamma_idx[:, None] == objects['gen_idx'][None, :]
+        objects['stats']['detector_matched'] = (own_origin[:, :, None] &
+                                              objects['detector_flags'][None, :, :]).any(axis=1)
     links = dict(
         Photon=([{int(forward[p])} if forward[p] >= 0 else set() for p in photon_parts],
                [reverse[p] for p in photon_parts]),
@@ -308,28 +328,25 @@ def analyze_event(raw, sample):
         Part_pdgId_21=([{int(forward[p])} if forward[p] >= 0 else set() for p in pid_parts],
                    [reverse[p] for p in pid_parts]),
     )
-    cuts = event['cuts']
     matching_validation, link_counts = {}, {}
-    selected_origins = {cut: {name: set(all_gamma_idx[mask]) for name, mask in masks.items()}
-                        for cut, masks in cuts.items()}
+    selected_origins = {name: set(all_gamma_idx[mask])
+                        for name, mask in event['analysis_selections'].items()}
     for mode, (forward_links, reverse_links) in links.items():
-        counts = {cut: {gen: Counter(dict.fromkeys(LINK_STATUSES, 0)) for gen in ANALYSIS_SELECTIONS}
-                  for cut, _, _ in GEN_CUTS}
+        counts = {gen: Counter(dict.fromkeys(LINK_STATUSES, 0)) for gen in ANALYSIS_SELECTIONS}
         link_counts[mode] = Counter(dict.fromkeys(LINK_STATUSES, 0))
         for first, second in zip(forward_links, reverse_links, strict=True):
             status = link_status(first, second)
             link_counts[mode][status] += 1
-            for cut, origins in selected_origins.items():
-                for gen_name, selected in origins.items():
-                    if (first | second) & selected:
-                        counts[cut][gen_name][status] += 1
+            for gen_name, selected in selected_origins.items():
+                if (first | second) & selected:
+                    counts[gen_name][status] += 1
         matching_validation[mode] = counts
     event.update(reco=reco, matching_validation=matching_validation, link_counts=link_counts)
     return event
 
 
 def read_sample(input_root: Path, sample: str, angle_accumulator, source='nanoaod'):
-    """Stream files and retain compact observables; all cuts share the same Reco pool."""
+    """Stream files; Gen populations and energy ranges share the same Reco pool."""
     from hashlib import sha1
     from . import raw_data
 
@@ -340,11 +357,11 @@ def read_sample(input_root: Path, sample: str, angle_accumulator, source='nanoao
     analyze = analyze_event if native else raw_data.analyze_event
     gamma = {name: [] for name in ("energy", "cos_theta", "category")}
     results = {mode: dict(
-        reco={field: [] for field in ("reco_count", "energy_ratio", "energy_valid")},
-        reco_distributions={field: [] for field in ("energy", "cos_theta")},
+        reco={field: [] for field in ("reco_count", "energy_ratio", "energy_valid", "detector_matched")},
+        reco_distributions={field: [] for field in ("energy", "cos_theta", "detector_flags")},
         reco_event_counts=[], link_counts=Counter(dict.fromkeys(LINK_STATUSES, 0)),
-        matching_validation={cut: {gen: Counter(dict.fromkeys(LINK_STATUSES, 0))
-                                  for gen in ANALYSIS_SELECTIONS} for cut, _, _ in GEN_CUTS},
+        matching_validation={gen: Counter(dict.fromkeys(LINK_STATUSES, 0))
+                             for gen in ANALYSIS_SELECTIONS},
         branch_counts=Counter(),
     ) for mode in labels}
     gen_event_counts = {name: [] for name in
@@ -393,23 +410,24 @@ def read_sample(input_root: Path, sample: str, angle_accumulator, source='nanoao
                     cos_theta = np.divide(reco_p4[:, 2], momentum, out=np.full(len(reco_p4), np.nan), where=momentum > 0)
                     values["reco_distributions"]["energy"].extend(reco_p4[:, 3])
                     values["reco_distributions"]["cos_theta"].extend(cos_theta)
+                    values['reco_distributions']['detector_flags'].extend(objects['detector_flags'])
                     values["reco_event_counts"].append(len(reco_p4))
                     if native:
                         values["link_counts"].update(event["link_counts"][mode])
-                        for cut, _, _ in GEN_CUTS:
-                            for population in ANALYSIS_SELECTIONS:
-                                values["matching_validation"][cut][population].update(
-                                    event["matching_validation"][mode][cut][population])
+                        for population in ANALYSIS_SELECTIONS:
+                            values["matching_validation"][population].update(
+                                event["matching_validation"][mode][population])
                     else:
                         values['branch_counts'].update(objects['branch_counts'])
                 angle_accumulator(event)
         print(f"{sample} {source} {path.parent.name}: {events} events, empty Gen records excluded={metadata_excluded}", flush=True)
     gamma = {name: np.asarray(entries) for name, entries in gamma.items()}
     gen_event_counts = {name: np.asarray(entries) for name, entries in gen_event_counts.items()}
+    populations = analysis_selections(gamma["category"], gamma["cos_theta"])
     shared = dict(events=events, source=source, event_keys=event_keys, gen_signatures=gen_signatures,
                   metadata_excluded=metadata_excluded, gamma=gamma, selections=gen_selections(gamma["category"]),
-                  analysis_selections=analysis_selections(gamma["category"]),
-                  cuts=matching_masks(gamma["energy"], gamma["cos_theta"], gamma["category"]),
+                  analysis_selections=populations,
+                  energy_selections=energy_selections(gamma["energy"], populations),
                   gen_event_counts=gen_event_counts,
                   gen_event_index=np.repeat(np.arange(events), gen_event_counts["all_gamma"]))
     for mode, values in results.items():

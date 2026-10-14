@@ -22,8 +22,10 @@ def data_validation(study, sample, values):
     output = plot_path(study, '02_gamma', '00_data_validation', sample, values['source'],
                        values['collection']) / 'branch_checks'
     name = 'reco_link_status' if native else 'cluster_validity'
-    finish(fig, ax, output / f'{name}_{sample}.png', sample,
+    finish(fig, ax, output / f'{name}.png', sample,
            'Link status' if native else 'Cluster status', 'Reco candidates')
+    from .detector_plots import detector_validation
+    detector_validation(study, sample, values)
 
 
 def source_comparison(root, sample, native, raw):
@@ -41,7 +43,7 @@ def source_comparison(root, sample, native, raw):
     ax.set_xticks(x, ('Paired', 'Gen equal', 'Gen different', 'Only NanoAOD', 'Only raw'))
     ax.set_ylim(0, max(counts.max(), 1) * 1.5)
     output = root / '02_gamma' / '00_data_validation' / sample / 'source_comparison'
-    finish(fig, ax, output / f'gen_correspondence_{sample}.png', sample, 'Source comparison', 'Events')
+    finish(fig, ax, output / 'gen_correspondence.png', sample, 'Source comparison', 'Events')
     print(f'{sample}: paired={len(common)}, exact Gen agreement={equal}; '
           f'empty Gen records excluded: NanoAOD={native["metadata_excluded"]}, raw={raw["metadata_excluded"]}', flush=True)
     # Reco collections are different saved representations: compare inclusive
@@ -62,4 +64,4 @@ def source_comparison(root, sample, native, raw):
         ax.set_ylim(0.5 / min(native['events'], raw['events']), ax.get_ylim()[1] * 100)
         if coordinate == 'energy':
             ax.set_xticks([0, 10, 20, 30, 40, 55], ['0', '10', '20', '30', '40', r'$\geq50$'])
-        finish(fig, ax, output / f'reco_{coordinate}_{sample}_log.png', sample, xlabel, 'Objects / bin per event')
+        finish(fig, ax, output / f'reco_{coordinate}_log.png', sample, xlabel, 'Objects / bin per event')

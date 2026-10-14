@@ -110,7 +110,7 @@ def sample_distributions(study, sample, values, bins):
                     ax.set_xticks([0, 10, 20, 30, 40, 55], ['0', '10', '20', '30', '40', r'$\geq 50$'])
                 suffix = '_log' if log else ''
                 xlabel = r'$E_\gamma$ [GeV]' if coordinate == 'energy' else r'$\cos\theta$'
-                finish(fig, ax, output / f'{coordinate}_{sample}{suffix}.png', sample, xlabel,
+                finish(fig, ax, output / f'{coordinate}{suffix}.png', sample, xlabel,
                        r'$N_\gamma$ / bin per event' if values['source'] == 'nanoaod' else 'Objects / bin per event')
         event_multiplicity(output, sample, values, GEN_STACKS[gen_name])
 
@@ -141,5 +141,5 @@ def event_multiplicity(output, sample, values, components):
         else:
             ax.set_ylim(0, height * 1.8)
         suffix = '_log' if log else ''
-        finish(fig, ax, output / f'multiplicity_{sample}{suffix}.png',
+        finish(fig, ax, output / f'multiplicity{suffix}.png',
                sample, r'$N_\gamma$' if values['source'] == 'nanoaod' else r'$N$', 'Events')

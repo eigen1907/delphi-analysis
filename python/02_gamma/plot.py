@@ -15,7 +15,7 @@ truth = import_module('.03_truth_link_matching', __package__)
 
 
 def run(input_root: Path, output_root: Path, stage=None):
-    """Reco definitions share Gen cuts; only standard NanoAOD has truth links."""
+    """Reco definitions share fiducial Gen populations; only NanoAOD has truth links."""
     set_style()
     need_angles = stage in (None, '02_angular_matching')
     native_reference = 3.0  # Previous five-sample truth-angle scan: 99% ISR retention.
@@ -48,8 +48,6 @@ def run(input_root: Path, output_root: Path, stage=None):
         bins = dict(energy=np.r_[distributions.ENERGY_EDGES, 60],
                     energy_log=distributions.energy_bins(all_energy, True),
                     cos_theta=distributions.COS_THETA_EDGES)
-        gen_energy = np.concatenate([value['gamma']['energy'] for value in values[next(iter(labels))].values()])
-        gen_bins = dict(bins, energy=distributions.energy_bins(gen_energy))
         for mode in labels:
             cut = (angular.choose_cut(angles[mode].values()) if source == 'nanoaod' else native_reference) if need_angles else None
             if mode == 'Photon_PhotonConv' and need_angles:
@@ -61,9 +59,9 @@ def run(input_root: Path, output_root: Path, stage=None):
                 if stage in (None, '01_sample_distribution'):
                     distributions.sample_distributions(output_root, dataset, value, bins)
                 if stage in (None, '02_angular_matching'):
-                    angular.plot(output_root, dataset, value, gen_bins, angles[mode][sample], cut)
+                    angular.plot(output_root, dataset, value, bins, angles[mode][sample], cut)
                 if source == 'nanoaod' and stage in (None, '03_truth_link_matching'):
-                    truth.plot(output_root, dataset, value, gen_bins)
+                    truth.plot(output_root, dataset, value, bins)
                 print(f'plots: {source}/{mode} {dataset}', flush=True)
             if need_angles:
                 print(f'{source}/{mode}: opening-angle reference {cut:g} deg', flush=True)

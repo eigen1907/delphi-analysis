@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from .data import ANALYSIS_SELECTIONS, GEN_CUTS, GEN_LABELS
+from .data import ANALYSIS_SELECTIONS, ENERGY_RANGES, GEN_LABELS
 from common.matching import angle_matrix
 from common.plot_utils import FIGURE_SIZE, clopper_pearson, finish, plot_path
 
@@ -11,20 +11,17 @@ CUTS_DEG = np.array([0.25, 0.5, 1, 2, 3, 5, 10, 20])
 
 def new_accumulator():
     """Store truth retention, per-Gen cones, and event energy from their union."""
-    return dict(populations={cut: {
+    return dict(populations={
         population: dict(
-            gen_count=0, truth_success=0,
+            gen_count=0,
             angular_success=np.zeros(len(CUTS_DEG), dtype=np.int64),
             angular_energy_count=np.zeros(len(CUTS_DEG), dtype=np.int64),
             angular_energy_sum=np.zeros(len(CUTS_DEG)),
             angular_energy_square_sum=np.zeros(len(CUTS_DEG)),
-            recovered_truth_success=np.zeros(len(CUTS_DEG), dtype=np.int64),
-            truth_energy_count=np.zeros(len(CUTS_DEG), dtype=np.int64),
-            truth_energy_sum=np.zeros(len(CUTS_DEG)),
-            truth_energy_square_sum=np.zeros(len(CUTS_DEG)),
         ) for population in ANALYSIS_SELECTIONS
-    } for cut, _, _ in GEN_CUTS}, angular={name: dict(pending=[], blocks=[])
-                for name in ("reco_count", "energy_ratio", "event_energy")})
+    }, truth_reference=dict(success=0, recovered=np.zeros(len(CUTS_DEG), dtype=np.int64)),
+                angular={name: dict(pending=[], blocks=[])
+                for name in ("reco_count", "energy_ratio", "event_energy", "detector_matched")})
 
 
 def accumulate(accumulator, event, objects):
@@ -45,15 +42,18 @@ def accumulate(accumulator, event, objects):
     stored = accumulator["angular"]
     stored["reco_count"]["pending"].append(multiplicity.astype(np.uint16))
     stored["energy_ratio"]["pending"].append(np.where(valid_cones, energy_ratio, np.nan))
+    detector_flags = objects['detector_flags'][directional]
+    detector_matched = (cones[:, :, None, :] & detector_flags[None, :, :, None]).any(axis=1)
+    stored['detector_matched']['pending'].append(detector_matched)
     # Event energy counts each Reco object once, even when Gen cones overlap.
-    event_energy = np.zeros((1, len(GEN_CUTS), len(ANALYSIS_SELECTIONS), len(CUTS_DEG)))
-    for cut_index, (cut_name, _, _) in enumerate(GEN_CUTS):
+    event_energy = np.zeros((1, len(ENERGY_RANGES), len(ANALYSIS_SELECTIONS), len(CUTS_DEG)))
+    for range_index, (range_name, _, _) in enumerate(ENERGY_RANGES):
         for population_index, population in enumerate(ANALYSIS_SELECTIONS):
-            selected = event["cuts"][cut_name][population]
+            selected = event["energy_selections"][range_name][population]
             union = cones[selected].any(axis=0)
             energy = (union * p4[:, 3, None]).sum(axis=0)
             valid = ~(union & ~geometric_valid[:, None]).any(axis=0)
-            event_energy[0, cut_index, population_index] = np.where(valid, energy, np.nan)
+            event_energy[0, range_index, population_index] = np.where(valid, energy, np.nan)
     stored["event_energy"]["pending"].append(event_energy)
     # Combine small event arrays to avoid one Python object per event.
     if len(stored["reco_count"]["pending"]) == 1024:
@@ -61,39 +61,29 @@ def accumulate(accumulator, event, objects):
             field["blocks"].append(np.concatenate(field["pending"]))
             field["pending"].clear()
 
-    for cut_name, _, _ in GEN_CUTS:
-        for population in ANALYSIS_SELECTIONS:
-            selected = event['cuts'][cut_name][population]
-            values = accumulator['populations'][cut_name][population]
-            values['gen_count'] += int(selected.sum())
-            values['angular_success'] += (multiplicity[selected] > 0).sum(axis=0)
-            values['angular_energy_count'] += valid_cones[selected].sum(axis=0)
-            ratios = np.where(valid_cones[selected], energy_ratio[selected], 0)
-            values['angular_energy_sum'] += ratios.sum(axis=0)
-            values['angular_energy_square_sum'] += (ratios ** 2).sum(axis=0)
+    for population in ANALYSIS_SELECTIONS:
+        selected = event['analysis_selections'][population]
+        values = accumulator['populations'][population]
+        values['gen_count'] += int(selected.sum())
+        values['angular_success'] += (multiplicity[selected] > 0).sum(axis=0)
+        values['angular_energy_count'] += valid_cones[selected].sum(axis=0)
+        ratios = np.where(valid_cones[selected], energy_ratio[selected], 0)
+        values['angular_energy_sum'] += ratios.sum(axis=0)
+        values['angular_energy_square_sum'] += (ratios ** 2).sum(axis=0)
     # Raw banks contain no Sim truth information; do not invent unresolved links.
     if 'gen_idx' not in objects:
         return
     own_origin = gen_idx[:, None] == objects["gen_idx"][directional][None, :]
     truth_cones = cones & own_origin[:, :, None]
-    truth_ratio = (truth_cones * reco_energy).sum(axis=1) / gen_p4[:, 3, None]
-    energy_valid = objects["energy_valid"][directional]
-    truth_valid = ~(truth_cones & ~energy_valid[None, :, None]).any(axis=1)
-    truth_valid &= objects["stats"]["energy_valid"][:, None]
-    for cut_name, _, _ in GEN_CUTS:
-        for population in ANALYSIS_SELECTIONS:
-            selected = event["cuts"][cut_name][population]
-            values = accumulator["populations"][cut_name][population]
-            values["truth_success"] += int((objects["stats"]["reco_count"][selected] > 0).sum())
-            values["recovered_truth_success"] += truth_cones[selected].any(axis=1).sum(axis=0)
-            values["truth_energy_count"] += truth_valid[selected].sum(axis=0)
-            ratios = np.where(truth_valid[selected], truth_ratio[selected], 0)
-            values["truth_energy_sum"] += ratios.sum(axis=0)
-            values["truth_energy_square_sum"] += (ratios ** 2).sum(axis=0)
+    # Keep the established angle reference: all non-beam ISR, before fiducial selection.
+    selected = event['all_gamma_category'] == 'nonbeam_isr'
+    reference = accumulator['truth_reference']
+    reference['success'] += int((objects['stats']['reco_count'][selected] > 0).sum())
+    reference['recovered'] += truth_cones[selected].any(axis=1).sum(axis=0)
 
 
 def angular_stats(accumulator, cut_degrees):
-    """Extract the cut; event_energy axes are event, GEN_CUTS, population."""
+    """Extract the angle cut; event_energy axes are event, energy range, population."""
     index = int(np.flatnonzero(CUTS_DEG == cut_degrees).item())
     stats = {}
     for name, field in accumulator.pop("angular").items():
@@ -119,15 +109,15 @@ def choose_cut(accumulators):
     successes = 0
     recovered = np.zeros(len(CUTS_DEG), dtype=np.int64)
     for accumulator in accumulators:
-        values = accumulator["populations"]["cut_no"]["gen_isr"]
-        successes += values["truth_success"]
-        recovered += values["recovered_truth_success"]
+        reference = accumulator['truth_reference']
+        successes += reference['success']
+        recovered += reference['recovered']
     eligible = (successes > 0) & (recovered >= 0.99 * successes)
     index = np.flatnonzero(eligible)[0] if eligible.any() else len(CUTS_DEG) - 1
     return float(CUTS_DEG[index])
 
 
-def plot_angle_matching(output_root, sample, accumulator, cut_degrees, cut_name):
+def plot_angle_matching(output_root, sample, accumulator, cut_degrees):
     """All, ISR and no ISR, after excluding the beam generator component."""
     import matplotlib.pyplot as plt
 
@@ -136,7 +126,7 @@ def plot_angle_matching(output_root, sample, accumulator, cut_degrees, cut_name)
     for observable in ("efficiency", "energy_recovery"):
         fig, ax = plt.subplots(figsize=FIGURE_SIZE)
         for gen_index, population in enumerate(ANALYSIS_SELECTIONS):
-            values = accumulator["populations"][cut_name][population]
+            values = accumulator["populations"][population]
             if observable == "efficiency":
                 denominator = np.full(len(CUTS_DEG), values["gen_count"])
                 numerator = values["angular_success"]
@@ -149,19 +139,25 @@ def plot_angle_matching(output_root, sample, accumulator, cut_degrees, cut_name)
             ax.errorbar(CUTS_DEG[shown], mean[shown], yerr=error[..., shown], color=f"C{gen_index}",
                         marker="o", label=GEN_LABELS[gen_index], capsize=2, markersize=4)
         ax.axvline(cut_degrees, color="black", linestyle="--", linewidth=2)
+        ax.text(0.02, 0.89, 'Gen fiducial', transform=ax.transAxes, va='top')
         ax.set_xlim(0, 10)
-        ax.set_ylim(0, ax.get_ylim()[1] * 1.65)
+        if observable == "efficiency":
+            ax.set_ylim(0, 1.35)
+            ax.axhline(1, color='0.5', linestyle='--', linewidth=1.5)
+        else:
+            ax.set_ylim(0, ax.get_ylim()[1] * 1.65)
         ylabel = "Angular coverage" if observable == "efficiency" else r'$\langle\sum E^{\rm reco}/E_\gamma^{\rm gen}\rangle$'
-        finish(fig, ax, output_root / f"{observable}_vs_opening_angle_{sample}.png", sample,
+        finish(fig, ax, output_root / f"{observable}_vs_opening_angle.png", sample,
                "Opening-angle cut [deg]", ylabel)
 
 
 def plot(study, sample, values, bins, accumulator, cut_degrees):
+    from .detector_plots import detector_efficiencies
     from .results import matching_results
 
     stats = angular_stats(accumulator, cut_degrees)
-    for cut_name, _, _ in GEN_CUTS:
-        output = plot_path(study, '02_gamma', '02_angular_matching', sample, values['source'],
-                           values['collection'], 'matching_validation', cut_name)
-        plot_angle_matching(output, sample, accumulator, cut_degrees, cut_name)
+    output = plot_path(study, '02_gamma', '02_angular_matching', sample, values['source'],
+                       values['collection'], 'matching_validation')
+    plot_angle_matching(output, sample, accumulator, cut_degrees)
+    detector_efficiencies(study, sample, values, stats, '02_angular_matching')
     matching_results(study, sample, values, bins, stats, '02_angular_matching')
