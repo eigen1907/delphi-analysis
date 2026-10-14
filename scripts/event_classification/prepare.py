@@ -145,8 +145,12 @@ def write_split(
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--input", required=True, type=Path, help="filtered chunk root")
-    parser.add_argument("-o", "--output", required=True, type=Path, help="BDT dataset output directory")
+    parser.add_argument("-i", "--input", type=Path,
+                        default=PROJECT_ROOT / "data/202606xx_jongwon/chunk/20260606_100kTest",
+                        help="filtered chunk root")
+    parser.add_argument("-o", "--output", type=Path,
+                        default=PROJECT_ROOT / "data/202606xx_jongwon/ml/20260606_100kTest_pid",
+                        help="BDT dataset output directory")
     parser.add_argument(
         "--fractions",
         nargs=3,

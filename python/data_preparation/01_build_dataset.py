@@ -11,6 +11,8 @@ import uproot
 
 from common.plot_utils import add_samples_argument
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
 ROOT_FILES = (
     "nanoaod.root",
     "nanoaod_raw_sdst.root",
@@ -121,8 +123,12 @@ def build_file(paths: list[Path], output_path: Path) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     add_samples_argument(parser)
-    parser.add_argument("-i", "--input", required=True, type=Path, help="input chunks root")
-    parser.add_argument("-o", "--output", required=True, type=Path, help="merged dataset output root")
+    parser.add_argument("-i", "--input", type=Path,
+                        default=PROJECT_ROOT / "data/202606xx_jongwon/chunk/20260606_100kTest",
+                        help="input chunks root")
+    parser.add_argument("-o", "--output", type=Path,
+                        default=PROJECT_ROOT / "data/202606xx_jongwon/dataset/20260606_100kTest",
+                        help="merged dataset output root")
     parser.add_argument(
         "--backend",
         choices=("uproot", "hadd"),

@@ -150,8 +150,12 @@ def filter_root_file(src: Path, dst: Path, sample: str, job: str, file_name: str
 def main() -> None:
     parser = argparse.ArgumentParser()
     add_samples_argument(parser)
-    parser.add_argument("-i", "--input", required=True, type=Path, help="input raw chunks root")
-    parser.add_argument("-o", "--output", required=True, type=Path, help="prepared chunks output root")
+    parser.add_argument("-i", "--input", type=Path,
+                        default=PROJECT_ROOT / "data/202606xx_jongwon/raw/20260606_100kTest",
+                        help="input raw chunks root")
+    parser.add_argument("-o", "--output", type=Path,
+                        default=PROJECT_ROOT / "data/202606xx_jongwon/chunk/20260606_100kTest",
+                        help="prepared chunks output root")
     parser.add_argument("--check", type=Path, help="filter summary CSV path (default: data/check/<output directory>/event-filter.csv)")
     args = parser.parse_args()
 

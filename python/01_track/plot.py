@@ -37,7 +37,8 @@ def main(stage=None):
     from pathlib import Path
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-i', '--input', type=Path, required=True)
+    parser.add_argument('-i', '--input', type=Path,
+                        default=Path(__file__).resolve().parents[2] / 'data/20260828_florian')
     parser.add_argument('-o', '--output', type=Path, default=Path(__file__).resolve().parents[2] / 'plots')
     args = parser.parse_args()
     run(args.input, args.output, stage)

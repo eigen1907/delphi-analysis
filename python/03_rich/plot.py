@@ -31,7 +31,7 @@ def run(input_root, output_root, stage=None):
 
 def main(stage=None):
     parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--input", type=Path, required=True)
+    parser.add_argument("-i", "--input", type=Path, default=PROJECT_ROOT / "data/20260828_florian")
     parser.add_argument("-o", "--output", type=Path, default=PROJECT_ROOT / "plots")
     args = parser.parse_args()
     run(args.input, args.output, stage)

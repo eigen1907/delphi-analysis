@@ -129,8 +129,12 @@ def write_feature_importance(
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--input", required=True, type=Path, help="BDT dataset directory")
-    parser.add_argument("-o", "--output", required=True, type=Path, help="model output directory")
+    parser.add_argument("-i", "--input", type=Path,
+                        default=PROJECT_ROOT / "data/202606xx_jongwon/ml/20260606_100kTest_pid",
+                        help="BDT dataset directory")
+    parser.add_argument("-o", "--output", type=Path,
+                        default=PROJECT_ROOT / "plots/event_classification/20260606_100kTest_pid_standard",
+                        help="model output directory")
     parser.add_argument("--seed", type=int, default=1907, help="model seed (default: 1907)")
     parser.add_argument(
         "--hyperparameters",

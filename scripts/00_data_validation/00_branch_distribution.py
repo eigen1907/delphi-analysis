@@ -14,7 +14,9 @@ from common.plot_utils import add_samples_argument, default_plot_root
 def main() -> None:
     parser = argparse.ArgumentParser()
     add_samples_argument(parser)
-    parser.add_argument("-i", "--input", required=True, type=Path, help="input dataset root")
+    parser.add_argument("-i", "--input", type=Path,
+                        default=PROJECT_ROOT / "data/202606xx_jongwon/dataset/20260606_100kTest",
+                        help="input dataset root")
     parser.add_argument("-o", "--output", type=Path, help="plot output root (default: plots/<input directory>)")
     args = parser.parse_args()
 
