@@ -1,156 +1,113 @@
 # DELPHI Analysis
 
-ROOT validation and event classification for DELPHI NanoAOD.
+DELPHI ROOT 검증과 BDT 이벤트 분류 코드.
 
-## Environment
+## 설치와 구조
 
-Python 3.12 and the dependencies are defined in `pyproject.toml` and `uv.lock`:
+Python 3.12 환경에서 실행한다.
 
 ```bash
 uv sync --locked
 ```
 
-Run commands from the repository root with `uv run python`. The reusable Python
-packages are installed from `src/`; no `PYTHONPATH` changes are needed. ROOT is optional
-for dataset preparation with `--backend hadd`; the default uses uproot.
-
-## Layout
-
 ```text
 scripts/
-  02_sample_preparation/
-    prepare_dataset.py          prepare chunks, merge and build feature datasets
-  03_sample_validation/
-    00_overall/
-    01_track/
-    02_gamma/
-    03_rich/
-  04_event_classification/
-    01_model_train.py
-    02_model_evaluate.py
-    03_model_apply.py
-src/
-  common/                       paths, sample names and shared analysis helpers
-  sample_preparation/           ROOT filtering and merging
-  sample_validation/            overall, track, gamma and RICH implementations
-  event_classification/         features, job splits, training, evaluation, inference
-config/pid/                     feature and hyperparameter JSON configurations
-docs/                           branch audits and converter notes
-data/                           external and generated source samples
+  02_sample_preparation/      train/val/test 준비
+  03_sample_validation/       00_overall, 01_track, 02_gamma, 03_rich
+  04_event_classification/    학습·평가·추론
+src/                         재사용하는 Python 코드
+config/pid/                  BDT feature·hyperparameter JSON
+docs/                       branch와 분석 정의
+data/                        원본 샘플
 output/
-  dataset/                      prepared ROOT files, feature datasets, predictions
-  plots/                        validation and classifier figures
-  models/                       models, model metadata and evaluation metrics
+  dataset/                   paired ROOT dataset
+  plots/                     검증·BDT 그림
+  models/                    모델·평가 지표
 ```
 
-The numbered directories and files are execution entry points. Python packages
-under `src/` use ordinary import names without numeric prefixes. Generated data,
-outputs, container images and caches are excluded from Git.
+`scripts/`의 Bash recipe에 기본 옵션을 적었다. 옵션을 수정하거나 명령 뒤에
+인자를 붙여 덮어쓸 수 있다. 상대 경로는 저장소 루트 기준이다.
+Python 패키지는 `src/`에서 설치되므로 `PYTHONPATH` 설정은 필요 없다.
+데이터·출력·컨테이너·캐시는 Git에서 제외한다.
 
-## 1. Prepare datasets
+## 1. Dataset 준비
 
-One entry point provides the three preparation stages:
+각 원본 job의 `nanoaod.root`와 `nanoaod_raw_sdst.root`를 run/event로 맞추고,
+유효한 PHOTOS 이벤트를 중복 없이 train/val/test로 나눈다. 원본은 유지한다.
 
 ```bash
-uv run python scripts/02_sample_preparation/prepare_dataset.py \
-    -i data/20261015_jongwon -o output/dataset/20261015_jongwon
+bash scripts/02_sample_preparation/prepare_dataset.sh \
+    --input data/20261015_jongwon --output output/dataset/20261015_jongwon \
+    --counts 60000 15000 15000 --seed 1907
+
+bash scripts/02_sample_preparation/prepare_dataset.sh \
+    --input data/20260828_florian --output output/dataset/20260828_florian \
+    --samples Zee ZKK Zpipi Ztautau --counts 60000 15000 15000 --seed 1907
+bash scripts/02_sample_preparation/prepare_dataset.sh \
+    --input data/20260828_florian --output output/dataset/20260828_florian \
+    --samples Zmumu --counts 60000 15000 14999 --seed 1907
 ```
 
-The default `--stage all` writes:
+`--counts` 순서는 TRAIN VAL TEST다. Florian Zmumu는 원본 이벤트 1개가 없어
+test만 14,999개다. 기존 dataset 파일은 덮어쓰지 않는다.
 
 ```text
-output/dataset/20261015_jongwon/
-  chunks/<sample>/final_root/job_N/   filtered per-job ROOT files
-  merged/<sample>/                   merged analysis ROOT files
-  classification/pid/                train.root, val.root, test.root, metadata.json
+output/dataset/<campaign>/
+  metadata.json
+  <sample>_photosFSR/{train,val,test}.root
+    analysisLevel/Events
+    raw_sdst/Events
 ```
 
-Use `--stage chunks`, `--stage merge` or `--stage classification` to run one
-stage. The latter two accept the prepared chunks directory as input:
+두 tree는 `(job_id, run, event)` 순서가 같다. 기존 branch·중첩 구조를 유지하고
+`job_id`를 추가한다. 분할은 이벤트 단위이며 split 사이에 중복은 없다.
+Metadata에 원본 경로, 제외한 job/row와 실제 샘플별 이벤트 수를 기록한다.
+별도 ROOT 설치 없이 uproot으로 처리한다.
+
+## 2. Train dataset 검증
 
 ```bash
-uv run python scripts/02_sample_preparation/prepare_dataset.py --stage merge \
-    -i output/dataset/20261015_jongwon/chunks -o output/dataset/20261015_jongwon
-uv run python scripts/02_sample_preparation/prepare_dataset.py --stage classification \
-    -i output/dataset/20261015_jongwon/chunks -o output/dataset/20261015_jongwon \
-    --feature-config config/pid/features/minimal.json
+bash scripts/03_sample_validation/plot.sh --input output/dataset/20261015_jongwon
+bash scripts/03_sample_validation/plot.sh --input output/dataset/20260828_florian
 ```
 
-Filtering retains valid generator events and removes duplicated event keys.
-The filtering summary is written under `output/dataset/checks/` unless `--check`
-is specified. Merging is for analysis; classification reads the per-job chunks
-and splits whole jobs into train/validation/test, preserving their independence.
-The default split is 60/20/20 with seed 1907. `--samples` restricts filtering and
-merging; classification requires all four classifier channels.
+기본 split은 `train`이다. `--split val` 또는 `--split test`로 변경한다.
+각 분석의 `plot.sh`는 전체 단계를, 번호가 붙은 recipe는 해당 단계만 실행한다.
+`--output`을 생략하면 다음 경로를 사용한다.
 
-Feature configurations are `minimal`, `detector`, `pid` and `combined`. Their
-names select the directory under `classification/`. Feature contents and order
-are preserved in the dataset metadata and saved model.
+```text
+output/plots/<campaign>/03_sample_validation/<split>/
+  00_overall/{00_branch_distribution,01_source_comparison,02_gen_distribution,
+              03_gen_source_comparison,04_reco_distribution}/
+  01_track/{00_data_validation,01_sample_distribution,02_angular_matching,03_truth_link_matching}/
+  02_gamma/{00_data_validation,01_sample_distribution,02_angular_matching,03_truth_link_matching}/
+  03_rich/{00_data_validation,01_sample_distribution,02_angular_matching,03_truth_link_matching}/
+```
 
-## 2. Validate samples
+Photon 효율은 [fiducial region·matching·에너지 구간](docs/fiducial_regions.md)을 따른다.
+이전 RICH schema는 유효한 트랙 대응을 보장하지 않아 저장 상태 검사만 수행한다.
 
-Overall branch, generator and reconstructed distributions read merged data:
+## 3. BDT 학습·평가·추론
+
+`CAMPAIGN`은 두 dataset 중 하나를, `FEATURE_SET`은 `detector`, `detector_pid`
+(기본), `detector_rich`, `detector_pid_rich` 중 하나를 선택한다.
+고정 hyperparameter는 `default`이며, 5종 `Zee`, `Zmumu`, `Ztautau`, `ZKK`,
+`Zpipi`를 분류한다. [입력 feature](docs/bdt_input_branches.md)를 참고한다.
 
 ```bash
-uv run python scripts/03_sample_validation/00_overall/00_branch_distribution.py \
-    -i output/dataset/20261015_jongwon/merged -o output/plots/20261015_jongwon
+CAMPAIGN=20261015_jongwon FEATURE_SET=detector_pid bash scripts/04_event_classification/01_model_train.sh
+CAMPAIGN=20261015_jongwon FEATURE_SET=detector_pid bash scripts/04_event_classification/02_model_evaluate.sh
+CAMPAIGN=20261015_jongwon FEATURE_SET=detector_pid bash scripts/04_event_classification/03_model_apply.sh
 ```
 
-Track, photon and RICH entry points accept source campaign directories with
-per-job ROOT files. Each `plot.py` runs its stages while reading each sample once:
+Train으로 학습하고 val로 early stopping한다. Test는 평가에만 사용한다.
 
-```bash
-uv run python scripts/03_sample_validation/01_track/plot.py \
-    -i data/20261015_jongwon -o output/plots
-uv run python scripts/03_sample_validation/02_gamma/plot.py \
-    -i data/20261015_jongwon -o output/plots
-uv run python scripts/03_sample_validation/03_rich/plot.py \
-    -i data/20261015_jongwon -o output/plots
+```text
+output/models/<campaign>_<feature>_default/                    모델·metrics·importance
+output/plots/<campaign>/04_event_classification/
+  02_model_evaluate/<feature>_default/                        confusion matrix·importance
+output/dataset/<campaign>/predictions/<feature>_default/      추론 ROOT
 ```
 
-The numbered entry points within each directory run a single stage. Their CLI
-options and existing stage names/plot subdirectories are retained. Use `--help`
-for sample selection and plotting options. Shared diagnostic tables are written
-under `output/dataset/checks/`.
-
-## 3. Train, evaluate and apply a classifier
-
-The classifier uses four labels: `Zee`, `Zmumu`, `ZKK` and `Zpipi`. Tau samples
-remain available for generation and validation. Train uses only train/validation;
-validation is retained for early stopping. Evaluation loads the saved model and
-reports train/validation/test metrics separately.
-
-```bash
-uv run python scripts/04_event_classification/01_model_train.py \
-    -i output/dataset/20261015_jongwon/classification/pid \
-    -o output/models/20261015_jongwon_pid_standard \
-    --hyperparameters config/pid/hyperparameters/standard.json
-uv run python scripts/04_event_classification/02_model_evaluate.py \
-    -i output/dataset/20261015_jongwon/classification/pid \
-    -m output/models/20261015_jongwon_pid_standard/bdt.joblib \
-    -o output/plots/event_classification/20261015_jongwon_pid_standard
-uv run python scripts/04_event_classification/03_model_apply.py \
-    -i output/dataset/20261015_jongwon/merged \
-    -m output/models/20261015_jongwon_pid_standard/bdt.joblib \
-    -o output/dataset/20261015_jongwon/predictions/20261015_jongwon_pid_standard
-```
-
-Training writes `bdt.joblib`. Evaluation writes `metrics.json` and
-`feature_importance.csv` beside the model and diagnostic PNGs to its plot output.
-Apply writes prediction ROOT files without modifying inputs. Existing model
-bundles remain readable. Match dataset features and feature configuration to the
-model when evaluating or applying it.
-
-## Data conventions
-
-Source samples in `data/` are retained unchanged. Filtering and merging write
-new files under `output/dataset/`; generation intermediate files stay with their
-source jobs. A structure change does not recalibrate or repair physics content.
-
-The existing matching algorithms, detector selections and numbered plot stages
-are retained. DELPHI `Part_pdgId`/`SimPart_pdgId` use DELPHI mass codes, not PDG
-codes. Raw run/setup rows are not physics events; production validation counts
-`Event_isMC == 1`. RICH and truth-link limitations are recorded in the
-[branch usage summary](docs/branch_usage_summary.md),
-[raw SDST audit](docs/nanoaod_raw_sdst_branch_audit.md) and
-[converter validation notes](docs/gamma_rich_converter_fixes.md).
+현재 8개 실험의 요약은 `output/models/results.csv`에 있다.
+Branch 해석·변환기 수정 내역은 [문서 목차](docs/README.md)를 참고한다.
