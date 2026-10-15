@@ -18,6 +18,7 @@ from common.plot_utils import add_samples_argument, default_check_root
 
 ROOT_FILES = (
     "nanoaod.root",
+    "nanoaod_fadana.root",
     "nanoaod_raw_sdst.root",
     "nanoaod_raw_fadana.root",
     "nanoaod_ttree.root",
