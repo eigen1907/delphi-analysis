@@ -14,12 +14,12 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from common.paths import DATASET_ROOT, MODEL_ROOT, PLOT_ROOT
-from event_classification.dataset import load_metadata, load_split
+from event_classification.dataset import feature_metadata, load_metadata, load_dataset_split
 
 
-DEFAULT_INPUT = DATASET_ROOT / "20261015_jongwon" / "classification" / "pid"
-DEFAULT_MODEL = MODEL_ROOT / "20261015_jongwon_pid_standard" / "bdt.joblib"
-DEFAULT_OUTPUT = PLOT_ROOT / "event_classification" / "20261015_jongwon_pid_standard"
+DEFAULT_INPUT = DATASET_ROOT / "20261015_jongwon"
+DEFAULT_MODEL = MODEL_ROOT / "20261015_jongwon_detector_pid_default" / "bdt.joblib"
+DEFAULT_OUTPUT = PLOT_ROOT / "20261015_jongwon" / "04_event_classification" / "02_model_evaluate" / "detector_pid_default"
 
 
 def evaluate(model, features, labels, class_names):
@@ -47,7 +47,10 @@ def evaluate(model, features, labels, class_names):
 
 
 def plot_confusion_matrix(matrix, class_names, output_path: Path) -> None:
-    values = np.asarray(matrix, dtype=float)
+    display_order = ("Zee", "Zmumu", "Ztautau", "ZKK", "Zpipi")
+    order = sorted(range(len(class_names)), key=lambda index: display_order.index(class_names[index]))
+    class_names = [class_names[index] for index in order]
+    values = np.asarray(matrix, dtype=float)[np.ix_(order, order)]
     row_sum = values.sum(axis=1, keepdims=True)
     normalized = np.divide(values, row_sum, out=np.zeros_like(values), where=row_sum > 0)
 
@@ -99,9 +102,10 @@ def write_feature_importance(
     plt.close(fig)
 
 
-def evaluate_model(input_dir: Path, model_path: Path, output_dir: Path) -> dict:
-    metadata = load_metadata(input_dir)
+def evaluate_model(input_dir: Path, model_path: Path, output_dir: Path,
+                   metrics_dir: Path | None = None) -> dict:
     bundle = joblib.load(model_path)
+    metadata = feature_metadata(load_metadata(input_dir), bundle["feature_config"])
     for key in ("features", "labels", "feature_config"):
         if metadata[key] != bundle[key]:
             raise ValueError(f"Model and evaluation dataset have different {key}")
@@ -112,9 +116,19 @@ def evaluate_model(input_dir: Path, model_path: Path, output_dir: Path) -> dict:
     class_names = [name for name, _ in label_items]
     best_iteration = int(getattr(model, "best_iteration", model.get_booster().num_boosted_rounds() - 1))
     metrics = {
+        "training_dataset": bundle.get("training_dataset"),
+        "training_campaign": bundle.get("training_campaign"),
+        "evaluation_dataset": str(input_dir.resolve()),
+        "evaluation_campaign": metadata.get("campaign"),
+        "model_file": str(model_path.resolve()),
+        "feature_extraction": bundle.get("feature_extraction"),
+        "comparison_caveat": (
+            "Florian uses the legacy converter and its HaID track associations are unavailable. "
+            "Cross-campaign differences also reflect converter schemas, not only event generation."
+        ) if metadata.get("format_version") == 6 else None,
         "model": {
             "type": type(model).__name__,
-            "feature_set": bundle.get("feature_set", "pid"),
+            "feature_set": bundle.get("feature_set", "detector_pid"),
             "feature_count": len(selected_features),
             "hyperparameter_name": bundle["hyperparameter_name"],
             "parameters": model.get_params(),
@@ -124,9 +138,7 @@ def evaluate_model(input_dir: Path, model_path: Path, output_dir: Path) -> dict:
         },
     }
     for split in ("train", "val", "test"):
-        features, labels = load_split(
-            input_dir / f"{split}.root", selected_features, metadata["tree"]
-        )
+        features, labels = load_dataset_split(input_dir, split, metadata)
         metrics[split] = evaluate(model, features, labels, class_names)
         del features, labels
         print(
@@ -134,7 +146,9 @@ def evaluate_model(input_dir: Path, model_path: Path, output_dir: Path) -> dict:
             f"macro_f1={metrics[split]['macro_f1']:.4f}"
         )
 
-    metrics_path = model_path.parent / "metrics.json"
+    metrics_dir = metrics_dir or model_path.parent
+    metrics_dir.mkdir(parents=True, exist_ok=True)
+    metrics_path = metrics_dir / "metrics.json"
     with metrics_path.open("w") as output_file:
         json.dump(metrics, output_file, indent=2, sort_keys=True)
         output_file.write("\n")
@@ -146,9 +160,9 @@ def evaluate_model(input_dir: Path, model_path: Path, output_dir: Path) -> dict:
             class_names,
             output_dir / f"confusion_matrix_{split}.png",
         )
-    write_feature_importance(model, selected_features, output_dir, model_path.parent)
+    write_feature_importance(model, selected_features, output_dir, metrics_dir)
     print(f"metrics: {metrics_path}")
-    print(f"feature importance: {model_path.parent / 'feature_importance.csv'}")
+    print(f"feature importance: {metrics_dir / 'feature_importance.csv'}")
     print(f"diagnostic plots: {output_dir}")
     return metrics
 
@@ -159,11 +173,15 @@ def main() -> None:
                         help="BDT dataset directory with train/val/test ROOT files")
     parser.add_argument("-m", "--model", type=Path, default=DEFAULT_MODEL,
                         help="trained bdt.joblib; metrics and importance CSV are saved beside it")
-    parser.add_argument("-o", "--output", type=Path, default=DEFAULT_OUTPUT,
-                        help="directory for diagnostic plots")
+    parser.add_argument("-o", "--output", type=Path, default=None,
+                        help=f"diagnostic directory inferred from input/model (default: {DEFAULT_OUTPUT})")
+    parser.add_argument("--metrics-dir", type=Path,
+                        help="metrics/CSV directory (default: beside model); useful for cross-campaign evaluation")
     args = parser.parse_args()
+    model_name = args.model.parent.name.removeprefix(f"{args.input.name}_")
+    output = args.output or PLOT_ROOT / args.input.name / "04_event_classification" / "02_model_evaluate" / model_name
     try:
-        evaluate_model(args.input, args.model, args.output)
+        evaluate_model(args.input, args.model, output, args.metrics_dir)
     except ValueError as error:
         parser.error(str(error))
 

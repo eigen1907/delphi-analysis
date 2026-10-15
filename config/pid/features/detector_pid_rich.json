@@ -1,5 +1,5 @@
 {
-  "name": "combined",
+  "name": "detector_pid_rich",
   "features": {
     "Event": [
       "Event_bFieldGevCm",
@@ -85,7 +85,15 @@
       "HaidRaw_protonRich",
       "HaidRaw_pionRich",
       "HaidRaw_kaonCombined",
-      "HaidRaw_protonCombined"
+      "HaidRaw_protonCombined",
+      "HaidRaw_thetaGas",
+      "HaidRaw_sigmaGas",
+      "HaidRaw_nphGas",
+      "HaidRaw_nepGas",
+      "HaidRaw_thetaLiq",
+      "HaidRaw_sigmaLiq",
+      "HaidRaw_nphLiq",
+      "HaidRaw_nepLiq"
     ],
     "VdAssocHit": [
       "nVdAssocHit",
