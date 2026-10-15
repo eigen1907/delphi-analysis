@@ -33,6 +33,7 @@ def source_comparison(root, dataset, raw, normal):
     ax.bar(np.arange(len(counts)), counts, color='C0')
     ax.errorbar(np.arange(len(counts)), counts, yerr=np.sqrt(counts), fmt='none', color='black', capsize=3)
     ax.set_xticks(np.arange(len(counts)), labels)
+    ax.tick_params(axis='x', labelsize=16)
     ax.set_yscale('log')
     ax.set_ylim(0.5, counts.max(initial=1) * 100)
     finish(fig, ax, output / 'event_gen_correspondence.png', dataset, '', 'Events')

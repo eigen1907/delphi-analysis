@@ -35,7 +35,7 @@ def event_energy_ratio(output, sample, values, stats, range_index):
             usable = selected & finite
             reco_energy = np.bincount(event_index[usable],
                                       weights=energy[usable] * stats['energy_ratio'][usable],
-                                      minlength=values['events'])
+                                      minlength=values['events']).astype(float, copy=False)
             ambiguous = np.bincount(event_index[selected & ~finite], minlength=values['events']) > 0
             reco_energy[ambiguous] = np.nan
         defined = (gen_energy > 0) & np.isfinite(reco_energy)

@@ -6,10 +6,10 @@ import awkward as ak
 import numpy as np
 import uproot
 
+from common.dataset import SOURCE_TREES
 from common.matching import angle_matrix, match_tracks, resolve_part_origins
 
-SOURCES = {"nanoaod_raw_sdst": ("nanoaod_raw_sdst.root", "TracRaw"),
-           "nanoaod": ("nanoaod.root", "Trac")}
+SOURCES = {"nanoaod_raw_sdst": "TracRaw", "nanoaod": "Trac"}
 CHARGED_PDGS = (11, 13, 211, 321, 2212)
 ANGLE_CUT = 0.05  # radians; same-charge, greedy one-to-one angular matching.
 SCAN_CUTS = np.linspace(0, 0.20, 201)
@@ -41,7 +41,7 @@ def read_events(files, source, extra_branches=()):
     gen_name = "GenPart_fourMomentum" if source == "nanoaod_raw_sdst" else "GenPart_vector"
     gen_p4 = tuple(f"{gen_name}.fCoordinates.f{axis}" for axis in "XYZT")
     event_number = "Event_eventNumber" if source == "nanoaod_raw_sdst" else "Event_evtNumber"
-    branches = ["GenPart_status", "GenPart_pdgId", "GenPart_parentIdx", "Event_runNumber", event_number, *gen_p4]
+    branches = ["job_id", "GenPart_status", "GenPart_pdgId", "GenPart_parentIdx", "Event_runNumber", event_number, *gen_p4]
     if source == "nanoaod_raw_sdst":
         branches += ["Event_bFieldGevCm", "TracRaw_theta", "TracRaw_phi",
                      "TracRaw_invR", "TracRaw_charge", "TracRaw_paIdx"]
@@ -50,7 +50,7 @@ def read_events(files, source, extra_branches=()):
         branches += [f"Part_fourMomentum.fCoordinates.f{axis}" for axis in "XYZT"]
     for path in files:
         with uproot.open(path) as root:
-            tree = root["Events"]
+            tree = root[SOURCE_TREES[source]]
             excluded = 0
             for start in range(0, tree.num_entries, 5000):
                 # Read split four-vector leaves directly; tree.iterate omits some
@@ -106,7 +106,7 @@ def read_events(files, source, extra_branches=()):
                                reco_p=np.linalg.norm(xyz[valid], axis=1),
                                reco_pt=np.linalg.norm(xyz[valid, :2], axis=1),
                                part_idx=part_idx[valid], truth=truth, raw_reco_count=raw_count,
-                               event_key=(path.parent.name, int(raw["Event_runNumber"]), int(raw[event_number])),
+                               event_key=(int(raw["job_id"]), int(raw["Event_runNumber"]), int(raw[event_number])),
                                gen_signature=signature.digest())
             if excluded:
                 print(f"{source} {path.parent.name}: metadata_excluded={excluded} (empty Gen record)", flush=True)
@@ -126,7 +126,7 @@ def read_sample(files, source):
     records, duplicates = {}, set()
     for path in files:
         with uproot.open(path) as root:
-            counts["metadata_excluded"] += int(np.count_nonzero(root["Events"]["nGenPart"].array(library="np") == 0))
+            counts["metadata_excluded"] += int(np.count_nonzero(root[SOURCE_TREES[source]]["nGenPart"].array(library="np") == 0))
     for event in read_events(files, source):
         gen_xyz, reco_xyz = event["gen_xyz"], event["reco_xyz"]
         gen_p, reco_p = np.linalg.norm(gen_xyz, axis=1), np.linalg.norm(reco_xyz, axis=1)

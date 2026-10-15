@@ -1,10 +1,14 @@
 """Read both NanoAOD sources and execute the explicitly numbered photon stages."""
+from concurrent.futures import ProcessPoolExecutor
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
 
 import numpy as np
 
-from common.paths import DATA_ROOT, PLOT_ROOT
-from common.plot_utils import set_style
+from common.paths import DATASET_ROOT, PROJECT_ROOT
+from common.dataset import dataset_files
+from common.plot_utils import default_plot_root, set_style
 from . import angular_matching as angular
 from . import data_validation as validation
 from . import sample_distribution as distributions
@@ -13,14 +17,27 @@ from .data import RECO_LABELS, SAMPLES, read_sample
 from .raw_data import RECO_LABELS as RAW_RECO_LABELS
 
 
-def run(input_root: Path, output_root: Path, stage=None):
+def _read_dataset(job):
+    dataset, files, source, need_angles = job
+    labels = RECO_LABELS if source == 'nanoaod' else RAW_RECO_LABELS
+    sample = next(name for name in SAMPLES if f'_{name}_' in f'_{dataset}_')
+    angles = {mode: angular.new_accumulator() for mode in labels}
+
+    def scan(event):
+        if need_angles:
+            for mode, objects in event['reco'].items():
+                angular.accumulate(angles[mode], event, objects)
+
+    diagnostics = StringIO()
+    with redirect_stdout(diagnostics):
+        samples = read_sample(files, sample, scan, source)
+    return dataset, samples, angles, diagnostics.getvalue()
+
+
+def run(input_root: Path, output_root: Path, stage=None, split="train", ncpu=5):
     """Reco definitions share fiducial Gen populations; only NanoAOD has truth links."""
     set_style()
-    datasets = ([input_root] if (input_root / 'final_root').is_dir()
-                else sorted(input_root.glob('*_photosFSR*')))
-    datasets = [path for path in datasets if (path / 'final_root').is_dir()]
-    if not datasets:
-        raise FileNotFoundError(f'No PHOTOS-FSR datasets in {input_root}')
+    datasets = list(dataset_files(input_root, split))
     need_angles = stage in (None, '02_angular_matching')
     native_reference = 3.0  # Previous five-sample truth-angle scan: 99% ISR retention.
     native_gen = {}
@@ -29,18 +46,18 @@ def run(input_root: Path, output_root: Path, stage=None):
             continue
         angles = {mode: {} for mode in labels}
         values = {mode: {} for mode in labels}
-        for directory in datasets:
-            dataset = directory.name
-            sample = next(name for name in SAMPLES if f'_{name}_' in f'_{dataset}_')
-            for mode in labels:
-                angles[mode][dataset] = angular.new_accumulator()
-            def scan(event):
-                if need_angles:
-                    for mode, objects in event['reco'].items():
-                        angular.accumulate(angles[mode][dataset], event, objects)
-            samples = read_sample(directory, sample, scan, source)
+        jobs = [(dataset, files, source, need_angles) for dataset, files in datasets]
+        print(f"Reading gamma {source}: {len(jobs)} samples, workers={min(ncpu, len(jobs))}", flush=True)
+        if ncpu == 1:
+            loaded = list(map(_read_dataset, jobs))
+        else:
+            with ProcessPoolExecutor(max_workers=min(ncpu, len(jobs))) as pool:
+                loaded = list(pool.map(_read_dataset, jobs))
+        for dataset, samples, scanned, diagnostics in loaded:
+            print(diagnostics, end='', flush=True)
             for mode, value in samples.items():
                 values[mode][dataset] = value
+                angles[mode][dataset] = scanned[mode]
             if stage in (None, '00_data_validation'):
                 representative = samples['Photon_PhotonConv' if source == 'nanoaod' else 'EmShower_Stic']
                 if source == 'nanoaod':
@@ -76,8 +93,22 @@ def main(stage=None):
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--input', type=Path,
-                        default=DATA_ROOT / '20260828_florian',
-                        help='PHOTOS-FSR campaign directory or one dataset directory')
-    parser.add_argument('-o', '--output', type=Path, default=PLOT_ROOT)
+                        default=DATASET_ROOT / '20261015_jongwon',
+                        help='paired dataset campaign directory or one sample directory')
+    parser.add_argument('-o', '--output', type=Path, default=None)
+    parser.add_argument(
+        "--stage", choices=("all", "00_data_validation", "01_sample_distribution",
+                            "02_angular_matching", "03_truth_link_matching"),
+        default=stage or "all", help="plotting stage (default: all)",
+    )
+    parser.add_argument("--split", choices=("train", "val", "test"), default="train")
+    parser.add_argument("--ncpu", type=int, default=5, help="parallel sample readers (default: 5)")
     args = parser.parse_args()
-    run(args.input, args.output, stage)
+    if args.ncpu < 1:
+        parser.error("--ncpu must be positive")
+    output = args.output or default_plot_root(PROJECT_ROOT, args.input, args.split)
+    run(args.input, output, None if args.stage == "all" else args.stage, args.split, args.ncpu)
+
+
+if __name__ == "__main__":
+    main()

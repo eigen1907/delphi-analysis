@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import argparse
+from common.dataset import SOURCE_TREES, dataset_files
+from common.paths import DATASET_ROOT, PROJECT_ROOT
+from common.plot_utils import default_plot_root, add_color_scale_argument, add_samples_argument
 import shutil
 from pathlib import Path
 
@@ -22,7 +26,6 @@ from common.plot_utils import (
     infer_expected_abs_pdg,
     normalize_counts,
     phi_0_2pi,
-    resolve_samples,
     sample_grid,
     sample_styles,
     set_hist_yaxis,
@@ -389,10 +392,12 @@ def plot_gen_check(
     output_root: Path,
     samples: list[str] | tuple[str, ...] | None = None,
     color_scale: str = "per-sample",
+    split: str = "train",
 ) -> None:
     mh.style.use(mh.styles.CMS)
-    samples = resolve_samples(input_root, samples)
-    output_root = output_root / "gen_check"
+    files = dict(dataset_files(input_root, split, samples))
+    samples = tuple(files)
+    output_root = output_root / "00_overall" / "02_gen_distribution"
     output_root.mkdir(parents=True, exist_ok=True)
     for path in output_root.glob("*.png"):
         path.unlink()
@@ -403,7 +408,7 @@ def plot_gen_check(
     active_samples = []
 
     for sample in samples:
-        tree = uproot.open(input_root / sample / "nanoaod.root")["Events"]
+        tree = uproot.open(files[sample][0])[SOURCE_TREES["nanoaod"]]
         available_branches = set(tree.keys())
         missing_core = [branch for branch in CORE_BRANCHES if branch not in available_branches]
         if missing_core:
@@ -614,3 +619,24 @@ def plot_gen_check(
                 )
 
     print(f"wrote {output_root}")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    add_samples_argument(parser)
+    parser.add_argument("-i", "--input", type=Path,
+                        default=DATASET_ROOT / "20261015_jongwon",
+                        help="input dataset root")
+    parser.add_argument("-o", "--output", type=Path, default=None,
+                        help="plot output root (default: output/plots/<campaign>/03_sample_validation/<split>)")
+    add_color_scale_argument(parser)
+    parser.add_argument("--split", choices=("train", "val", "test"), default="train")
+    args = parser.parse_args()
+
+    input_root = args.input
+    output_root = args.output or default_plot_root(PROJECT_ROOT, input_root, args.split)
+    plot_gen_check(input_root, output_root, args.samples, args.color_scale, args.split)
+
+
+if __name__ == "__main__":
+    main()

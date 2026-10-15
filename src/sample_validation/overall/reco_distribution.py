@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import argparse
+from common.dataset import SOURCE_TREES, dataset_files
+from common.paths import DATASET_ROOT, PROJECT_ROOT
+from common.plot_utils import default_plot_root, add_color_scale_argument, add_samples_argument
 import shutil
 from pathlib import Path
 
@@ -18,15 +22,12 @@ from common.plot_utils import (
     add_heatmap_label,
     normalize_counts,
     phi_0_2pi,
-    resolve_samples,
     sample_grid,
     sample_styles,
     set_hist_yaxis,
 )
 
 
-FILE_NAME = "nanoaod_raw_sdst.root"
-TREE_NAME = "Events"
 TRACK_NAME = "TrackRaw"
 TRACK_BRANCHES = (
     "Event_bFieldGevCm",
@@ -259,11 +260,13 @@ def plot_reco_check(
     output_root: Path,
     samples: list[str] | tuple[str, ...] | None = None,
     color_scale: str = "per-sample",
+    split: str = "train",
 ) -> None:
     mh.style.use(mh.styles.CMS)
-    samples = resolve_samples(input_root, samples)
+    files = dict(dataset_files(input_root, split, samples))
+    samples = tuple(files)
     styles = sample_styles(samples)
-    output_dir = output_root / "reco_check" / TRACK_NAME
+    output_dir = output_root / "00_overall" / "04_reco_distribution" / TRACK_NAME
     shutil.rmtree(output_dir, ignore_errors=True)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -288,7 +291,7 @@ def plot_reco_check(
     }
 
     for sample in samples:
-        tree = uproot.open(input_root / sample / FILE_NAME)[TREE_NAME]
+        tree = uproot.open(files[sample][0])[SOURCE_TREES["nanoaod_raw_sdst"]]
         arrays = {branch: tree[branch].array(library="ak") for branch in TRACK_BRANCHES}
         n_events[sample] = int(tree.num_entries)
 
@@ -343,3 +346,24 @@ def plot_reco_check(
         )
 
     print(f"wrote {output_dir}")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    add_samples_argument(parser)
+    parser.add_argument("-i", "--input", type=Path,
+                        default=DATASET_ROOT / "20261015_jongwon",
+                        help="input dataset root")
+    parser.add_argument("-o", "--output", type=Path, default=None,
+                        help="plot output root (default: output/plots/<campaign>/03_sample_validation/<split>)")
+    add_color_scale_argument(parser)
+    parser.add_argument("--split", choices=("train", "val", "test"), default="train")
+    args = parser.parse_args()
+
+    input_root = args.input
+    output_root = args.output or default_plot_root(PROJECT_ROOT, input_root, args.split)
+    plot_reco_check(input_root, output_root, args.samples, args.color_scale, args.split)
+
+
+if __name__ == "__main__":
+    main()
