@@ -1,96 +1,75 @@
-# Gamma / RICH converter fixes
+# Gamma/RICH converter 수정
 
-2026-10-14, branch `fix/gamma-rich-converter`.
-DELSIM/DELANA 코드는 변경하지 않았다. 기존 Z→KK PHOTOS-FSR 1,000개 이벤트의
-SDST와 full FADANA를 수정된 NanoAOD writer로 다시 변환했다.
+범위: `706d1dc..47bc812`의 `ff6051a`(Gamma), `47bc812`(RICH).
+DELSIM/DELANA와 원본 이벤트는 변경하지 않고 ROOT converter를 수정했다.
+수정은 새로 변환한 파일에 적용된다. 기존 `20260828_florian` ROOT에는 소급되지 않는다.
+원본 tree `Events`는 dataset에서 아래 두 tree로 저장된다.
 
-2026-10-15 코드 정리 후 두 converter를 다시 빌드하고, SDST/full DST 각각
-100개 이벤트를 재변환했다. 기존 수정본과 모든 데이터 컬럼이 정확히 일치했으며,
-native/raw RICH 11개 필드도 같은 PA 기준으로 일치했다.
-Converter 커밋: Gamma `ff6051a`, RICH `47bc812`.
+## Native: `analysisLevel/Events`
 
-새 분석 입력:
-`data/20261014_stic_validation/20261014_1kTest_ZKK_photosFSR_gamma_rich_fixed/final_root/`.
-기존 Florian ROOT 파일은 수정 이전 producer의 결과이므로 아래 수정이 소급 적용되지 않는다.
-
-## Gamma
-
-| 수정 | 내용 |
+| ROOT branch | 수정 전 → 수정 후 |
 | --- | --- |
-| STIC | 이전 수정 유지: COMMON stride 9, silicon field 9. 실제 STIC 후보 25개 복구 |
-| Raw FEMC | 4-word shower 밖의 layer metadata를 읽지 않음. 없는 `nLayers/layerPattern`은 `-1` |
-| SimVtx | Mass code는 `KVTX(5)`, 좌표는 `QVTX(6..8)`에서 읽음 |
-| Gen–Sim index | SH 순서의 `ISTSH/ISHST` 대신 LU/Gen 순서의 `ISTLU/ILUST` 사용 |
-| PhotonConv | 저장된 reciprocal conversion vertex → neutral gamma parent Part → Sim gamma 연결로 `simPhotonIdx` 채움 |
-| Raw electron/conversion | ELID header 대신 PA identification bits로 tag를 읽고, decoded electron bank에서 momentum 저장 |
-| 설명 | `Photon_emEnergy`는 FEMC 전용; 현재 conversion type은 양수 21–24; DST Gen 위치는 cm |
+| `Part_paIdx` | **신규.** Part/VECP row → 실제 0-based PA ID, 없으면 `-1` |
+| `Rich_theg`, `Rich_sigg`, `Rich_nphg`, `Rich_nepg`, `Rich_flagg`, `Rich_thel`, `Rich_sigl`, `Rich_nphl`, `Rich_nepl`, `Rich_flagl` | 잘못된 COMMON/auxiliary 접근 → 현재 이벤트의 decoded gas/liquid bank. Expected photon count 소수 보존 |
+| `Part_sticShowerEnergy`, `Part_sticShowerTheta`, `Part_sticShowerPhi`, `Part_sticNumTowers`, `Part_sticChargedTag`, `Part_sticSiliconVertexPos` | STIC stride `6 → 9`; silicon field `KSTIC(6) → KSTIC(9)` |
+| `Photon_sticShowerEnergy`, `Photon_sticNumTowers`, `Photon_sticChargedTag` | 같은 STIC stride 교정 |
+| `SimPart_genIdx`, `GenPart_simIdx` | SH 순서 `ISTSH/ISHST` → Gen/LU 순서 `ISTLU/ILUST` |
+| `SimVtx_masscode`, `SimVtx_position` | `KVTX(4) → (5)`, `QVTX(1..3) → (6..8)` |
+| `PhotonConv_simPhotonIdx` | 잘못된 `KPHOC(3)-1` → 저장 conversion vertex의 reciprocal parent Part와 직접 Sim gamma 연결을 확인. 없으면 `-1` |
 
-`PhotonConv_simPhotonIdx`는 같은 vertex의 유효한 daughter와 reciprocal parent,
-parent의 직접 Sim link 및 Sim gamma code 21이 확인되는 경우에만 채운다.
-없는 연결은 `-1`로 남긴다. Angular matching을 사용하지 않는다.
-기존 분석은 이미 parent/daughter ancestry를 사용하므로 matching 정의를 바꾸지 않았다.
+STIC 교정은 후보/flag에도 간접 영향을 줄 수 있으나 해당 선택식 자체는 바꾸지 않았다.
+Native에 새로 추가된 이름은 `Part_paIdx` 하나다. 기존 branch 이름 삭제·변경은 없다.
 
-검증 결과:
+## Raw SDST: `raw_sdst/Events`
 
-- Photon 1,280개, conversion 68개와 기존 운동량/Gen 분류 유지.
-- Conversion의 직접 Sim-gamma index: 25개 유효, 43개 unresolved.
-- 기존 Gen→Reco 개수, energy ratio, 유효성 및 detector flags는 1,000개 이벤트 모두 동일.
-- SH/LU index 수정은 현재 표본의 저장값을 바꾸지 않음. 순서가 달라지는 입력에 대한 오류 예방.
-- SimVtx 1,643개 좌표가 finite이며, Gen–Sim anchor의 위치 5,282쌍이 정확히 일치.
-- FEMC 316개 layer metadata는 모두 `-1`; HPC 2,469개와 layer 12,775개의 기존 값 유지.
-- Raw ELID 1,908개 tag/conversion tag/momentum이 같은 PA의 native 값과 정확히 일치.
-  ELID 외 raw 컬럼 177개는 수정 전후 동일하여 기존 플롯 입력도 유지.
-
-## RICH
-
-| 수정 | 내용 |
+| ROOT branch | 수정 전 → 수정 후 |
 | --- | --- |
-| Gas COMMON | Bank 길이 6→5; expected-count auxiliary는 INTEGER, flag auxiliary는 REAL |
-| Liquid COMMON | Expected-count auxiliary는 INTEGER, flag auxiliary는 REAL |
-| 이벤트 처리 | `PSBEG`가 초기화한 decoded bank를 읽음. 별도 COMMON 초기화 불필요 |
-| 값 저장 | 현재 이벤트의 decoded gas/liquid bank를 읽음. Fractional expected count 보존 |
-| Raw quality | `int8` 대신 `int32`로 전체 quality word 저장 |
-| Raw Track 연결 | `HaidRaw_paIdx`를 실제 0-based PA index로 저장 |
-| Native/raw 대응 | 새 `Part_paIdx`와 `HaidRaw_paIdx`로 같은 PA를 대응. 없는 PA는 `-1` |
+| `HaidRaw_thetaGas`, `HaidRaw_sigmaGas`, `HaidRaw_nphGas`, `HaidRaw_nepGas`, `HaidRaw_flagGas`, `HaidRaw_thetaLiq`, `HaidRaw_sigmaLiq`, `HaidRaw_nphLiq`, `HaidRaw_nepLiq`, `HaidRaw_flagLiq` | Native와 같은 corrected decoded RICH bank. 잘못 읽은 값/잔류값 제거, expected count 소수 보존 |
+| `HaidRaw_paIdx` | 1-based VECP row → 실제 0-based PA ID, 없으면 `-1` |
+| `HaidRaw_richQuality` | `int8 → int32`, 전체 status word 보존 |
+| `ElidRaw_tag`, `ElidRaw_gammaConvTag` | ELID header → PA identification word의 bits 7..9, 10..12 |
+| `ElidRaw_refitMomentum` | 다른 ELID word → decoded `QELID(3..5)` |
+| `EmShower_nLayers`, `EmShower_layerPattern` | FEMC record 밖 읽기 → 없는 FEMC 값은 `-1`; HPC는 유지 |
 
-PA index 0은 유효하다. PA index와 VECP/Part row 번호는 같은 index 공간이 아니다.
-1,000개 SDST 이벤트의 Part 5,388개 중 2,081개는 두 번호가 달랐다.
+HaID의 기존 PID tag 7개(`kaonDedx`, `protonDedx`, `kaonRich`, `protonRich`, `pionRich`,
+`kaonCombined`, `protonCombined`) 계산식은 유지했다. `HaidRaw_paIdx` 교정으로 올바른 track 연결이 가능해졌다.
+`EmShower_nLayerEnergies`/`EmLayer`의 FEMC loop는 원래 skip되어 값이 바뀌지 않았다.
 
-검증 결과:
+## 설명만 정정
 
-| 검사 | SDST | Full FADANA |
-| --- | ---: | ---: |
-| 물리 이벤트 | 1,000 | 1,000 |
-| PA로 대응한 native/raw RICH row | 5,388 | 5,090 |
-| RICH 11개 필드 정확히 일치 | 100% | 100% |
-| Subnormal payload | 0 | 0 |
-| 잘못된 길이 / 중복 PA / Track 연결 누락 | 0 | 0 |
+| 소스 / branch | 실제 의미 |
+| --- | --- |
+| Native `Part_pdgId`, `SimPart_pdgId` | 표준 PDG가 아닌 DELPHI mass code: gamma=21, e−=2, e+=−2 |
+| Native `Photon_emEnergy` | FEMC 에너지. HPC 에너지는 별도 저장 |
+| Native `Photon_sticChargedTag` | 현재 STIC 0/1/2/3=no info/hard photon/soft photon/electron. Legacy 음수 코드도 병기 |
+| Native `PhotonConv_pairType` | 현재 21–24 양수 코드, legacy는 음수 가능 |
+| Native/raw `GenPart_vertex` | 이번 DST 위치는 cm. 시간/lifetime은 제공되지 않음 |
+| Raw `Stic_directionFromMain` | 단위벡터가 아닌 MAIN momentum(GeV) |
+| Raw `nHaidRaw` | Neutral placeholder를 포함한 VECP row 수 |
 
-SDST native gas sigma의 subnormal 3,431개와 liquid expected-count의 subnormal
-4,833개가 모두 사라졌다. 이전에 양수 angle이던 2,510개 row는 새 gas/liquid
-bank가 모두 0이었다. 저장 오류/잔류 제거에 따른 변화이며 검출기 반응의 감소로 해석하지 않는다.
+이 설명 정정 자체는 값을 바꾸지 않는다. Native `Haid_richQuality`는 기존 int32 그대로다.
+ROOT 6.36 전후 RNTuple API 대응도 branch 의미·이름을 바꾸지 않는다.
 
-RICH 플롯의 coverage 정의는 **양수 normal Cherenkov angle이 저장된 Track의 비율**이다.
-검증하지 않은 quality-bit cut이나 PID decision은 추가하지 않았다.
-수정 이전 schema에서는 잘못된 값으로 coverage를 계산하지 않고 `00_data_validation`만 실행한다.
+## 검증과 남은 제한
 
-## 남은 제한
+기존 ZKK PHOTOS-FSR 1,000이벤트의 SDST/full FADANA를 재변환했다.
+최종 코드로 각각 100이벤트를 다시 변환해 이전 수정본과 모든 컬럼의 값이 일치함을 확인했다.
 
-- STIC 25개에는 양방향 Sim link가 없다. Converter 수정으로 새 truth 출처를 만들지 않는다.
-- `Photon`은 neutral EM-cluster 후보이며 photon PID를 보장하지 않는다.
-- Conversion의 parent link가 없는 43개 직접 Sim index는 여전히 unresolved다.
-- Gen time/lifetime은 해당 DST unpacker에서 제공되지 않는다.
-- Raw EM shower reader는 SDST `EMNC` 형식용이다. Full FADANA의 빈 EmShower를 실제 shower 부재로 해석하지 않는다.
-- Full FADANA의 raw ELID collection도 비어 있어 electron-ID 부재로 해석하지 않는다.
-- Electron refit momentum에는 최대 약 714 GeV의 tail이 있다. 같은 값이 native에 저장되어 있으며,
-  저장 위치 오류로 단정하지 않는다. 해당 fit 값의 물리 사용에는 별도 품질 검증이 필요하다.
-- Full DST와 SDST의 RICH 값은 packing/반올림 차이가 있다. 각 입력의 native/raw 일치를 별도로 검증했다.
+| 검사 | 결과 |
+| --- | --- |
+| RICH native/raw 동일 PA 비교 | SDST 5,388 rows, full FADANA 5,090 rows의 11필드 모두 일치. Subnormal·중복 PA·track 연결 누락 0 |
+| Gamma 표본 | Photon 1,280개, conversion 68개. 직접 Sim gamma 25개, unresolved 43개 |
+| Sim vertex | 1,643개 좌표 finite, Gen–Sim 위치 5,282쌍 일치 |
+| Raw ELID | 같은 PA의 native 1,908 rows와 tag/momentum 일치. 다른 raw 177컬럼 유지 |
+| FEMC/HPC layer | FEMC 316개 metadata는 `-1`; HPC 2,469개와 layer 12,775개 값 유지 |
 
-## 실행
+- PA 0은 유효하다. PA와 VECP/Part row를 같은 숫자로 연결하지 않는다.
+- RICH는 gas COMMON 길이 `6 → 5`, NEP auxiliary `INTEGER`, flag auxiliary `REAL`로 맞추고 `PSBEG`가 초기화한 decoded bank를 읽는다. 추가 reset은 필요하지 않았다.
+- RICH coverage는 **양수 normal angle이 저장된 track 비율**이다. Quality-bit cut/PID 성능 검증은 추가하지 않았다.
+- Photon은 EM 후보다. STIC의 부족한 truth link나 conversion의 unresolved origin을 새로 만들어 채우지 않는다. 분석은 저장 parent/daughter ancestry를 사용한다.
+- Full FADANA의 빈 raw EM/ELID는 detector 반응 부재를 뜻하지 않는다. Raw EM reader는 SDST 형식용이다.
+- Electron refit momentum에 약 714 GeV tail이 있어 물리 사용 전 추가 검증이 필요하다.
+- Native track offset, raw MUID, TPC packed 값 등 **이 두 커밋 밖의 문제**는 [native](nanoaod_branch_audit.md)/[raw](nanoaod_raw_sdst_branch_audit.md) 사전에 남겼다.
 
-```bash
-uv run python scripts/03_sample_validation/02_gamma/plot.py -i data/20261014_stic_validation/20261014_1kTest_ZKK_photosFSR_gamma_rich_fixed
-uv run python scripts/03_sample_validation/03_rich/plot.py -i data/20261014_stic_validation/20261014_1kTest_ZKK_photosFSR_gamma_rich_fixed
-```
-
-원본 입력과 재변환 파일은 `data/20261014_stic_validation/production/`에 보존했다.
+검증 자료는 `data/20261014_stic_validation/`에 보존했다.
+현재 paired dataset으로 실행하는 명령은 [README](../README.md), 선택 정의는 [Photon fiducial](fiducial_regions.md)을 따른다.
