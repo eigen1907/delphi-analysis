@@ -9,12 +9,13 @@ import joblib
 from xgboost import XGBClassifier
 
 from common.paths import DATASET_ROOT, MODEL_ROOT, PROJECT_ROOT
-from event_classification.dataset import load_metadata, load_split
+from event_classification.bdt import DEFAULT_CONFIG_PATH
+from event_classification.dataset import feature_metadata, load_metadata, load_dataset_split
 
 
-DEFAULT_INPUT = DATASET_ROOT / "20261015_jongwon" / "classification" / "pid"
-DEFAULT_OUTPUT = MODEL_ROOT / "20261015_jongwon_pid_standard"
-DEFAULT_HYPERPARAMETERS = PROJECT_ROOT / "config" / "pid" / "hyperparameters" / "standard.json"
+DEFAULT_INPUT = DATASET_ROOT / "20261015_jongwon"
+DEFAULT_OUTPUT = MODEL_ROOT / "20261015_jongwon_detector_pid_default"
+DEFAULT_HYPERPARAMETERS = PROJECT_ROOT / "config" / "pid" / "hyperparameters" / "default.json"
 
 
 def load_hyperparameters(path: Path) -> tuple[str, dict]:
@@ -39,16 +40,15 @@ def train_model(
     output_dir: Path,
     hyperparameter_path: Path = DEFAULT_HYPERPARAMETERS,
     seed: int = 1907,
+    feature_config_path: Path = DEFAULT_CONFIG_PATH,
+    ncpu: int = 32,
 ) -> dict:
-    metadata = load_metadata(input_dir)
+    metadata = feature_metadata(load_metadata(input_dir), feature_config_path)
     selected_features = list(metadata["features"])
     hyperparameter_name, model_parameters = load_hyperparameters(hyperparameter_path)
-    train_features, train_labels = load_split(
-        input_dir / "train.root", selected_features, metadata["tree"]
-    )
-    val_features, val_labels = load_split(
-        input_dir / "val.root", selected_features, metadata["tree"]
-    )
+    model_parameters["n_jobs"] = ncpu
+    train_features, train_labels = load_dataset_split(input_dir, "train", metadata)
+    val_features, val_labels = load_dataset_split(input_dir, "val", metadata)
 
     model = XGBClassifier(
         num_class=len(metadata["labels"]),
@@ -64,14 +64,27 @@ def train_model(
 
     bundle = {
         "model": model,
-        "feature_set": metadata.get("feature_set", "pid"),
+        "feature_set": metadata.get("feature_set", "detector_pid"),
         "features": selected_features,
         "labels": metadata["labels"],
         "feature_config": metadata["feature_config"],
         "hyperparameter_name": hyperparameter_name,
         "hyperparameters": model_parameters,
-        "tree": metadata["tree"],
+        "tree": metadata.get("tree"),
+        "trees": metadata.get("trees"),
         "format_version": metadata["format_version"],
+        "training_dataset": str(input_dir.resolve()),
+        "training_campaign": metadata.get("campaign"),
+        "dataset_seed": metadata.get("seed"),
+        "feature_extraction": {
+            "version": 2 if metadata["format_version"] == 6 else 1,
+            "analysisLevel_features": metadata["feature_config"].get("analysisLevel_features", []),
+            "haid_track_association": (
+                "Use unique zero-based PA indices when analysisLevel.Part_paIdx exists; "
+                "otherwise leave the configured track-associated HaID feature slots missing. "
+                "Configured event-level HaID counts are retained."
+            ),
+        },
         "seed": seed,
     }
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -90,9 +103,15 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=1907, help="model seed (default: 1907)")
     parser.add_argument("--hyperparameters", type=Path, default=DEFAULT_HYPERPARAMETERS,
                         help="XGBoost hyperparameter JSON config")
+    parser.add_argument("--feature-config", type=Path, default=DEFAULT_CONFIG_PATH,
+                        help="RAW features; paired datasets also add five reconstructed event features")
+    parser.add_argument("--ncpu", type=int, default=32, help="XGBoost CPU threads (default: 32)")
     args = parser.parse_args()
     try:
-        train_model(args.input, args.output, args.hyperparameters, args.seed)
+        if args.ncpu < 1:
+            raise ValueError("--ncpu must be positive")
+        train_model(args.input, args.output, args.hyperparameters, args.seed,
+                    args.feature_config, args.ncpu)
     except ValueError as error:
         parser.error(str(error))
 

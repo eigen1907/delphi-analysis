@@ -1,4 +1,4 @@
-"""Flatten detector and PID information for four-class event classification."""
+"""Extract raw detector/PID and reconstructed event features for classification."""
 from __future__ import annotations
 
 import json
@@ -12,12 +12,19 @@ import numpy as np
 from common.paths import PROJECT_ROOT
 
 
-DEFAULT_CONFIG_PATH = PROJECT_ROOT / "config" / "pid" / "features" / "pid.json"
+DEFAULT_CONFIG_PATH = PROJECT_ROOT / "config" / "pid" / "features" / "detector_pid.json"
 SOURCE_FILE_NAME = "nanoaod_raw_sdst.root"
 TREE_NAME = "Events"
 N_OBJECTS = 10
 N_COVARIANCE_TRACKS = 4
 COVARIANCE_SIZE = 15
+ANALYSIS_LEVEL_FEATURES = (
+    "Event_chargedMult",
+    "Event_neutralMult",
+    "Event_totalChargedEnergy",
+    "Event_totalEMEnergy",
+    "Event_totalHadronicEnergy",
+)
 
 COLLECTION_ORDER = (
     "Event",
@@ -177,8 +184,6 @@ def _matched_matrices(
         )
 
     source_ids = arrays[source_id_branch]
-    if source_id_branch == "HaidRaw_paIdx":
-        source_ids = source_ids - 1
     if source_order is not None:
         source_ids = source_ids[source_order]
 
@@ -197,10 +202,15 @@ def _matched_matrices(
     rows = np.arange(n_events)
     row_matrix = np.broadcast_to(rows[:, np.newaxis], target_ids.shape)
     source_positions = np.full((n_events, dense_width), -1, dtype=np.int32)
+    source_counts = np.zeros((n_events, dense_width), dtype=np.int16)
     for index in range(source_width):
         source_index = source_id_matrix[:, index]
         valid = (source_index >= 0) & (source_index < dense_width)
         source_positions[rows[valid], source_index[valid]] = index
+        if source_id_branch == "HaidRaw_paIdx":
+            source_counts[rows[valid], source_index[valid]] += 1
+    if source_id_branch == "HaidRaw_paIdx":
+        source_positions[source_counts != 1] = -1
 
     positions = np.full(target_ids.shape, -1, dtype=np.int32)
     valid_target = (target_ids >= 0) & (target_ids < dense_width)
@@ -227,6 +237,8 @@ def _matched_matrices(
 def extract_features(
     tree: Any,
     config: Path | str | dict[str, Any] | None = None,
+    *,
+    haid_pa_indices: bool | None = None,
 ) -> OrderedDict[str, np.ndarray]:
     loaded = load_config(config)
     features = loaded["features"]
@@ -236,6 +248,9 @@ def extract_features(
         raise KeyError(f"Missing RAW-SDST branches: {missing}")
 
     arrays = {branch: tree[branch].array(library="ak") for branch in branches}
+    if haid_pa_indices is None and "HaidRaw" in features:
+        description = getattr(tree["HaidRaw_paIdx"], "description", "") or ""
+        haid_pa_indices = description.startswith("Zero-based PA index")
     matrices: dict[str, np.ndarray] = {}
 
     track_order = ak.argsort(
@@ -298,6 +313,14 @@ def extract_features(
         ]
         if not vector_branches:
             continue
+        if collection == "HaidRaw" and not haid_pa_indices:
+            # Older writers stored VECP rows here, not PA indices. Their track
+            # associations cannot be recovered by simply subtracting one.
+            matrices.update({
+                branch: np.full((tree.num_entries, N_OBJECTS), np.nan, dtype=np.float32)
+                for branch in vector_branches
+            })
+            continue
         if collection in MATCH_RULES:
             source_id, target, source_sort = MATCH_RULES[collection]
             collection_matrices = _matched_matrices(
@@ -333,4 +356,47 @@ def extract_features(
 
     if tuple(output) != feature_names(loaded):
         raise RuntimeError("Extracted feature order does not match the feature config")
+    return output
+
+
+def paired_feature_config(config=None) -> dict[str, Any]:
+    """Keep the RAW feature definition and add reconstructed event observables."""
+    loaded = dict(load_config(config))
+    loaded.setdefault("analysisLevel_features", list(ANALYSIS_LEVEL_FEATURES))
+    unknown = set(loaded["analysisLevel_features"]) - set(ANALYSIS_LEVEL_FEATURES)
+    if unknown:
+        raise ValueError(f"Unsupported analysisLevel features: {sorted(unknown)}")
+    return loaded
+
+
+def paired_feature_names(config=None) -> tuple[str, ...]:
+    loaded = paired_feature_config(config)
+    return feature_names(loaded) + tuple(
+        f"analysisLevel__{name}" for name in loaded["analysisLevel_features"]
+    )
+
+
+def extract_paired_features(raw_tree, analysis_tree, config=None):
+    """Combine event-aligned trees without assuming their particle slots match."""
+    loaded = paired_feature_config(config)
+    if raw_tree.num_entries != analysis_tree.num_entries:
+        raise ValueError("Paired trees have different event counts")
+    for native_key, raw_key in (
+        ("job_id", "job_id"),
+        ("Event_runNumber", "Event_runNumber"),
+        ("Event_evtNumber", "Event_eventNumber"),
+    ):
+        native = analysis_tree[native_key].array(library="np")
+        raw = raw_tree[raw_key].array(library="np")
+        if not np.array_equal(native, raw):
+            raise ValueError(f"Paired trees are not aligned on {native_key}")
+    output = extract_features(
+        raw_tree, loaded, haid_pa_indices="Part_paIdx" in analysis_tree
+    )
+    for name in loaded["analysisLevel_features"]:
+        output[f"analysisLevel__{name}"] = np.asarray(
+            analysis_tree[name].array(library="np"), dtype=np.float32
+        )
+    if tuple(output) != paired_feature_names(loaded):
+        raise RuntimeError("Paired feature order differs from its configuration")
     return output
