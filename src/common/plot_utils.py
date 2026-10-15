@@ -67,11 +67,14 @@ def add_color_scale_argument(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def default_plot_root(project_root: Path, input_root: Path) -> Path:
-    name = input_root.expanduser().resolve().name
-    if name in ("chunks", "merged"):
-        name = input_root.expanduser().resolve().parent.name
-    return project_root / "output" / "plots" / name
+def default_plot_root(project_root: Path, input_root: Path, split: str = "train") -> Path:
+    """Keep validation outputs under the campaign and numbered script stage."""
+    path = input_root.expanduser().resolve()
+    if path.suffix == ".root":
+        path = path.parent
+    if (path / f"{split}.root").is_file() or path.name in ("chunks", "merged"):
+        path = path.parent
+    return project_root / "output" / "plots" / path.name / "03_sample_validation" / split
 
 
 def default_check_root(project_root: Path, input_root: Path) -> Path:
@@ -177,27 +180,18 @@ def add_heatmap_label(ax, label: str, *, fontsize: float = 14, family: str | Non
     ax.text(0.94, 0.92, label, **text_options)
 
 
-def build_branch_summary(sample_dir: Path, sample: str) -> dict:
+def build_branch_summary(sample_dir: Path, sample: str, split: str = "train") -> dict:
     import uproot
+    from .dataset import SOURCE_TREES
 
     summary = {"sample": sample, "trees": {}}
-
-    for source, file_names in FILE_GROUPS:
-        try:
-            path = resolve_file(sample_dir, file_names)
-        except FileNotFoundError:
-            continue
-
-        with uproot.open(path) as root_file:
-            for tree_name in TREE_NAMES_BY_SOURCE.get(source, ("Events",)):
-                if tree_name not in root_file:
-                    continue
-
-                tree = root_file[tree_name]
-                tree_summary = summary["trees"].setdefault(tree_name, {"branches": {}})
-                for branch in sorted(tree.typenames()):
-                    branch_summary = tree_summary["branches"].setdefault(branch, {"source": []})
-                    branch_summary["source"].append(source)
+    with uproot.open(sample_dir / f"{split}.root") as root_file:
+        branches = summary["trees"].setdefault("Events", {"branches": {}})["branches"]
+        for source, tree_path in SOURCE_TREES.items():
+            tree = root_file[tree_path]
+            for branch in sorted(tree.typenames()):
+                branch_summary = branches.setdefault(branch, {"source": []})
+                branch_summary["source"].append(source)
 
     return summary
 

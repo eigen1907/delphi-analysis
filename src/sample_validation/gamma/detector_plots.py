@@ -3,7 +3,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from common.plot_utils import FIGURE_SIZE, clopper_pearson, finish, plot_path
-from .data import ANALYSIS_SELECTIONS, DETECTORS, EM_REGIONS, GEN_LABELS, em_regions
+from .data import (
+    ANALYSIS_SELECTIONS, DETECTORS, EM_REGIONS, ENERGY_LABELS, ENERGY_RANGES,
+    GEN_LABELS, em_regions,
+)
 
 
 def detector_validation(root, dataset, values):
@@ -51,37 +54,44 @@ def detector_efficiencies(root, dataset, values, stats, stage):
     x = np.arange(len(region_masks))
     raw_counts = {}
     output = plot_path(root, '02_gamma', stage, dataset, values['source'],
-                       values['collection'], 'matching_validation')
-    for tagged in (False, True):
-        fig, ax = plt.subplots(figsize=FIGURE_SIZE)
-        kind = 'efficiency_vs_detector_flag' if tagged else 'efficiency_vs_detector_regional'
-        raw_counts[kind] = {}
-        for index, (population, label) in enumerate(zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True)):
-            selected = values['analysis_selections'][population]
-            denominators = np.array([(selected & region).sum() for region in region_masks])
-            numerators = np.array([(selected & region & (tag if tagged else matched)).sum()
-                                   for region, tag in zip(region_masks, tagged_matches, strict=True)])
-            shown = denominators > 0
-            ratio = numerators[shown] / denominators[shown]
-            lower, upper = clopper_pearson(numerators[shown], denominators[shown])
-            ax.errorbar(x[shown], ratio,
-                        yerr=np.maximum([ratio - lower, upper - ratio], 0),
-                        fmt='o', color=f'C{index}', label=label,
-                        markersize=9, alpha=0.7, capsize=3)
-            raw_counts[kind][population] = dict(numerator=numerators, denominator=denominators)
-        ax.set_xticks(x, ticklabels, fontsize=19)
-        ax.set_xlabel('Region\n' + r'$(\theta)$', fontsize=22)
-        ax.set_xlim(-0.5, len(x) - 0.5)
-        ax.set_ylim(0, 1.35)
-        ax.axhline(1, color='0.5', linestyle='--', linewidth=1.5)
-        ax.set_yticks(np.linspace(0, 1, 6))
-        ax.text(0.02, 0.89, 'Gen fiducial', transform=ax.transAxes, va='top', fontsize=20)
-        if tagged and values['collection'] == 'Photon_PhotonConv':
-            ax.text(0.02, 0.82, 'Conversions: no detector tag',
-                    transform=ax.transAxes, va='top', fontsize=18)
-        raw = values['source'] == 'nanoaod_raw_sdst'
-        ylabel = ('Tagged coverage' if tagged else 'Angular EM coverage') if raw else (
-            'Tagged efficiency' if tagged else 'Efficiency')
-        finish(fig, ax, output / f'{kind}.png', dataset,
-               'Region\n' + r'$(\theta)$', ylabel)
+                       values['collection'], 'matching_result')
+    for range_name, _, _ in ENERGY_RANGES:
+        raw_counts[range_name] = {}
+        for tagged in (False, True):
+            fig, ax = plt.subplots(figsize=FIGURE_SIZE)
+            kind = 'efficiency_vs_detector_flag' if tagged else 'efficiency_vs_detector_regional'
+            raw_counts[range_name][kind] = {}
+            for index, (population, label) in enumerate(zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True)):
+                selected = values['energy_selections'][range_name][population]
+                denominators = np.array([(selected & region).sum() for region in region_masks])
+                numerators = np.array([(selected & region & (tag if tagged else matched)).sum()
+                                       for region, tag in zip(region_masks, tagged_matches, strict=True)])
+                shown = denominators > 0
+                ratio = numerators[shown] / denominators[shown]
+                lower, upper = clopper_pearson(numerators[shown], denominators[shown])
+                ax.errorbar(x[shown], ratio,
+                            yerr=np.maximum([ratio - lower, upper - ratio], 0),
+                            fmt='o', color=f'C{index}', label=label,
+                            markersize=9, alpha=0.7, capsize=3)
+                raw_counts[range_name][kind][population] = dict(numerator=numerators, denominator=denominators)
+            ax.set_xticks(x, ticklabels, fontsize=19)
+            ax.set_xlabel('Region\n' + r'$(\theta)$', fontsize=22)
+            ax.set_xlim(-0.5, len(x) - 0.5)
+            ax.set_ylim(0, 1.35)
+            ax.axhline(1, color='0.5', linestyle='--', linewidth=1.5)
+            ax.set_yticks(np.linspace(0, 1, 6))
+            note = 'Gen fiducial'
+            if ENERGY_LABELS[range_name]:
+                note += '\n' + ENERGY_LABELS[range_name]
+            ax.text(0.02, 0.89, note, transform=ax.transAxes, va='top', fontsize=20)
+            if tagged and values['collection'] == 'Photon_PhotonConv':
+                ax.text(0.02, 0.70 if ENERGY_LABELS[range_name] else 0.82, 'Conversions: no detector tag',
+                        transform=ax.transAxes, va='top', fontsize=18)
+            raw = values['source'] == 'nanoaod_raw_sdst'
+            ylabel = ('Tagged coverage' if tagged else 'Angular EM coverage') if raw else (
+                'Tagged efficiency' if tagged else 'Efficiency')
+            filename = 'eff_det_flag' if tagged else 'eff_det_regional'
+            suffix = '' if range_name == 'all' else f'_{range_name}'
+            finish(fig, ax, output / f'{filename}{suffix}.png', dataset,
+                   'Region\n' + r'$(\theta)$', ylabel)
     return raw_counts

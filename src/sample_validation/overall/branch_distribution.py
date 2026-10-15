@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import argparse
+from common.dataset import SOURCE_TREES, dataset_files
+from common.paths import DATASET_ROOT, PROJECT_ROOT
+from common.plot_utils import default_plot_root, add_samples_argument
 from pathlib import Path
 
 import hist
@@ -9,29 +13,26 @@ import numpy as np
 import uproot
 
 from common.plot_utils import (
-    FILE_GROUPS,
-    TREE_NAMES_BY_SOURCE,
     add_delphi_label,
     build_branch_summary,
     histogram_bins,
     read_numeric_values,
-    resolve_file,
-    resolve_samples,
     sample_styles,
     set_hist_yaxis,
     tree_branch_plot_path,
 )
 
 
-def plot_branches_all(input_root: Path, output_root: Path, samples: list[str] | tuple[str, ...] | None = None) -> None:
+def plot_branches_all(input_root: Path, output_root: Path, samples: list[str] | tuple[str, ...] | None = None, split: str = "train") -> None:
     mh.style.use(mh.styles.CMS)
-    samples = resolve_samples(input_root, samples)
+    files = dict(dataset_files(input_root, split, samples))
+    samples = tuple(files)
     styles = sample_styles(samples)
-    output_root = output_root / "branches_all"
-    summaries = {sample: build_branch_summary(input_root / sample, sample) for sample in samples}
+    output_root = output_root / "00_overall" / "00_branch_distribution"
+    summaries = {sample: build_branch_summary(files[sample][0].parent, sample, split) for sample in samples}
 
-    for source, file_names in FILE_GROUPS:
-        for tree_name in TREE_NAMES_BY_SOURCE.get(source, ("Events",)):
+    for source in SOURCE_TREES:
+        for tree_name in ("Events",):
             source_branches = set()
             for sample in samples:
                 branches = summaries[sample].get("trees", {}).get(tree_name, {}).get("branches", {})
@@ -45,13 +46,10 @@ def plot_branches_all(input_root: Path, output_root: Path, samples: list[str] | 
             trees = {}
             typenames = {}
             for sample in samples:
-                try:
-                    path = resolve_file(input_root / sample, file_names)
-                except FileNotFoundError:
-                    continue
+                path = files[sample][0]
                 root_file = uproot.open(path)
-                if tree_name in root_file:
-                    trees[sample] = root_file[tree_name]
+                if SOURCE_TREES[source] in root_file:
+                    trees[sample] = root_file[SOURCE_TREES[source]]
                     typenames[sample] = trees[sample].typenames()
 
             n_plots = 0
@@ -144,3 +142,23 @@ def plot_branches_all(input_root: Path, output_root: Path, samples: list[str] | 
                 n_plots += 1
 
             print(f"[{source}/{tree_name}] plotted {n_plots} branches under {output_root / source / tree_name}")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    add_samples_argument(parser)
+    parser.add_argument("-i", "--input", type=Path,
+                        default=DATASET_ROOT / "20261015_jongwon",
+                        help="input dataset root")
+    parser.add_argument("-o", "--output", type=Path, default=None,
+                        help="plot output root (default: output/plots/<campaign>/03_sample_validation/<split>)")
+    parser.add_argument("--split", choices=("train", "val", "test"), default="train")
+    args = parser.parse_args()
+
+    input_root = args.input
+    output_root = args.output or default_plot_root(PROJECT_ROOT, input_root, args.split)
+    plot_branches_all(input_root, output_root, args.samples, args.split)
+
+
+if __name__ == "__main__":
+    main()

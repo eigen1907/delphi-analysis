@@ -41,6 +41,7 @@ def source_comparison(root, sample, native, raw):
     x = np.arange(len(counts))
     ax.bar(x, counts, color='C0')
     ax.set_xticks(x, ('Paired', 'Gen equal', 'Gen different', 'Only NanoAOD', 'Only raw'))
+    ax.tick_params(axis='x', labelsize=16)
     ax.set_ylim(0, max(counts.max(), 1) * 1.5)
     output = root / '02_gamma' / '00_data_validation' / sample / 'source_comparison'
     finish(fig, ax, output / 'gen_correspondence.png', sample, 'Source comparison', 'Events')

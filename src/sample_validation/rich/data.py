@@ -4,6 +4,7 @@ from collections import Counter
 import numpy as np
 import uproot
 
+from common.dataset import SOURCE_TREES
 from common.matching import angle_matrix, match_tracks
 from ..track import data as track_data
 
@@ -40,9 +41,11 @@ def corrected_schema(files, source):
     """Do not use the old ABI or VECP-as-PA indices for RICH coverage."""
     for path in files:
         with uproot.open(path) as root:
-            tree = root["Events"]
+            tree = root[SOURCE_TREES[source]]
             if source == "nanoaod_raw_sdst":
-                if not tree["HaidRaw_paIdx"].description.startswith("Zero-based PA index"):
+                # The paired native schema records the corrected producer even
+                # when a rewritten ROOT file has no original branch descriptions.
+                if "Part_paIdx" not in root[SOURCE_TREES["nanoaod"]]:
                     return False
             elif "Part_paIdx" not in tree:
                 return False  # Added with the corrected RICH producer.

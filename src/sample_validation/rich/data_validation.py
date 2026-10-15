@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import uproot
 
+from common.dataset import SOURCE_TREES
 from common.plot_utils import FIGURE_SIZE, clopper_pearson, finish, plot_path
 from .data import FIELDS, SOURCES
 from .plot_helpers import histogram
@@ -16,7 +17,7 @@ FIELD_LABELS = (r"$Q$", r"$\theta_g$", r"$\sigma_g$", r"$N_g$", r"$N_{\mathrm{ex
 
 def storage(values, files, source, output, sample):
     with uproot.open(files[0]) as root:
-        types = root["Events"].typenames()
+        types = root[SOURCE_TREES[source]].typenames()
     normal, subnormal, zero = [], [], []
     for name, entries in values["stored"].items():
         entries = np.asarray(entries)
@@ -64,7 +65,7 @@ def storage(values, files, source, output, sample):
 
 
 def source_comparison(files, output, sample):
-    """Pair by run/event and original PA identity, never by VECP row position."""
+    """Pair by job/run/event and original PA identity, never by VECP row position."""
     equal, compared = Counter(), Counter()
     gen_equal = Counter()
     events = Counter()
@@ -73,23 +74,21 @@ def source_comparison(files, output, sample):
     gen_pairs += [(f"GenPart_fourMomentum.fCoordinates.f{axis}", f"GenPart_vector.fCoordinates.f{axis}")
                   for axis in "XYZT"]
     for path in files:
-        reference = path.with_name("nanoaod.root")
-        if not reference.exists():
-            continue
-        with uproot.open(path) as raw_file, uproot.open(reference) as ref_file:
-            if ("Part_paIdx" not in ref_file["Events"] or
-                    not raw_file["Events"]["HaidRaw_paIdx"].description.startswith("Zero-based PA index")):
+        with uproot.open(path) as root:
+            raw_tree = root[SOURCE_TREES["nanoaod_raw_sdst"]]
+            ref_tree = root[SOURCE_TREES["nanoaod"]]
+            if "Part_paIdx" not in ref_tree:
                 print(f"{sample}: RICH source comparison skipped; old files lack a common PA identity.")
                 continue
-            raw_names = ["Event_runNumber", "Event_eventNumber", "HaidRaw_paIdx",
+            raw_names = ["job_id", "Event_runNumber", "Event_eventNumber", "HaidRaw_paIdx",
                          *FIELDS["nanoaod_raw_sdst"].values(), *(a for a, _ in gen_pairs)]
-            ref_names = ["Event_runNumber", "Event_evtNumber", "Part_paIdx",
+            ref_names = ["job_id", "Event_runNumber", "Event_evtNumber", "Part_paIdx",
                          *FIELDS["nanoaod"].values(), *(b for _, b in gen_pairs)]
             # Read dotted four-vector leaves directly; arrays() can omit them.
-            raw = {name: raw_file["Events"][name].array(library="ak") for name in raw_names}
-            ref = {name: ref_file["Events"][name].array(library="ak") for name in ref_names}
-            raw_keys = list(zip(ak.to_list(raw["Event_runNumber"]), ak.to_list(raw["Event_eventNumber"]), strict=True))
-            ref_keys = list(zip(ak.to_list(ref["Event_runNumber"]), ak.to_list(ref["Event_evtNumber"]), strict=True))
+            raw = {name: raw_tree[name].array(library="ak") for name in raw_names}
+            ref = {name: ref_tree[name].array(library="ak") for name in ref_names}
+            raw_keys = list(zip(ak.to_list(raw["job_id"]), ak.to_list(raw["Event_runNumber"]), ak.to_list(raw["Event_eventNumber"]), strict=True))
+            ref_keys = list(zip(ak.to_list(ref["job_id"]), ak.to_list(ref["Event_runNumber"]), ak.to_list(ref["Event_evtNumber"]), strict=True))
             repeated = {key for key, count in Counter(ref_keys).items() if count != 1}
             lookup = {key: row for row, key in enumerate(ref_keys) if key not in repeated}
             events["raw"] += len(raw_keys)

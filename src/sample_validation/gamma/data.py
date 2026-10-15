@@ -1,10 +1,10 @@
 """Stable Gen photons and truth-linked Reco photon candidates."""
 from collections import Counter
-from pathlib import Path
 
 import numpy as np
 import uproot
 
+from common.dataset import SOURCE_TREES
 from common.matching import descendants, link_status, resolve_part_origins
 
 SAMPLES = ("Zee", "Zmumu", "Ztautau", "ZKK", "Zpipi")
@@ -345,7 +345,7 @@ def analyze_event(raw, sample):
     return event
 
 
-def read_sample(dataset: Path, sample: str, angle_accumulator, source='nanoaod'):
+def read_sample(paths, sample: str, angle_accumulator, source='nanoaod'):
     """Stream files; Gen populations and energy ranges share the same Reco pool."""
     from hashlib import sha1
     from . import raw_data
@@ -368,16 +368,11 @@ def read_sample(dataset: Path, sample: str, angle_accumulator, source='nanoaod')
                         ("all_gamma", "all_isr", "beam_isr", "nonbeam_isr", "fsr", "decayed")}
     events, metadata_excluded = 0, 0
     event_keys, gen_signatures = [], []
-    directory = dataset / "final_root"
-    merged = directory / f"{source}.root"
-    paths = [merged] if merged.exists() else sorted(directory.glob(f"job_*/{source}.root"))
-    if not paths:
-        raise FileNotFoundError(directory)
     for path in paths:
         with uproot.open(path) as root_file:
-            tree = root_file["Events"]
+            tree = root_file[SOURCE_TREES[source]]
             event_number = 'Event_evtNumber' if native else 'Event_eventNumber'
-            names = (*branches, 'Event_runNumber', event_number)
+            names = (*branches, 'job_id', 'Event_runNumber', event_number)
             columns = {name: tree[name].array(library="ak").to_list() for name in names}
             for entry in range(tree.num_entries):
                 raw = {name: values[entry] for name, values in columns.items()}
@@ -386,7 +381,7 @@ def read_sample(dataset: Path, sample: str, angle_accumulator, source='nanoaod')
                     metadata_excluded += 1
                     continue
                 events += 1
-                event_keys.append((path.parent.name, raw['Event_runNumber'], raw[event_number]))
+                event_keys.append((int(raw['job_id']), int(raw['Event_runNumber']), int(raw[event_number])))
                 signature = sha1()
                 for name in ('GenPart_pdgId', 'GenPart_status', 'GenPart_parentIdx', *gen_p4):
                     signature.update(np.asarray(raw[name], dtype=np.float64).tobytes())

@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import argparse
+from common.dataset import SOURCE_TREES, dataset_files
+from common.paths import DATASET_ROOT, PROJECT_ROOT
+from common.plot_utils import default_plot_root, add_samples_argument, default_check_root
 import csv
 from pathlib import Path
 
@@ -9,19 +13,14 @@ import mplhep as mh
 import numpy as np
 import uproot
 
-from common.plot_utils import GEN_COMPARE_PAIR_STYLES, add_delphi_label, resolve_samples, set_hist_yaxis
+from common.plot_utils import GEN_COMPARE_PAIR_STYLES, add_delphi_label, set_hist_yaxis
 
 
 SOURCES = (
-    ("nanoaod", "nanoaod.root", "Event_evtNumber"),
-    ("nanoaod_raw_sdst", "nanoaod_raw_sdst.root", "Event_eventNumber"),
-    ("nanoaod_raw_fadana", "nanoaod_raw_fadana.root", "Event_eventNumber"),
+    ("nanoaod", "Event_evtNumber"),
+    ("nanoaod_raw_sdst", "Event_eventNumber"),
 )
-PAIRS = (
-    ("nanoaod", "nanoaod_raw_sdst"),
-    ("nanoaod", "nanoaod_raw_fadana"),
-    ("nanoaod_raw_sdst", "nanoaod_raw_fadana"),
-)
+PAIRS = (("nanoaod", "nanoaod_raw_sdst"),)
 
 FIELDS = (
     ("nGenPart", r"N_{\mathrm{GenPart}}", (-0.5, 0.5), "nGenPart"),
@@ -105,27 +104,29 @@ def as_list(value) -> list:
     return value if isinstance(value, list) else [value]
 
 
-def plot_gen_compare(input_root: Path, output_root: Path, data_root: Path, samples: list[str] | tuple[str, ...] | None = None) -> None:
+def plot_gen_compare(input_root: Path, output_root: Path, data_root: Path, samples: list[str] | tuple[str, ...] | None = None, split: str = "train") -> None:
     mh.style.use(mh.styles.CMS)
-    samples = resolve_samples(input_root, samples)
+    files = dict(dataset_files(input_root, split, samples))
+    samples = tuple(files)
 
-    output_root = output_root / "gen_compare"
+    output_root = output_root / "00_overall" / "03_gen_source_comparison"
     data_root = data_root / "gen_compare"
     data_root.mkdir(parents=True, exist_ok=True)
     diff_rows = []
 
     for sample in samples:
-        sample_dir = input_root / sample
         sample_output = output_root / sample
         sample_output.mkdir(parents=True, exist_ok=True)
 
         data = {}
-        for source, file_name, event_branch in SOURCES:
-            tree = uproot.open(sample_dir / file_name)["Events"]
-            branches = ["Event_runNumber", event_branch]
+        for source, event_branch in SOURCES:
+            tree = uproot.open(files[sample][0])[SOURCE_TREES[source]]
+            branches = ["job_id", "Event_runNumber", event_branch]
             branches += [branch_name(field_branches, source) for _, _, _, field_branches in FIELDS]
             arrays = {branch: tree[branch].array(library="ak") for branch in dict.fromkeys(branches)}
-            keys = list(zip(ak.to_numpy(arrays["Event_runNumber"]).tolist(), ak.to_numpy(arrays[event_branch]).tolist()))
+            keys = list(zip(ak.to_numpy(arrays["job_id"]).tolist(), ak.to_numpy(arrays["Event_runNumber"]).tolist(), ak.to_numpy(arrays[event_branch]).tolist(), strict=True))
+            if len(set(keys)) != len(keys):
+                raise ValueError(f"{sample} {source}: duplicate job/run/event keys")
             data[source] = {
                 "arrays": arrays,
                 "keys": keys,
@@ -148,7 +149,7 @@ def plot_gen_compare(input_root: Path, output_root: Path, data_root: Path, sampl
                 pair_residuals = []
                 pair_diff_rows = []
 
-                for (run, event), left_event, right_event in zip(keys, ak.to_list(left_values), ak.to_list(right_values), strict=True):
+                for (job_id, run, event), left_event, right_event in zip(keys, ak.to_list(left_values), ak.to_list(right_values), strict=True):
                     left_list = as_list(left_event)
                     right_list = as_list(right_event)
                     residuals = [float(a) - float(b) for a, b in zip(left_list, right_list)]
@@ -162,6 +163,7 @@ def plot_gen_compare(input_root: Path, output_root: Path, data_root: Path, sampl
                                 "sample": sample,
                                 "field": field_name,
                                 "pair": pair,
+                                "job_id": int(job_id),
                                 "run": int(run),
                                 "event": int(event),
                                 "n_left": len(left_list),
@@ -236,10 +238,32 @@ def plot_gen_compare(input_root: Path, output_root: Path, data_root: Path, sampl
 
         print(f"[{sample}] wrote {sample_output}")
 
-    diff_fields = ("sample", "field", "pair", "run", "event", "n_left", "n_right", "n_nonzero", "max_abs")
+    diff_fields = ("sample", "field", "pair", "job_id", "run", "event", "n_left", "n_right", "n_nonzero", "max_abs")
     with (data_root / "diff-events.csv").open("w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=diff_fields)
         writer.writeheader()
         writer.writerows(diff_rows)
 
     print(f"wrote {data_root / 'diff-events.csv'}")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    add_samples_argument(parser)
+    parser.add_argument("-i", "--input", type=Path,
+                        default=DATASET_ROOT / "20261015_jongwon",
+                        help="input dataset root")
+    parser.add_argument("-o", "--output", type=Path, default=None,
+                        help="plot output root (default: output/plots/<campaign>/03_sample_validation/<split>)")
+    parser.add_argument("--data-root", type=Path, help="diagnostic data root")
+    parser.add_argument("--split", choices=("train", "val", "test"), default="train")
+    args = parser.parse_args()
+
+    input_root = args.input
+    output_root = args.output or default_plot_root(PROJECT_ROOT, input_root, args.split)
+    data_root = args.data_root or default_check_root(PROJECT_ROOT, input_root) / args.split
+    plot_gen_compare(input_root, output_root, data_root, args.samples, args.split)
+
+
+if __name__ == "__main__":
+    main()
