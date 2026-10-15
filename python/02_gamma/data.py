@@ -345,7 +345,7 @@ def analyze_event(raw, sample):
     return event
 
 
-def read_sample(input_root: Path, sample: str, angle_accumulator, source='nanoaod'):
+def read_sample(dataset: Path, sample: str, angle_accumulator, source='nanoaod'):
     """Stream files; Gen populations and energy ranges share the same Reco pool."""
     from hashlib import sha1
     from . import raw_data
@@ -368,8 +368,9 @@ def read_sample(input_root: Path, sample: str, angle_accumulator, source='nanoao
                         ("all_gamma", "all_isr", "beam_isr", "nonbeam_isr", "fsr", "decayed")}
     events, metadata_excluded = 0, 0
     event_keys, gen_signatures = [], []
-    directory = input_root / f"20260828_100kTest_{sample}_photosFSR" / "final_root"
-    paths = sorted(directory.glob(f"job_*/{source}.root"))
+    directory = dataset / "final_root"
+    merged = directory / f"{source}.root"
+    paths = [merged] if merged.exists() else sorted(directory.glob(f"job_*/{source}.root"))
     if not paths:
         raise FileNotFoundError(directory)
     for path in paths:

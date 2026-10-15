@@ -429,10 +429,13 @@ def plot_efficiency(ax, x, matched, edges, label, color):
 def sample_files(input_root, filename):
     """Read merged samples or job files; keep the sample's dataset name in outputs."""
     found = False
-    for sample in sorted(input_root.iterdir()):
+    samples = [input_root] if (input_root / 'final_root').is_dir() else sorted(input_root.iterdir())
+    for sample in samples:
         if not sample.is_dir():
             continue
-        merged = sample / filename
+        merged = sample / 'final_root' / filename
+        if not merged.exists():
+            merged = sample / filename
         files = [merged] if merged.exists() else sorted(sample.glob(f'final_root/job_*/{filename}'))
         if files:
             found = True
