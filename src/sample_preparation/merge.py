@@ -16,6 +16,7 @@ from common.samples import sample_name
 
 ROOT_FILES = (
     "nanoaod.root",
+    "nanoaod_fadana.root",
     "nanoaod_raw_sdst.root",
     "nanoaod_raw_fadana.root",
     "nanoaod_ttree.root",
