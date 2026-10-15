@@ -14,10 +14,10 @@ for source in sdst fadana; do
     if [[ "$source" == fadana ]]; then native=nanoaod_fadana.root; fi
     mkdir -p "$work/$source"
     printf 'FILE=/input/simana.%s\n' "$source" > "$work/$source/PDLINPUT_SOURCE"
-    docker run --init --rm --platform linux/amd64 \
-        -v "$work:/input:ro" -v "$work/$source:/work" -v "$final:/out" \
-        -v "$CACHE/build:/build:ro" -v "$CACHE/condition-data:/eos/opendata/delphi/condition-data:ro" \
-        "$IMAGE" -c '
+    apptainer exec --cleanenv --no-home --pwd /work \
+        --bind "$work:/input:ro" --bind "$work/$source:/work" --bind "$final:/out" \
+        --bind "$CACHE/build:/build:ro" --bind "$CACHE/condition-data:/eos/opendata/delphi/condition-data:ro" \
+        "$IMAGE" /bin/bash -c '
         set -e
         /build/delphi-nanoaod/delphi-nanoaod -P /work/PDLINPUT_SOURCE -C /input/nanoaod.yaml --mc -O "/out/$1"
         /build/delphi-raw-nanoaod/delphi-raw-nanoaod -P /work/PDLINPUT_SOURCE -O "/out/$2"

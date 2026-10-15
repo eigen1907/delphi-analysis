@@ -1,4 +1,4 @@
-# Build with --build-context generator=/path/to/delphisimulation/pythia8.
+# Build with --build-context generator=/path/to/delphi-simulation/pythia8.
 # DELSIM/DELANA come unchanged from this public x86 image.
 FROM docker.io/jingyucms/delphi-pythia8:v2.4@sha256:501ae4d22a2a4bbcc76f9d8d12536377b8e06c109caa35da6081310aed14ecc3
 

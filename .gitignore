@@ -1,5 +1,8 @@
 *DS_Store
 
+# Locally transferred container image.
+/delphi-analysis.tar
+
 # Generated analysis files; keep the directory layout in Git.
 /data/*
 !/data/.gitkeep

@@ -2,11 +2,16 @@
 set -euo pipefail
 source "$(dirname "$0")/config.env"
 cd "$PROJECT"
+if [[ ! -f "$NANOAOD/CMakeLists.txt" ]]; then
+    echo "Missing converter sources. Run: git -C \"$SIMULATION\" submodule update --init --recursive" >&2
+    exit 1
+fi
 mkdir -p "$CACHE/build" "$OUTPUT"
 
-docker build --platform linux/amd64 --build-context "generator=$SIMULATION/pythia8" \
-    -t "$IMAGE" "$SAMPLE"
-docker pull --platform linux/arm64 "$SIM_IMAGE"
+if [[ ! -f "$IMAGE" ]]; then
+    echo "Missing $IMAGE. Build the Docker image locally and convert its archive to SIF; see sample/README.md." >&2
+    exit 1
+fi
 # DELPHI conditions are stored as compressed CVMFS chunks.
 uv run python - "$CACHE/condition-data" <<'PY'
 """Download the pinned DELPHI conditions without mounting CVMFS."""
@@ -139,8 +144,8 @@ PY
 git -C "$SIMULATION" log -1 --oneline
 git -C "$NANOAOD" log -1 --oneline
 git -C "$NANOAOD" diff HEAD > "$OUTPUT/nanoaod.patch"
-docker run --init --rm --platform linux/amd64 \
-    -v "$NANOAOD:/src:ro" -v "$CACHE/build:/build" "$IMAGE" -c '
+apptainer exec --cleanenv --no-home --pwd /work \
+    --bind "$NANOAOD:/src:ro" --bind "$CACHE/build:/build" "$IMAGE" /bin/bash -c '
     set -e
     cmake -S /src -B /build -DFASTJETDIR=/usr/local
     cmake --build /build --parallel 2 --target delphi-nanoaod delphi-raw-nanoaod
