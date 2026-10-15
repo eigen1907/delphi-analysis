@@ -8,7 +8,7 @@ from common.plot_utils import FIGURE_SIZE, finish, plot_efficiency
 EDGES = {"p": np.array([0, 1, 2, 3, 5, 7, 10, 15, 20, 30, 40, 50, 60, 70]),
          "cos_theta": np.linspace(-1, 1, 101)}
 LABELS = {"p": r"$p$ [GeV]", "cos_theta": r"$\cos\theta$"}
-CAPTION = r"Saved normal $\theta_C > 0$; not PID efficiency"
+CAPTION = r"Saved $\theta_C > 0$; not PID efficiency"
 
 
 def histogram(ax, entries, edges, label, color, denominator):

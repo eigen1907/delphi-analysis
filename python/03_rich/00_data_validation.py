@@ -58,13 +58,13 @@ def storage(values, files, source, output, sample):
         fig, ax = plt.subplots(figsize=FIGURE_SIZE)
         histogram(ax, entries, np.histogram_bin_edges(entries, bins=50), "Stored field", "C0", 1)
         ax.set_ylim(0, ax.get_ylim()[1] * 1.4)
-        ax.text(0.02, 0.86, "Stored information; not PID response", transform=ax.transAxes, fontsize=18)
+        ax.text(0.02, 0.86, "Saved RICH fields", transform=ax.transAxes, fontsize=18)
         xlabel = r"Saved $\theta_C$ [rad]" if name.endswith("angle") else r"Saved $N_{\mathrm{ph}}$"
         finish(fig, ax, output / f"{name}.png", sample, xlabel, "Saved entries / bin")
 
 
 def source_comparison(files, output, sample):
-    """Pair by run/event and particle index, never by flattened row position."""
+    """Pair by run/event and original PA identity, never by VECP row position."""
     equal, compared = Counter(), Counter()
     gen_equal = Counter()
     events = Counter()
@@ -77,9 +77,13 @@ def source_comparison(files, output, sample):
         if not reference.exists():
             continue
         with uproot.open(path) as raw_file, uproot.open(reference) as ref_file:
+            if ("Part_paIdx" not in ref_file["Events"] or
+                    not raw_file["Events"]["HaidRaw_paIdx"].description.startswith("Zero-based PA index")):
+                print(f"{sample}: RICH source comparison skipped; old files lack a common PA identity.")
+                continue
             raw_names = ["Event_runNumber", "Event_eventNumber", "HaidRaw_paIdx",
                          *FIELDS["nanoaod_raw_sdst"].values(), *(a for a, _ in gen_pairs)]
-            ref_names = ["Event_runNumber", "Event_evtNumber", "Part_charge",
+            ref_names = ["Event_runNumber", "Event_evtNumber", "Part_paIdx",
                          *FIELDS["nanoaod"].values(), *(b for _, b in gen_pairs)]
             # Read dotted four-vector leaves directly; arrays() can omit them.
             raw = {name: raw_file["Events"][name].array(library="ak") for name in raw_names}
@@ -91,6 +95,9 @@ def source_comparison(files, output, sample):
             events["raw"] += len(raw_keys)
             events["reference"] += len(ref_keys)
             for row, key in enumerate(raw_keys):
+                # Run/setup records can retain a previous physics event number.
+                if len(raw["GenPart_pdgId"][row]) == 0:
+                    continue
                 if key not in lookup:
                     events["unresolved_event"] += 1
                     continue
@@ -98,12 +105,15 @@ def source_comparison(files, output, sample):
                 events["aligned"] += 1
                 for a, b in gen_pairs:
                     gen_equal[a] += int(np.array_equal(np.asarray(raw[a][row]), np.asarray(ref[b][other]), equal_nan=True))
-                n_part = len(ref["Part_charge"][other])
-                ids = np.asarray(raw["HaidRaw_paIdx"][row]) - 1
+                ids = np.asarray(raw["HaidRaw_paIdx"][row], dtype=int)
                 ids_count = Counter(ids)
+                ref_ids = np.asarray(ref["Part_paIdx"][other], dtype=int)
+                ref_counts = Counter(ref_ids)
+                pa_lookup = {part: index for index, part in enumerate(ref_ids)
+                             if part >= 0 and ref_counts[part] == 1}
                 r = np.asarray([index for index, part in enumerate(ids)
-                                if 0 <= part < n_part and ids_count[part] == 1], dtype=int)
-                q = ids[r].astype(int)
+                                if part in pa_lookup and ids_count[part] == 1], dtype=int)
+                q = np.asarray([pa_lookup[part] for part in ids[r]], dtype=int)
                 for name, reference_name in pairs:
                     a, b = np.asarray(raw[name][row])[r], np.asarray(ref[reference_name][other])[q]
                     compared[name] += len(a)

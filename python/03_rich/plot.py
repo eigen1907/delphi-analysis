@@ -14,8 +14,8 @@ STAGES = ("00_data_validation", "01_sample_distribution", "02_angular_matching",
 
 def run(input_root, output_root, stage=None):
     set_style()
-    print("RICH outputs measure saved-angle coverage, not valid RICH/PID response. "
-          "Gas/liquid ABI and sigma are defective; no quality bit definition is inferred.")
+    print("RICH outputs measure saved-angle coverage, not PID efficiency. "
+          "No quality bit definition is inferred.")
     modules = [import_module("." + name, __package__) for name in STAGES if stage in (None, name)]
     for source in SOURCES:
         if stage == "03_truth_link_matching" and source == "nanoaod_raw_sdst":
@@ -25,7 +25,11 @@ def run(input_root, output_root, stage=None):
                 continue
             print(f"Reading RICH {sample} {source}", flush=True)
             values = read_sample(files, source)
+            if not values["association_supported"]:
+                print("Old RICH schema: ABI/index fixes are absent; only storage checks are usable.", flush=True)
             for module in modules:
+                if not values["association_supported"] and not module.__name__.endswith("00_data_validation"):
+                    continue
                 module.run(values, files, source, output_root, sample)
 
 

@@ -1,7 +1,8 @@
-"""Track-associated saved RICH fields; corrupted fields are not PID decisions."""
+"""Track-associated saved RICH fields, without interpreting PID quality bits."""
 from collections import Counter
 
 import numpy as np
+import uproot
 
 from common.matching import angle_matrix, match_tracks
 from importlib import import_module
@@ -31,28 +32,39 @@ LINK_LABELS = ("Agree", "Forward only", "Reverse only", "Conflict", "No origin")
 
 
 def saved_angle(angle):
-    """Only a stored positive normal float, not a validated Cherenkov response.
-
-    The saved gas/liquid ABI and sigma fields are defective in these samples.
-    We neither infer quality bits nor use sigma/nph/nep as a valid-response gate.
-    """
+    """A positive normal stored angle; this alone is not a PID decision."""
     angle = np.asarray(angle)
     return np.isfinite(angle) & (angle >= np.finfo(np.float32).tiny)
 
 
-def track_fields(event, source):
-    """Join raw one-based HaidRaw particle IDs to zero-based TracRaw IDs.
+def corrected_schema(files, source):
+    """Do not use the old ABI or VECP-as-PA indices for RICH coverage."""
+    for path in files:
+        with uproot.open(path) as root:
+            tree = root["Events"]
+            if source == "nanoaod_raw_sdst":
+                if not tree["HaidRaw_paIdx"].description.startswith("Zero-based PA index"):
+                    return False
+            elif "Part_paIdx" not in tree:
+                return False  # Added with the corrected RICH producer.
+    return True
+
+
+def track_fields(event, source, supported=True):
+    """Join raw HaidRaw and TracRaw through their zero-based PA indices.
 
     In nanoaod, Haid/Rich rows use Part order, reached through Trac_partIdx. Duplicate raw
-    bank IDs remain unresolved rather than picking a row arbitrarily.
+    PA IDs remain unresolved. Old raw VECP indices cannot be used as PA indices.
     """
     raw, tracks = event["raw"], event["reco_idx"]
-    if source == "nanoaod":
+    if not supported:
+        rows = np.full(len(tracks), -1, dtype=int)
+    elif source == "nanoaod":
         rows = event["part_idx"]
     else:
-        ids = np.asarray(raw["HaidRaw_paIdx"], dtype=int) - 1
+        ids = np.asarray(raw["HaidRaw_paIdx"], dtype=int)
         unique, counts = np.unique(ids, return_counts=True)
-        usable = set(unique[counts == 1])
+        usable = set(unique[(counts == 1) & (unique >= 0)])
         lookup = {part: row for row, part in enumerate(ids) if part in usable}
         rows = np.asarray([lookup.get(raw["TracRaw_paIdx"][track], -1) for track in tracks], dtype=int)
     result = {}
@@ -68,6 +80,7 @@ def track_fields(event, source):
 
 def read_sample(files, source):
     """Read once and retain the small arrays needed for the four plot stages."""
+    supported = corrected_schema(files, source)
     gen = {name: [] for name in ("p", "cos_theta", "pdg")}
     reco = {name: [] for name in ("p", "cos_theta")}
     stored = {name: [] for name in FIELDS[source]}
@@ -83,12 +96,13 @@ def read_sample(files, source):
     if source == "nanoaod_raw_sdst":
         branches += ["HaidRaw_paIdx", "nHaidRaw"]
     for event in read_events(files, source, branches):
-        fields = track_fields(event, source)
+        fields = track_fields(event, source, supported)
         raw = event["raw"]
         bank_ids = raw["HaidRaw_paIdx"] if source == "nanoaod_raw_sdst" else range(len(raw["Part_charge"]))
         counts["bank_length_mismatch_events"] += int(any(len(raw[branch]) != len(bank_ids)
                                                         for branch in FIELDS[source].values()))
-        counts["duplicate_bank_id_events"] += int(len(set(bank_ids)) != len(bank_ids))
+        usable_ids = [index for index in bank_ids if index >= 0]
+        counts["duplicate_bank_id_events"] += int(len(set(usable_ids)) != len(usable_ids))
         if source == "nanoaod_raw_sdst":
             counts["reported_count_mismatch_events"] += int(raw["nHaidRaw"] != len(bank_ids))
         gen_xyz, reco_xyz = event["gen_xyz"], event["reco_xyz"]
@@ -105,8 +119,11 @@ def read_sample(files, source):
         multiplicity["reco"].append(len(reco_p))
         for name in coverage:
             multiplicity[name].append(int(coverage[name].sum()))
-        counts.update(events=1, gen=len(gen_p), tracks=len(reco_p),
-                      no_rich_bank=int((~fields["linked"]).sum()))
+        counts.update(events=1, gen=len(gen_p), tracks=len(reco_p))
+        if supported:
+            counts["unmapped_rich_rows"] += int((~fields["linked"]).sum())
+        else:
+            counts["association_not_evaluated"] += len(reco_p)
         angles = angle_matrix(gen_xyz, reco_xyz)
         gi, ri = match_tracks(gen_xyz, reco_xyz, event["gen_charge"], event["reco_charge"], SCAN_CUTS[-1])
         for name in scan:
@@ -145,4 +162,4 @@ def read_sample(files, source):
                          for method, result in results.items()},
                 scan={key: np.concatenate(value) for key, value in scan.items()},
                 multiplicity={key: np.asarray(value) for key, value in multiplicity.items()},
-                links=dict(links), counts=dict(counts))
+                links=dict(links), counts=dict(counts), association_supported=supported)
