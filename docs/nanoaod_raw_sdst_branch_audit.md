@@ -196,7 +196,7 @@ Charged-first VECP 순서에서는 해당 charged Haid row가 0인데,
 Branch 설명의 “charged tracks”와 달리 neutral placeholders도 포함한다.
 Row 수가 같다는 사실만으로 모든 raw/native 보조 값의 동일성을 보장할 수는 없다.
 
-현재 [raw RICH `track_fields`](../python/03_rich/data.py)는 위 숫자 join을 사용한다.
+현재 [raw RICH `track_fields`](../src/sample_validation/rich/data.py)는 위 숫자 join을 사용한다.
 **따라서 현재 raw RICH Track association/coverage 결과도 올바른 대응으로 검증되지 않았다.**
 Producer에서 실제 PA↔VECP mapping을 함께 저장하거나 RICH rows에 실제 PA ID를 저장해야 한다.
 Angular matching으로 이 내부 index 문제를 우회해 truth association이라고 해석해서는 안 된다.

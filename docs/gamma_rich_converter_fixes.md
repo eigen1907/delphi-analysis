@@ -89,8 +89,8 @@ RICH 플롯의 coverage 정의는 **양수 normal Cherenkov angle이 저장된 T
 ## 실행
 
 ```bash
-uv run python scripts/02_gamma/plot.py -i data/20261014_stic_validation/20261014_1kTest_ZKK_photosFSR_gamma_rich_fixed
-uv run python scripts/03_rich/plot.py -i data/20261014_stic_validation/20261014_1kTest_ZKK_photosFSR_gamma_rich_fixed
+uv run python scripts/03_sample_validation/02_gamma/plot.py -i data/20261014_stic_validation/20261014_1kTest_ZKK_photosFSR_gamma_rich_fixed
+uv run python scripts/03_sample_validation/03_rich/plot.py -i data/20261014_stic_validation/20261014_1kTest_ZKK_photosFSR_gamma_rich_fixed
 ```
 
 원본 입력과 재변환 파일은 `data/20261014_stic_validation/production/`에 보존했다.

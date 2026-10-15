@@ -3,6 +3,8 @@
 # Generated analysis files; keep the directory layout in Git.
 /data/*
 !/data/.gitkeep
+/output/*
+!/output/.gitkeep
 /plots/*
 !/plots/.gitkeep
 

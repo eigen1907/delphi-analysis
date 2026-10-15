@@ -1,363 +1,156 @@
 # DELPHI Analysis
 
-Compact analysis workspace for DELPHI SDST, RAW-SDST, and RAW-FADANA
-NanoAOD samples.
+ROOT validation and event classification for DELPHI NanoAOD.
 
 ## Environment
 
-The Python dependencies are defined in `pyproject.toml` and pinned in `uv.lock`.
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then run:
+Python 3.12 and the dependencies are defined in `pyproject.toml` and `uv.lock`:
 
 ```bash
 uv sync --locked
 ```
 
-On macOS, install the OpenMP runtime with `brew install libomp` before using
-XGBoost. ROOT is only needed for the optional `--backend hadd` merge mode;
-the default uproot backend works with the uv environment alone.
+Run commands from the repository root with `uv run python`. The reusable Python
+packages are installed from `src/`; no `PYTHONPATH` changes are needed. ROOT is optional
+for dataset preparation with `--backend hadd`; the default uses uproot.
 
-## Workflow
-
-```text
-data/<study>/raw/<sample-set>
-  |
-  +-- scripts/data/prepare-chunks.py
-  |     -> data/<study>/chunk/<sample-set>
-  |
-  +-- data/<study>/chunk/<sample-set>
-        |
-        +-- scripts/data/build-dataset.py
-        |     -> data/<study>/dataset/<sample-set>
-        |          -> scripts/<study>/*
-        |               -> plots/<sample-set>
-        |
-        +-- scripts/pid/prepare.py
-              -> data/<study>/ml/<sample-set>_<feature-set>
-                   -> scripts/pid/train.py
-                        -> plots/bdt/<sample-set>_<feature-set>_<profile>
-```
-
-The repository keeps code, recipes, and generated files in separate locations:
-
-| Directory | Purpose |
-| --- | --- |
-| `python/` | Reusable analysis and feature construction code |
-| `scripts/` | Command-line programs for data, plots, and BDTs |
-| `config/` | Feature sets and hyperparameter profiles |
-| `runs/` | Reproducible study commands |
-| `data/` | Input data, intermediate files, and ML datasets |
-| `plots/` | Generated figures and BDT run outputs |
-
-Code and recipes are grouped by study with matching directory names:
+## Layout
 
 ```text
-python/delphi_analysis/
-  plot_utils.py       shared plotting helpers
-  checks/             branch, generator, and reco validation
-  tracking/           gen–reco track matching
-  rich/               RICH inspection
-  pid/                BDT preparation, training, and application
-  isr_study/          ISR links, conversions, full reco lineage, and angle checks
-scripts/{checks,tracking,rich,pid,isr_study,data}/
-runs/{checks,tracking,rich,pid,isr_study,data}/
-config/pid/{features,hyperparameters}/
+scripts/
+  02_sample_preparation/
+    prepare_dataset.py          prepare chunks, merge and build feature datasets
+  03_sample_validation/
+    00_overall/
+    01_track/
+    02_gamma/
+    03_rich/
+  04_event_classification/
+    01_model_train.py
+    02_model_evaluate.py
+    03_model_apply.py
+src/
+  common/                       paths, sample names and shared analysis helpers
+  sample_preparation/           ROOT filtering and merging
+  sample_validation/            overall, track, gamma and RICH implementations
+  event_classification/         features, job splits, training, evaluation, inference
+config/pid/                     feature and hyperparameter JSON configurations
+docs/                           branch audits and converter notes
+data/                           external and generated source samples
+output/
+  dataset/                      prepared ROOT files, feature datasets, predictions
+  plots/                        validation and classifier figures
+  models/                       models, model metadata and evaluation metrics
 ```
 
-Generated contents of `data/` and `plots/` are ignored by Git. Their `.gitkeep`
-files preserve the directories. Study recipes in `runs/` are versioned.
+The numbered directories and files are execution entry points. Python packages
+under `src/` use ordinary import names without numeric prefixes. Generated data,
+outputs, container images and caches are excluded from Git.
 
-Run the recipes from the repository root:
+## 1. Prepare datasets
+
+One entry point provides the three preparation stages:
 
 ```bash
-bash runs/data/prepare_data.sh
-bash runs/checks/plot_checks.sh
-bash runs/tracking/plot_track_matching.sh
-bash runs/rich/plot_rich.sh
-bash runs/isr_study/plot_isr_study.sh
-bash runs/pid/train_bdt_pid_standard.sh
-bash runs/pid/apply_bdt_pid_standard.sh
+uv run python scripts/02_sample_preparation/prepare_dataset.py \
+    -i data/20261015_jongwon -o output/dataset/20261015_jongwon
 ```
 
-The data preparation, checks, and BDT recipes target `20260606_100kTest`
-under `data/202606xx_jongwon/`. The ISR recipe targets the Florian samples.
-Edit the sample and data path in a recipe for another study.
-
-## Data Preparation
-
-`prepare-chunks.py` preserves the per-job directory structure. For trees with
-generator information, it keeps events with `nGenPart > 0` and rejects duplicated
-`(run, event, nGenPart)` keys. The filtering summary is written under
-`data/check/<sample-set>/`.
-
-`build-dataset.py` merges the prepared jobs independently for each sample and ROOT
-file type. The uproot backend is used by default because ROOT's experimental RNTuple
-merger may abort on these files. ROOT `hadd` remains available for compatible inputs.
-
-The merged datasets are intended for validation plots and event-level inspection.
-BDT preparation reads the prepared chunks directly so that complete jobs, rather
-than individual events, can be assigned to train, validation, and test splits.
-
-## Plotting
-
-The plotting scripts inspect ROOT branches directly and write figures below
-`plots/<sample-set>/`:
+The default `--stage all` writes:
 
 ```text
-branches-all.py                 every numeric branch by sample
-branches-compare.py             common branches across NanoAOD sources
-gen-check.py                    generator-level validation
-gen-compare.py                  generator-level source comparison
-reco-check.py                   reconstruction-level validation
-rich.py                         RICH storage, dtype, and consistency study
-gen-reco-track-match-cut.py     matching efficiency and cut scan
-gen-reco-track-match-result.py  matched-track residuals
-isr_study/plot.py               ISR reconstruction, conversions, and angular cross-checks
+output/dataset/20261015_jongwon/
+  chunks/<sample>/final_root/job_N/   filtered per-job ROOT files
+  merged/<sample>/                   merged analysis ROOT files
+  classification/pid/                train.root, val.root, test.root, metadata.json
 ```
 
-Plotting diagnostics and CSV summaries are written below
-`data/check/<sample-set>/`.
-
-## ISR reconstruction study
+Use `--stage chunks`, `--stage merge` or `--stage classification` to run one
+stage. The latter two accept the prepared chunks directory as input:
 
 ```bash
-bash runs/isr_study/plot_isr_study.sh
+uv run python scripts/02_sample_preparation/prepare_dataset.py --stage merge \
+    -i output/dataset/20261015_jongwon/chunks -o output/dataset/20261015_jongwon
+uv run python scripts/02_sample_preparation/prepare_dataset.py --stage classification \
+    -i output/dataset/20261015_jongwon/chunks -o output/dataset/20261015_jongwon \
+    --feature-config config/pid/features/minimal.json
 ```
 
-The five Florian `photosFSR` samples (`Zee`, `Zmumu`, `Ztautau`, `ZKK`, `Zpipi`)
-contain 449,999 events. The plotting script accepts only input/output directories.
-Code and recipes are grouped under `isr_study/`.
+Filtering retains valid generator events and removes duplicated event keys.
+The filtering summary is written under `output/dataset/checks/` unless `--check`
+is specified. Merging is for analysis; classification reads the per-job chunks
+and splits whole jobs into train/validation/test, preserving their independence.
+The default split is 60/20/20 with seed 1907. `--samples` restricts filtering and
+merging; classification requires all four classifier channels.
 
-```text
-plots/20260828_florian/isr_study/
-  {gamma,gamma_plus_conversion,gamma_pid,gamma_plus_conversion_acceptance}/
-    01_sample_distribution/{gen_gamma,gen_isr,gen_no_isr,gen_isr_non_beam}/
-    02_truth_link_matching_validation/
-    03_angular_matching_validation/
-    04_matching_result/{truth_matching,angular_matching}/{no_cut,0p1_cut}/
+Feature configurations are `minimal`, `detector`, `pid` and `combined`. Their
+names select the directory under `classification/`. Feature contents and order
+are preserved in the dataset metadata and saved model.
+
+## 2. Validate samples
+
+Overall branch, generator and reconstructed distributions read merged data:
+
+```bash
+uv run python scripts/03_sample_validation/00_overall/00_branch_distribution.py \
+    -i output/dataset/20261015_jongwon/merged -o output/plots/20261015_jongwon
 ```
 
-Stage 01 keeps four stable Gen selections, including Beam ISR for inspection:
+Track, photon and RICH entry points accept source campaign directories with
+per-job ROOT files. Each `plot.py` runs its stages while reading each sample once:
 
-| Selection | Definition |
-| --- | --- |
-| `gen_gamma` | All stable gamma |
-| `gen_isr` | All ISR |
-| `gen_no_isr` | Gamma excluding ISR: FSR + Decayed |
-| `gen_isr_non_beam` | ISR excluding Beam ISR |
-
-Stable photons have `GenPart_pdgId == 22` and `GenPart_status == 1`.
-ISR has an electron/positron as its first non-photon ancestor, with no hard parent
-on that path. Beam ISR additionally has `px == py == 0` and a direct, parentless
-incoming electron/positron parent. FSR starts at the hard parent or its direct
-sample-final-state daughter. Decayed is the previous Others category; here it
-contains π⁰, η, and ω decay photons in Ztautau. Stage 04 compares the full
-Gen energy range (`no_cut`) with Gen E ≥ 0.1 GeV (`0p1_cut`) for every plot.
-The three standard modes have no additional angular, fiducial, or lock cuts.
-
-Stages 02–04 exclude Beam ISR from all Gen selections, numerators, and
-denominators, and compare three populations in each plot:
-
-| Legend | Definition |
-| --- | --- |
-| $\gamma_{\mathrm{all}}$ | Stable gamma excluding Beam ISR |
-| $\gamma_{\mathrm{ISR}}$ | Non-beam ISR |
-| $\gamma_{\mathrm{no\ ISR}}$ | FSR + Decayed |
-
-This exclusion uses the Beam ISR ancestry and exact `px == py == 0` definition;
-it is not an energy threshold or detector acceptance cut. It changes only the
-study populations: the original Gen particles and truth ancestry remain intact.
-
-The same study runs for three Reco collections: **Photon only** (`gamma`),
-**Photon + conversion** (`gamma_plus_conversion`), and **Part gamma mass code**
-(`gamma_pid`). Photon only retains every original Photon row. The combined
-collection replaces overlapping Photon representations once by the conversion
-candidate. `gamma_pid` selects **all Parts with `Part_pdgId == 21`**, uses
-`Part_fourMomentum`, and appears as gamma_Part in Reco legends. It does not
-require membership in Photon or add PhotonConv candidates. All three use the
-same Gen populations, bins, and truth definitions, reading each event once. The Photon
-branch is a view of neutral Parts with EM calorimeter energy, not pure photon PID.
-`Part_pdgId` and `SimPart_pdgId` use DELPHI mass codes: gamma=21, e±=±2.
-The `gamma_pid` name describes the stored Part classification, not a strict
-photon-ID working point: the DST writer also assigns code 21 to unidentified
-neutral Parts. The original identification before that fallback is not saved
-separately. `Part_massId` is a packed identification/topology word, so requiring
-`massId == 21` or `massId != 0` would not recover an explicit gamma PID. No such
-condition, charge cut, or lock cut is added. Code-21 Parts can include conversion
-parents and neutral objects outside the Photon view. Overlapping saved
-parent/descendant representations retain their counts but have undefined energy
-sums, as in the Photon-only study.
-
-`gamma_plus_conversion_acceptance` repeats stages 01–04 with the same inclusive
-Photon + conversion Reco pool and stable Gen photons restricted to the union of
-these **Gen theta** intervals, in degrees, with strict endpoints:
-
-| Region | Gen theta intervals |
-| --- | --- |
-| HPC | 44–88, 92–136 |
-| FEMC | 11–36, 144–169 |
-| STIC | 2–10, 170–178 |
-
-This Gen selection applies to every Gen population, efficiency numerator and
-denominator, both energy-ratio histograms, and the angular truth-retention scan
-and event cone union. Truth origins are resolved using all original anchors
-before this selection. Reco candidates have no acceptance cut: stage 01 Reco
-spectra and event counts are identical to `gamma_plus_conversion`. All 449,999
-events remain, including events with no accepted Gen photons; their Gen
-multiplicity is zero and their undefined event ratio is excluded. Beam ISR lies
-outside the acceptance naturally. The angular cone cut remains the one selected
-for baseline `gamma_plus_conversion`; acceptance changes only the Gen selection.
-
-- **01:** Stacked Gen colors and one inclusive Reco outline with
-  hatching on one axis. Reco is identical across the four Gen selections. Energy and
-  cos(theta) have `_log` versions. Linear energy uses a labelled E ≥ 50 GeV
-  overflow bin; logarithmic energy retains the full tail. Each Gen directory has
-  event-multiplicity plots with its own Gen components: all four in `gen_gamma`,
-  BeamISR/NonBeamISR in `gen_isr`, FSR/Decayed in `gen_no_isr`, and NonBeamISR in
-  `gen_isr_non_beam`. One inclusive Reco curve appears in every plot.
-  Multiplicity axes are N_gamma and raw Events;
-  `_log` changes only the multiplicity y-axis.
-- **02:** One plot per sample compares the three Gen selections, with Agree,
-  Forward only, Reverse only, Conflict, and No origin on the x-axis. Only candidates
-  with known evidence involving that selection enter the counts; No origin cannot
-  be assigned to a Gen selection and is therefore zero. Status is evaluated using
-  all original anchors before applying the Gen selection, so a conflict between
-  Beam ISR and another origin remains a Conflict. Conflict is a link diagnostic,
-  not an accepted match.
-- **03:** The three Gen selections scan the 3D opening angle, displayed to 10°.
-  This truth-retention scan uses the full Gen energy range. Curves retain each
-  Gen photon's own truth-associated candidates. For each Reco
-  collection, the reference cut retains ≥99% of pooled non-beam ISR truth successes;
-  it is a truth-retention check, not a purity optimum or a nominal truth cut.
-- **04:** Both `truth_matching` and `angular_matching` contain `no_cut` and
-  `0p1_cut` subdirectories, each saving the same six plots per sample. `no_cut`
-  has no Gen energy threshold; `0p1_cut` requires **Gen E ≥ 0.1 GeV** in every
-  plot, including both the efficiency numerator and denominator. Beam ISR remains
-  excluded in both versions. Each plot compares All, ISR, and no ISR. The plot set
-  is efficiency versus Gen E and cos(theta), plus two energy-ratio histograms:
-
-  - **Per Gen photon:** `sum(E_reco) / E_gen`, one entry per selected Gen photon.
-    Unmatched photons enter at zero; ambiguous energy sums are excluded.
-  - **Per event:** `sum(E_reco) / sum(E_gen)`. The denominator includes every
-    selected Gen photon, including unmatched ones. The numerator sums distinct
-    associated Reco candidates once; angular matching uses the union of the
-    selected Gen cones, without a truth gate. Events with selected Gen photons
-    but no associated Reco enter at zero. Events with no selected Gen photons or
-    an ambiguous energy sum are excluded.
-
-  Efficiency counts ≥1 candidate once per Gen photon, even when its energy sum
-  is ambiguous. Both ratio histograms span 0–3 in 0.1 bins, without percent
-  scaling, with count errors and linear-y/`_log` versions. Ratio one means equal
-  energy. Their filenames are `gen_energy_ratio_<sample>[_log].png` and
-  `event_energy_ratio_<sample>[_log].png`.
-  Separate one-column legends align Gen selection and statistics, using empty
-  handles. Both means use unbinned ratios **0 < R < 3**, excluding both endpoints.
-  Histograms still include zero and three. Both legends report `Frac. (=0)` and
-  `Frac. (>3)`, each divided by all eligible finite ratios, including zero and
-  overflow: selected Gen photons or events, respectively.
-  Tails are neither folded into bins nor clipped; excluded and tail counts are
-  printed to the terminal. No Reco energy cut is added.
-
-Nominal truth compares `Part_simIdx → Sim ancestry → first Gen anchor` with
-`Gen-linked Sim → descendants → SimPart_partIdx`. A unique union origin is
-accepted; absent or contradictory origins remain unresolved. A nested Gen anchor
-starts a new lineage. Direct and descendant Sim objects of any species are valid;
-angular matching never repairs truth. `PhotonConv_simPhotonIdx` is always -1 here,
-so conversions use reciprocal saved parent/daughter vertices and agreeing anchors.
-
-Angular cones can share candidates and are not exclusive assignments. Zero-momentum
-Reco objects have no angular direction. Overlapping saved representations invalidate
-an energy sum, including parent/descendant Photon rows in the Photon-only study;
-candidate counts and efficiency still retain those rows. Responses can exceed one
-because candidates may contain mixed energy, especially for soft Gen photons.
-Both ratio histograms include unmatched Gen photons: per-photon ratios enter at
-zero, and event denominators retain their energy. Angular event sums
-count each Reco candidate once, even when it enters several Gen cones. A truth
-link identifies ancestry, not exclusive ownership of the Reco energy.
-Saved Gen-to-Sim coverage is a link diagnostic,
-not detector transport efficiency; missing links and reverse-only Beam associations
-remain limitations. No summary JSON, note, or validation text files are produced.
-
-### Part gamma angular-only check
-
-Run `bash runs/isr_study/plot_part_gamma_angular.sh` for a separate output in
-`isr_study/part_gamma_angular/`. It reuses the `gamma_pid` candidate pool:
-`Part_pdgId == 21` and `Part_fourMomentum`, without Photon membership, additional
-PhotonConv candidates, or truth-link requirements. Matching uses only a **3D
-opening angle ≤ 3°**, fixed to the current study's reference cut. No Reco energy,
-charge, lock, or detector-acceptance cut is applied. Zero-momentum candidates
-have no direction and cannot be angular-matched.
-
-Stage 04 retains the existing All / ISR / no ISR Gen populations,
-excluding Beam ISR, with `no_cut` and Gen E ≥ 0.1 GeV (`0p1_cut`). Its 60 PNGs are
-efficiency versus Gen energy and cos(theta), per-Gen and per-event energy ratios
-(linear and log-y). Candidates can enter multiple Gen
-cones; event energy counts each candidate once. Saved parent/descendant energy
-overlaps exclude ambiguous ratios but still count for efficiency. Code 21 also
-includes unidentified neutral Parts, so this is a geometric candidate check,
-not a strict photon-ID efficiency or a purity measurement. The main study's
-truth matching and selected cut are unchanged.
-
-CMS/mplhep style and DELPHI Simulation are retained, with slightly thicker curves.
-Legends use 22 pt text in one column at the upper right without a frame; other
-text keeps the CMS defaults.
-All ISR study figures use an 11 × 9 inch canvas. A bold symbolic sample label
-appears separately
-at the upper left, e.g. Z → μ⁺μ⁻. Only `0p1_cut` plots display the Gen energy cut
-caption. No detector-region guides are drawn.
-Counts use sqrt(N) errors; efficiencies use 68.27% Clopper–Pearson intervals.
-All five studies use 100 uniform cos(theta) bins from −1 to 1, with bin width 0.02.
-Linear energy bins start at 1 GeV width and widen at higher energies; this adds
-no energy selection. Log-energy plots retain equally spaced logarithmic bins.
-Filenames place the sample before the scale suffix: `energy_Zee_log.png`.
-
-## BDT Classification
-
-The classifier uses `xgboost.XGBClassifier`. Four classes are assigned fixed labels:
-`Zee`, `Zmumu`, `ZKK`, and `Zpipi`. Jobs are shuffled with a fixed seed and split
-independently per class; the default train/validation/test fractions are 60/20/20.
-
-Feature configurations are stored separately:
-
-```text
-config/pid/features/minimal.json   focused tracking, calorimeter, and vertex detector baseline
-config/pid/features/detector.json  all combined inputs except direct DELPHI PID decisions
-config/pid/features/pid.json       tracking, vertex, and DELPHI PID outputs
-config/pid/features/combined.json  detector inputs plus MuidRaw, ElidRaw, and HaidRaw PID outputs
+```bash
+uv run python scripts/03_sample_validation/01_track/plot.py \
+    -i data/20261015_jongwon -o output/plots
+uv run python scripts/03_sample_validation/02_gamma/plot.py \
+    -i data/20261015_jongwon -o output/plots
+uv run python scripts/03_sample_validation/03_rich/plot.py \
+    -i data/20261015_jongwon -o output/plots
 ```
 
-The JSON keys retain the ROOT collection names. Vector branches are ordered,
-truncated to ten objects, and padded with `NaN`. Track-associated collections are
-matched to the leading `TracRaw` entries through their association indices. The raw
-15-element track covariance is retained for the four leading tracks. No sums, means,
-ratios, pair variables, or reconstructed momentum features are calculated.
+The numbered entry points within each directory run a single stage. Their CLI
+options and existing stage names/plot subdirectories are retained. Use `--help`
+for sample selection and plotting options. Shared diagnostic tables are written
+under `output/dataset/checks/`.
 
-Hyperparameter profiles are stored in:
+## 3. Train, evaluate and apply a classifier
 
-```text
-config/pid/hyperparameters/light.json
-config/pid/hyperparameters/standard.json
-config/pid/hyperparameters/heavy.json
+The classifier uses four labels: `Zee`, `Zmumu`, `ZKK` and `Zpipi`. Tau samples
+remain available for generation and validation. Train uses only train/validation;
+validation is retained for early stopping. Evaluation loads the saved model and
+reports train/validation/test metrics separately.
+
+```bash
+uv run python scripts/04_event_classification/01_model_train.py \
+    -i output/dataset/20261015_jongwon/classification/pid \
+    -o output/models/20261015_jongwon_pid_standard \
+    --hyperparameters config/pid/hyperparameters/standard.json
+uv run python scripts/04_event_classification/02_model_evaluate.py \
+    -i output/dataset/20261015_jongwon/classification/pid \
+    -m output/models/20261015_jongwon_pid_standard/bdt.joblib \
+    -o output/plots/event_classification/20261015_jongwon_pid_standard
+uv run python scripts/04_event_classification/03_model_apply.py \
+    -i output/dataset/20261015_jongwon/merged \
+    -m output/models/20261015_jongwon_pid_standard/bdt.joblib \
+    -o output/dataset/20261015_jongwon/predictions/20261015_jongwon_pid_standard
 ```
 
-`prepare.py` writes `train.root`, `val.root`, `test.root`, and `metadata.json`.
-The metadata records the class mapping, selected jobs, event counts, split fractions,
-feature configuration, and exact expanded feature list.
+Training writes `bdt.joblib`. Evaluation writes `metrics.json` and
+`feature_importance.csv` beside the model and diagnostic PNGs to its plot output.
+Apply writes prediction ROOT files without modifying inputs. Existing model
+bundles remain readable. Match dataset features and feature configuration to the
+model when evaluating or applying it.
 
-`train.py` writes the fitted model, metrics, normalized validation and test
-confusion matrices, and XGBoost gain feature importance under `--output`.
-`apply.py` writes event identifiers, the predicted class, and per-class
-probabilities without modifying the input ROOT file.
+## Data conventions
 
-Generator truth, event identifiers, and MC-only metadata are not model inputs.
+Source samples in `data/` are retained unchanged. Filtering and merging write
+new files under `output/dataset/`; generation intermediate files stay with their
+source jobs. A structure change does not recalibrate or repair physics content.
 
-## Source Integrity
-
-Files below `data/<study>/raw/` are treated as the source of truth. Filtering,
-merging, plotting, and BDT preparation do not recalibrate or repair branch
-contents. When the NanoAOD schema or converter changes, regenerate the raw
-data before rebuilding the downstream products.
-
-In particular, RICH measurements stored in `HaidRaw_*` should only be used after the
-upstream `QGRIC/KGRIC` and `QLRIC/KLRIC` mappings and output types have been
-validated. The current PID and combined feature configs therefore keep the DELPHI
-PID decisions but exclude the unverified RICH ring summaries and quality word.
+The existing matching algorithms, detector selections and numbered plot stages
+are retained. DELPHI `Part_pdgId`/`SimPart_pdgId` use DELPHI mass codes, not PDG
+codes. Raw run/setup rows are not physics events; production validation counts
+`Event_isMC == 1`. RICH and truth-link limitations are recorded in the
+[branch usage summary](docs/branch_usage_summary.md),
+[raw SDST audit](docs/nanoaod_raw_sdst_branch_audit.md) and
+[converter validation notes](docs/gamma_rich_converter_fixes.md).
