@@ -4,6 +4,9 @@
 [nanoaod 감사](nanoaod_branch_audit.md)와 [raw SDST 감사](nanoaod_raw_sdst_branch_audit.md).
 `EmShower`는 `EmShower_*` 전체를 가리킨다.
 
+**아래 표는 기존 Florian ROOT 파일 기준이다.** 이후 수정된 Z→KK 1,000개 표본의
+Gamma/RICH 사용 범위와 검증 결과는 [converter 수정 보고서](gamma_rich_converter_fixes.md)에 정리했다.
+
 | 판단 | 의미 |
 | --- | --- |
 | 사용 가능 | 아래에 적은 용도로 사용할 근거가 있음 |
