@@ -10,18 +10,15 @@ while [[ $# -gt 0 ]]; do
         --sample) sample=${2:?--sample requires a sample name}; shift 2 ;;
         --ncpu) ncpu=${2:?--ncpu requires a positive integer}; shift 2 ;;
         -h|--help)
-            echo "Usage: bash sample/run.sh [--sample ZKK|Zpipi|Zmumu|Zee|Ztautau] [--ncpu 8]"
+            echo "Usage: bash sample/run.sh [--sample all|ZKK|Zpipi|Zmumu|Zee|Ztautau] [--ncpu 8]"
             echo "Defaults: ZKK, 8 concurrent jobs, 5000 events/job, 20 jobs."
             exit 0 ;;
         *) echo "Unknown option: $1" >&2; exit 2 ;;
     esac
 done
 case "$sample" in
-    ZKK) offset=0 ;;
-    Zpipi) offset=20 ;;
-    Zmumu) offset=40 ;;
-    Zee) offset=60 ;;
-    Ztautau) offset=80 ;;
+    all) samples=(ZKK Zpipi Zmumu Zee Ztautau) ;;
+    ZKK|Zpipi|Zmumu|Zee|Ztautau) samples=("$sample") ;;
     *) echo "Unknown sample: $sample" >&2; exit 2 ;;
 esac
 if [[ ! "$ncpu" =~ ^[1-9][0-9]*$ ]]; then
@@ -52,7 +49,9 @@ if ! bash "$SAMPLE/01_setup.sh" > "$OUTPUT/setup.log" 2>&1; then
 fi
 
 run_job() {
-    local job=$1
+    local sample=$1
+    local offset=$2
+    local job=$3
     local seed=$((1907 + offset + job))
     local nrun=$((3000 + offset + job))
     local work="$OUTPUT/20261014_100kTest_${sample}_photosFSR/production/job_$job"
@@ -85,18 +84,28 @@ wait_batch() {
     return "$failed"
 }
 
-# Small PID batches also work with the Mac's default Bash 3.2 (no wait -n).
+# All samples share the same limit on concurrent jobs.
 pids=()
-echo "$(date): $sample, 20 jobs, up to $ncpu concurrent jobs"
-for job in {0..19}; do
-    work="$OUTPUT/20261014_100kTest_${sample}_photosFSR/production/job_$job"
-    if [[ -f "$work/.done" ]] && [[ "$(cat "$work/events.txt")" == "$events_per_job" ]]; then
-        echo "$sample job_$job: already complete"
-        continue
-    fi
-    run_job "$job" &
-    pids+=("$!")
-    if [[ ${#pids[@]} -ge "$ncpu" ]]; then wait_batch; fi
+total_jobs=$((20 * ${#samples[@]}))
+echo "$(date): $sample, $total_jobs jobs, up to $ncpu concurrent jobs"
+for channel in "${samples[@]}"; do
+    case "$channel" in
+        ZKK) offset=0 ;;
+        Zpipi) offset=20 ;;
+        Zmumu) offset=40 ;;
+        Zee) offset=60 ;;
+        Ztautau) offset=80 ;;
+    esac
+    for job in {0..19}; do
+        work="$OUTPUT/20261014_100kTest_${channel}_photosFSR/production/job_$job"
+        if [[ -f "$work/.done" ]] && [[ "$(cat "$work/events.txt")" == "$events_per_job" ]]; then
+            echo "$channel job_$job: already complete"
+            continue
+        fi
+        run_job "$channel" "$offset" "$job" &
+        pids+=("$!")
+        if [[ ${#pids[@]} -ge "$ncpu" ]]; then wait_batch; fi
+    done
 done
 if [[ ${#pids[@]} -gt 0 ]]; then wait_batch; fi
-echo "$(date): $sample complete, $((20 * events_per_job)) events: $OUTPUT"
+echo "$(date): $sample complete, $((total_jobs * events_per_job)) events: $OUTPUT"
