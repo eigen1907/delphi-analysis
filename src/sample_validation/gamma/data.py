@@ -17,10 +17,10 @@ CONV_P4 = tuple(f"PhotonConv_fourMomentum.fCoordinates.f{axis}" for axis in "XYZ
 GEN_SELECTIONS = ("gen_gamma", "gen_isr", "gen_no_isr", "gen_isr_non_beam")
 ANALYSIS_SELECTIONS = ("gen_gamma", "gen_isr", "gen_no_isr")
 GEN_LABELS = (r"$\gamma_{\mathrm{all}}$", r"$\gamma_{\mathrm{ISR}}$", r"$\gamma_{\mathrm{no\ ISR}}$")
-ENERGY_RANGES = (("all", 0, np.inf), ("energy0-2", 0, 2),
-                 ("energy2-10", 2, 10), ("energy10-", 10, np.inf))
-ENERGY_LABELS = {"all": "", "energy0-2": r"$0\leq E_\gamma^{\rm gen}<2$ GeV",
-                 "energy2-10": r"$2\leq E_\gamma^{\rm gen}<10$ GeV",
+ENERGY_RANGES = (("all", 0, np.inf), ("energy0-1", 0, 1),
+                 ("energy1-10", 1, 10), ("energy10-", 10, np.inf))
+ENERGY_LABELS = {"all": "", "energy0-1": r"$0\leq E_\gamma^{\rm gen}<1$ GeV",
+                 "energy1-10": r"$1\leq E_\gamma^{\rm gen}<10$ GeV",
                  "energy10-": r"$E_\gamma^{\rm gen}\geq10$ GeV"}
 EM_REGIONS = {"HPC": ((44, 88), (92, 136)),
               "FEMC": ((11, 36), (144, 169)),
@@ -307,6 +307,8 @@ def analyze_event(raw, sample):
                    detector_flags=photon_detectors),
         Photon_PhotonConv=dict(p4=gamma_p4, gen_idx=gamma_origins, energy_valid=gamma_valid,
                               geometric_energy_valid=gamma_geometry_valid, stats=combined_stats,
+                              is_conversion=np.r_[np.zeros(len(kept_photons), dtype=bool),
+                                                  np.ones(len(kept_convs), dtype=bool)],
                               detector_flags=np.concatenate((photon_detectors[kept_photons],
                                   np.zeros((len(kept_convs), len(DETECTORS)), dtype=bool)))),
         Part_pdgId_21=dict(p4=pid_p4, gen_idx=pid_origins, energy_valid=pid_valid,
@@ -318,6 +320,7 @@ def analyze_event(raw, sample):
     part_detectors[photon_parts] = photon_detectors
     reco['Part_pdgId_21']['detector_flags'] = part_detectors[pid_parts]
     for objects in reco.values():
+        objects.setdefault('is_conversion', np.zeros(len(objects['p4']), dtype=bool))
         own_origin = all_gamma_idx[:, None] == objects['gen_idx'][None, :]
         objects['stats']['detector_matched'] = (own_origin[:, :, None] &
                                               objects['detector_flags'][None, :, :]).any(axis=1)
@@ -364,6 +367,9 @@ def read_sample(paths, sample: str, angle_accumulator, source='nanoaod'):
                              for gen in ANALYSIS_SELECTIONS},
         branch_counts=Counter(),
     ) for mode in labels}
+    if native:
+        for values in results.values():
+            values['reco_distributions']['is_conversion'] = []
     gen_event_counts = {name: [] for name in
                         ("all_gamma", "all_isr", "beam_isr", "nonbeam_isr", "fsr", "decayed")}
     events, metadata_excluded = 0, 0
@@ -407,6 +413,8 @@ def read_sample(paths, sample: str, angle_accumulator, source='nanoaod'):
                     values["reco_distributions"]["energy"].extend(reco_p4[:, 3])
                     values["reco_distributions"]["cos_theta"].extend(cos_theta)
                     values['reco_distributions']['detector_flags'].extend(objects['detector_flags'])
+                    if native:
+                        values['reco_distributions']['is_conversion'].extend(objects['is_conversion'])
                     values["reco_event_counts"].append(len(reco_p4))
                     if native:
                         values["link_counts"].update(event["link_counts"][mode])

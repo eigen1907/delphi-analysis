@@ -85,6 +85,7 @@ output/plots/<campaign>/03_sample_validation/<split>/
 ```
 
 Photon 효율은 [fiducial region·matching·에너지 구간](docs/fiducial_regions.md)을 따른다.
+Gamma angular matching은 두 campaign 모두 1°를 사용한다.
 이전 RICH schema는 유효한 트랙 대응을 보장하지 않아 저장 상태 검사만 수행한다.
 
 ## 3. BDT 학습·평가·추론

@@ -39,7 +39,6 @@ def run(input_root: Path, output_root: Path, stage=None, split="train", ncpu=5):
     set_style()
     datasets = list(dataset_files(input_root, split))
     need_angles = stage in (None, '02_angular_matching')
-    native_reference = 3.0  # Previous five-sample truth-angle scan: 99% ISR retention.
     native_gen = {}
     for source, labels in (('nanoaod', RECO_LABELS), ('nanoaod_raw_sdst', RAW_RECO_LABELS)):
         if source == 'nanoaod_raw_sdst' and stage == '03_truth_link_matching':
@@ -65,15 +64,10 @@ def run(input_root: Path, output_root: Path, stage=None, split="train", ncpu=5):
                         ('event_keys', 'gen_signatures', 'events', 'metadata_excluded', 'reco_distributions', 'reco_label')}
                 else:
                     validation.source_comparison(output_root, dataset, native_gen[dataset], representative)
-        all_energy = np.concatenate([np.r_[value['gamma']['energy'], value['reco_distributions']['energy']]
-                                     for samples in values.values() for value in samples.values()])
         bins = dict(energy=np.r_[distributions.ENERGY_EDGES, 60],
-                    energy_log=distributions.energy_bins(all_energy, True),
                     cos_theta=distributions.COS_THETA_EDGES)
         for mode in labels:
-            cut = (angular.choose_cut(angles[mode].values()) if source == 'nanoaod' else native_reference) if need_angles else None
-            if mode == 'Photon_PhotonConv' and need_angles:
-                native_reference = cut
+            cut = angular.MATCHING_CUT_DEG if need_angles else None
             for dataset, value in values[mode].items():
                 if stage in (None, '00_data_validation'):
                     validation.data_validation(output_root, dataset, value)

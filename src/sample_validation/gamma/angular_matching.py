@@ -1,4 +1,4 @@
-"""Scan independent opening-angle cones and retain truth angles as a cut reference."""
+"""Scan opening-angle cones and use one common association angle."""
 
 import numpy as np
 
@@ -7,10 +7,11 @@ from common.matching import angle_matrix
 from common.plot_utils import FIGURE_SIZE, clopper_pearson, finish, plot_path
 
 CUTS_DEG = np.array([0.25, 0.5, 1, 2, 3, 5, 10, 20])
+MATCHING_CUT_DEG = 1.0
 
 
 def new_accumulator():
-    """Store truth retention, per-Gen cones, and event energy from their union."""
+    """Store per-Gen cones and event energy from their union."""
     return dict(populations={
         population: dict(
             gen_count=0,
@@ -19,14 +20,13 @@ def new_accumulator():
             angular_energy_sum=np.zeros(len(CUTS_DEG)),
             angular_energy_square_sum=np.zeros(len(CUTS_DEG)),
         ) for population in ANALYSIS_SELECTIONS
-    }, truth_reference=dict(success=0, recovered=np.zeros(len(CUTS_DEG), dtype=np.int64)),
-                angular={name: dict(pending=[], blocks=[])
+    }, angular={name: dict(pending=[], blocks=[])
                 for name in ("reco_count", "energy_ratio", "event_energy", "detector_matched")})
 
 
 def accumulate(accumulator, event, objects):
     """Every Gen photon gets its own cone; candidates can enter several cones."""
-    gen_idx, gen_p4 = event["all_gamma_idx"], event["all_gamma_p4"]
+    gen_p4 = event["all_gamma_p4"]
     momentum = np.linalg.norm(objects["p4"][:, :3], axis=1)
     directional = momentum > 0
     p4 = objects["p4"][directional]
@@ -70,16 +70,6 @@ def accumulate(accumulator, event, objects):
         ratios = np.where(valid_cones[selected], energy_ratio[selected], 0)
         values['angular_energy_sum'] += ratios.sum(axis=0)
         values['angular_energy_square_sum'] += (ratios ** 2).sum(axis=0)
-    # Raw banks contain no Sim truth information; do not invent unresolved links.
-    if 'gen_idx' not in objects:
-        return
-    own_origin = gen_idx[:, None] == objects["gen_idx"][directional][None, :]
-    truth_cones = cones & own_origin[:, :, None]
-    # Keep the established angle reference: all non-beam ISR, before fiducial selection.
-    selected = event['all_gamma_category'] == 'nonbeam_isr'
-    reference = accumulator['truth_reference']
-    reference['success'] += int((objects['stats']['reco_count'][selected] > 0).sum())
-    reference['recovered'] += truth_cones[selected].any(axis=1).sum(axis=0)
 
 
 def angular_stats(accumulator, cut_degrees):
@@ -102,19 +92,6 @@ def mean_and_sem(counts, sums, squares):
     sem = np.sqrt(np.divide(np.maximum(variance_sum, 0), counts * (counts - 1),
                             out=np.full_like(sums, np.nan), where=counts > 1))
     return mean, sem
-
-
-def choose_cut(accumulators):
-    """Smallest cut retaining 99% of pooled non-beam truth successes."""
-    successes = 0
-    recovered = np.zeros(len(CUTS_DEG), dtype=np.int64)
-    for accumulator in accumulators:
-        reference = accumulator['truth_reference']
-        successes += reference['success']
-        recovered += reference['recovered']
-    eligible = (successes > 0) & (recovered >= 0.99 * successes)
-    index = np.flatnonzero(eligible)[0] if eligible.any() else len(CUTS_DEG) - 1
-    return float(CUTS_DEG[index])
 
 
 def plot_angle_matching(output_root, sample, accumulator, cut_degrees):

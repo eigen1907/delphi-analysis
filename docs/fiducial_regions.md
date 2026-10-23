@@ -19,6 +19,12 @@ Beam ISR은 ISR 중 `px=py=0`이고 parent가 incoming electron인 경우다.
 
 `01_sample_distribution`의 Gen 분포는 beam ISR과 영역 밖 photon도 포함한다.
 아래 matching 효율의 분모와 구분해야 한다.
+`energy.png`는 선형 축, `energy_log.png`는 y축만 log다.
+`energy_loglog.png`는 기존 log-x 그림처럼 양의 에너지를 log bin으로 나누고 두 축을 log로 그린다.
+0 에너지도 유지하도록 x축의 0 근처만 선형인 symlog를 사용한다.
+`Photon_PhotonConv`의 Reco 분포는 중복 정리 후 Photon과 PhotonConv를
+같은 색·반대 방향 대각선 hatch로 쌓으며 PhotonConv가 바닥에 온다.
+합계는 기존 combined 후보 수와 같다.
 
 ## EM 영역
 
@@ -48,8 +54,11 @@ Raw에는 Reco→Gen Sim link가 없어 angular study만 한다.
 
 - **Angular:** Gen마다 독립적인 3D opening-angle cone을 사용한다. 한 Reco가 여러 Gen cone에 들어갈 수 있다. One-to-one matching이 아니다.
 - **Truth link:** Native의 양방향 저장 관계를 비교해 유일한 Gen origin을 사용한다. Conflict/no-origin을 angular로 대신 채우지 않는다. Sim ancestry는 첫 Gen anchor에서 멈춘다.
-- Angular cut은 `0.25, 0.5, 1, 2, 3, 5, 10, 20°`를 scan한다. Native collection별로 전체 샘플의 non-beam ISR truth 성공 중 99%를 유지하는 최소 cut을 고른다. 이 기준은 fiducial 적용 전이다. 만족하는 cut이 없으면 20°다.
-- Raw는 Native `Photon_PhotonConv`에서 얻은 cut을 사용한다. 코드의 초기 참고값 3°를 고정 default cut으로 해석하지 않는다.
+- Angular cut은 두 campaign의 모든 Native/Raw collection에 **1°**로 고정한다. `0.25, 0.5, 1, 2, 3, 5, 10, 20°` scan은 비교용이다.
+- 1°는 [DELPHI μμγ 논문](https://pure.uva.nl/ws/files/2867610/1024_11797y.pdf) §3.4의 Gen–Reco 방향 일치 조건이다. 논문에서는 에너지 응답 표본에 사용했다. 여기의 STIC 적용은 추가 검증이며 논문에 STIC은 없다.
+
+Truth 효율에는 Reco 검출 여부와 저장된 Reco→Gen 연결의 완전성이 함께 반영된다.
+연결 누락·충돌이나 여러 photon의 겹침이 있으면 낮아질 수 있어, 그 수치만으로 검출기 효율을 판단하지 않는다.
 
 ## Regional과 flag의 분자·분모
 
@@ -76,8 +85,8 @@ Raw 결과는 photon PID 효율 대신 **angular EM coverage**로 표시한다.
 | 구간 | Gen E | 파일 suffix |
 | --- | --- | --- |
 | All, 기본 | `0 ≤ E`, 상한 없음 | 없음 |
-| Low | `0 ≤ E < 2` | `_energy0-2` |
-| Mid | `2 ≤ E < 10` | `_energy2-10` |
+| Low | `0 ≤ E < 1` | `_energy0-1` |
+| Mid | `1 ≤ E < 10` | `_energy1-10` |
 | High | `10 ≤ E` | `_energy10-` |
 
 입력 Gen four-vector는 유한하고 momentum과 E가 양수여야 한다.
