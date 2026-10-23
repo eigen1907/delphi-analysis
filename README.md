@@ -1,6 +1,6 @@
 # DELPHI Analysis
 
-ROOT validation and BDT event classification for DELPHI NanoAOD.
+Sample production, ROOT validation and BDT event classification for DELPHI NanoAOD.
 
 ## Setup
 
@@ -12,6 +12,7 @@ uv sync --locked
 
 ```text
 scripts/
+  01_sample_generation/       generation, simulation and conversion
   02_sample_preparation/      paired train/val/test datasets
   03_sample_validation/       overall, track, gamma and RICH plots
   04_event_classification/    BDT training, evaluation and inference
@@ -25,6 +26,20 @@ output/{dataset,plots,models}/
 Bash recipes contain defaults; append arguments to override them. Packages are
 installed from `src/`, so no `PYTHONPATH` setting is needed. Data, outputs
 and caches are excluded from Git.
+
+## Generate samples
+
+Use Apptainer and a prepared SIF image. See the [production guide](scripts/01_sample_generation/README.md)
+for image setup, restart rules and retained intermediate files.
+
+```bash
+mkdir -p data/20261015_jongwon
+nohup bash scripts/01_sample_generation/run.sh --sample all --ncpu 100 \
+    > data/20261015_jongwon/run.log 2>&1 &
+```
+
+This runs five channels, each with 20 jobs of 5,000 events. `--ncpu` limits
+concurrent jobs across all channels.
 
 ## Prepare datasets
 

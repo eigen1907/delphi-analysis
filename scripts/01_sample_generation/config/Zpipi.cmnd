@@ -1,0 +1,14 @@
+# Zpipi: e+ e- at the Z pole, with ISR and PHOTOS FSR.
+Beams:idA = 11
+Beams:idB = -11
+Beams:eCM = 91.187
+
+PartonLevel:ISR = on
+PDF:lepton = on
+PartonLevel:FSR = off
+Photos:enable = on
+
+CustomZ:enable = on
+WeakSingleBoson:ffbar2gmZ = off
+9000023:onMode = off
+9000023:addChannel = 1 1.0 101 211 -211
