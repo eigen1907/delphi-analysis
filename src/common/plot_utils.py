@@ -9,6 +9,8 @@ from pathlib import Path
 import awkward as ak
 import numpy as np
 
+from .samples import SAMPLE_NAMES
+
 
 NUMERIC_WORDS = ("bool", "float", "double", "int", "short", "long")
 INTEGER_WORDS = ("bool", "char", "int", "short", "long")
@@ -54,7 +56,9 @@ def add_samples_argument(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--samples",
         nargs="+",
-        help="sample directories to process (default: all directories under the input root)",
+        choices=SAMPLE_NAMES,
+        default=["ZKK"],
+        help="samples to process (default: ZKK)",
     )
 
 
@@ -74,7 +78,7 @@ def default_plot_root(project_root: Path, input_root: Path, split: str = "train"
         path = path.parent
     if (path / f"{split}.root").is_file() or path.name in ("chunks", "merged"):
         path = path.parent
-    return project_root / "output" / "plots" / path.name / "03_sample_validation" / split
+    return project_root / "output" / "plots" / path.name / "02_sample_validation" / split
 
 
 def default_check_root(project_root: Path, input_root: Path) -> Path:

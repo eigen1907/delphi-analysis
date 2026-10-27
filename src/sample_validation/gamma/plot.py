@@ -8,7 +8,7 @@ import numpy as np
 
 from common.paths import DATASET_ROOT, PROJECT_ROOT
 from common.dataset import dataset_files
-from common.plot_utils import default_plot_root, set_style
+from common.plot_utils import add_samples_argument, default_plot_root, set_style
 from . import angular_matching as angular
 from . import data_validation as validation
 from . import sample_distribution as distributions
@@ -34,10 +34,10 @@ def _read_dataset(job):
     return dataset, samples, angles, diagnostics.getvalue()
 
 
-def run(input_root: Path, output_root: Path, stage=None, split="train", ncpu=5):
-    """Reco definitions share fiducial Gen populations; only NanoAOD has truth links."""
+def run(input_root: Path, output_root: Path, stage=None, split="train", ncpu=5, samples=None):
+    """Reco definitions share the Gen populations; only NanoAOD has truth links."""
     set_style()
-    datasets = list(dataset_files(input_root, split))
+    datasets = list(dataset_files(input_root, split, samples))
     need_angles = stage in (None, '02_angular_matching')
     native_gen = {}
     for source, labels in (('nanoaod', RECO_LABELS), ('nanoaod_raw_sdst', RAW_RECO_LABELS)):
@@ -71,8 +71,10 @@ def run(input_root: Path, output_root: Path, stage=None, split="train", ncpu=5):
             for dataset, value in values[mode].items():
                 if stage in (None, '00_data_validation'):
                     validation.data_validation(output_root, dataset, value)
-                if stage in (None, '01_sample_distribution'):
-                    distributions.sample_distributions(output_root, dataset, value, bins)
+                for distribution_stage in ('01-01_sample_distribution_all',
+                                           '01-02_sample_distribution_fiducial'):
+                    if stage in (None, distribution_stage):
+                        distributions.sample_distributions(output_root, dataset, value, bins, distribution_stage)
                 if stage in (None, '02_angular_matching'):
                     angular.plot(output_root, dataset, value, bins, angles[mode][dataset], cut)
                 if source == 'nanoaod' and stage in (None, '03_truth_link_matching'):
@@ -86,12 +88,14 @@ def main(stage=None):
     import argparse
 
     parser = argparse.ArgumentParser()
+    add_samples_argument(parser)
     parser.add_argument('-i', '--input', type=Path,
-                        default=DATASET_ROOT / '20261015_jongwon',
+                        default=DATASET_ROOT / '20260828_florian',
                         help='paired dataset campaign directory or one sample directory')
     parser.add_argument('-o', '--output', type=Path, default=None)
     parser.add_argument(
-        "--stage", choices=("all", "00_data_validation", "01_sample_distribution",
+        "--stage", choices=("all", "00_data_validation", "01-01_sample_distribution_all",
+                            "01-02_sample_distribution_fiducial",
                             "02_angular_matching", "03_truth_link_matching"),
         default=stage or "all", help="plotting stage (default: all)",
     )
@@ -101,7 +105,8 @@ def main(stage=None):
     if args.ncpu < 1:
         parser.error("--ncpu must be positive")
     output = args.output or default_plot_root(PROJECT_ROOT, args.input, args.split)
-    run(args.input, output, None if args.stage == "all" else args.stage, args.split, args.ncpu)
+    run(args.input, output, None if args.stage == "all" else args.stage,
+        args.split, args.ncpu, args.samples)
 
 
 if __name__ == "__main__":

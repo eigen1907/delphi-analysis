@@ -173,9 +173,10 @@ def plot_discrete(
         ax.bar(x, counts, width=0.8, label=label, facecolor="none", edgecolor=color, hatch=hatch, alpha=0.9)
 
     set_hist_yaxis(ax, counts_list, fraction_list)
-    ax.set_xticks(x)
+    tick_rows = np.linspace(0, len(x) - 1, min(20, len(x)), dtype=int)
+    ax.set_xticks(x[tick_rows])
     ax.set_xticklabels(
-        [str(value) for value in unique_values],
+        [str(unique_values[row]) for row in tick_rows],
         rotation=90 if len(unique_values) > 12 else 0,
         fontsize=13 if len(unique_values) > 12 else None,
     )
@@ -625,10 +626,10 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     add_samples_argument(parser)
     parser.add_argument("-i", "--input", type=Path,
-                        default=DATASET_ROOT / "20261015_jongwon",
+                        default=DATASET_ROOT / "20260828_florian",
                         help="input dataset root")
     parser.add_argument("-o", "--output", type=Path, default=None,
-                        help="plot output root (default: output/plots/<campaign>/03_sample_validation/<split>)")
+                        help="plot output root (default: output/plots/<campaign>/02_sample_validation/<split>)")
     add_color_scale_argument(parser)
     parser.add_argument("--split", choices=("train", "val", "test"), default="train")
     args = parser.parse_args()

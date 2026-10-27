@@ -18,10 +18,9 @@ GEN_SELECTIONS = ("gen_gamma", "gen_isr", "gen_no_isr", "gen_isr_non_beam")
 ANALYSIS_SELECTIONS = ("gen_gamma", "gen_isr", "gen_no_isr")
 GEN_LABELS = (r"$\gamma_{\mathrm{all}}$", r"$\gamma_{\mathrm{ISR}}$", r"$\gamma_{\mathrm{no\ ISR}}$")
 ENERGY_RANGES = (("all", 0, np.inf), ("energy0-1", 0, 1),
-                 ("energy1-10", 1, 10), ("energy10-", 10, np.inf))
+                 ("energy1-", 1, np.inf))
 ENERGY_LABELS = {"all": "", "energy0-1": r"$0\leq E_\gamma^{\rm gen}<1$ GeV",
-                 "energy1-10": r"$1\leq E_\gamma^{\rm gen}<10$ GeV",
-                 "energy10-": r"$E_\gamma^{\rm gen}\geq10$ GeV"}
+                 "energy1-": r"$E_\gamma^{\rm gen}\geq1$ GeV"}
 EM_REGIONS = {"HPC": ((44, 88), (92, 136)),
               "FEMC": ((11, 36), (144, 169)),
               "STIC": ((2, 10), (170, 178))}
@@ -46,9 +45,9 @@ def gen_selections(category):
                 gen_no_isr=~isr, gen_isr_non_beam=category == "nonbeam_isr")
 
 
-def analysis_selections(category, cos_theta):
-    """Matching studies use fiducial Gen photons and exclude Beam ISR."""
-    accepted = em_acceptance(cos_theta)
+def analysis_selections(category, cos_theta, fiducial=True):
+    """Matching excludes Beam ISR; only the fiducial view applies Gen acceptance."""
+    accepted = em_acceptance(cos_theta) if fiducial else np.ones(len(category), dtype=bool)
     return dict(gen_gamma=(category != "beam_isr") & accepted,
                 gen_isr=(category == "nonbeam_isr") & accepted,
                 gen_no_isr=np.isin(category, ("fsr", "decayed")) & accepted)
@@ -132,11 +131,14 @@ def gen_event(raw, sample, p4_branches=GEN_P4):
         all_gamma_category.append("beam_isr" if is_beam else "nonbeam_isr" if origin == "isr"
                                   else "fsr" if origin == "fsr" else "decayed")
     all_gamma_category = np.asarray(all_gamma_category)
-    populations = analysis_selections(all_gamma_category, unit_momenta(all_gamma_p4)[:, 2])
+    cos_theta = unit_momenta(all_gamma_p4)[:, 2]
+    populations = analysis_selections(all_gamma_category, cos_theta)
+    populations_all = analysis_selections(all_gamma_category, cos_theta, fiducial=False)
     return dict(all_gamma_idx=all_gamma_idx, all_gamma_p4=all_gamma_p4,
                 all_gamma_category=all_gamma_category, selections=gen_selections(all_gamma_category),
-                analysis_selections=populations,
-                energy_selections=energy_selections(all_gamma_p4[:, 3], populations))
+                analysis_selections=populations, analysis_selections_all=populations_all,
+                energy_selections=energy_selections(all_gamma_p4[:, 3], populations),
+                energy_selections_all=energy_selections(all_gamma_p4[:, 3], populations_all))
 
 
 def analyze_event(raw, sample):
@@ -331,20 +333,26 @@ def analyze_event(raw, sample):
         Part_pdgId_21=([{int(forward[p])} if forward[p] >= 0 else set() for p in pid_parts],
                    [reverse[p] for p in pid_parts]),
     )
-    matching_validation, link_counts = {}, {}
-    selected_origins = {name: set(all_gamma_idx[mask])
-                        for name, mask in event['analysis_selections'].items()}
+    matching_validation, matching_validation_all, link_counts = {}, {}, {}
+    selected_origins = {
+        scope: {name: set(all_gamma_idx[mask]) for name, mask in event[field].items()}
+        for scope, field in (("all", "analysis_selections_all"), ("fiducial", "analysis_selections"))
+    }
     for mode, (forward_links, reverse_links) in links.items():
-        counts = {gen: Counter(dict.fromkeys(LINK_STATUSES, 0)) for gen in ANALYSIS_SELECTIONS}
+        counts = {scope: {gen: Counter(dict.fromkeys(LINK_STATUSES, 0)) for gen in ANALYSIS_SELECTIONS}
+                  for scope in selected_origins}
         link_counts[mode] = Counter(dict.fromkeys(LINK_STATUSES, 0))
         for first, second in zip(forward_links, reverse_links, strict=True):
             status = link_status(first, second)
             link_counts[mode][status] += 1
-            for gen_name, selected in selected_origins.items():
-                if (first | second) & selected:
-                    counts[gen_name][status] += 1
-        matching_validation[mode] = counts
-    event.update(reco=reco, matching_validation=matching_validation, link_counts=link_counts)
+            for scope, populations in selected_origins.items():
+                for gen_name, selected in populations.items():
+                    if (first | second) & selected:
+                        counts[scope][gen_name][status] += 1
+        matching_validation[mode] = counts["fiducial"]
+        matching_validation_all[mode] = counts["all"]
+    event.update(reco=reco, matching_validation=matching_validation,
+                 matching_validation_all=matching_validation_all, link_counts=link_counts)
     return event
 
 
@@ -365,6 +373,8 @@ def read_sample(paths, sample: str, angle_accumulator, source='nanoaod'):
         reco_event_counts=[], link_counts=Counter(dict.fromkeys(LINK_STATUSES, 0)),
         matching_validation={gen: Counter(dict.fromkeys(LINK_STATUSES, 0))
                              for gen in ANALYSIS_SELECTIONS},
+        matching_validation_all={gen: Counter(dict.fromkeys(LINK_STATUSES, 0))
+                                 for gen in ANALYSIS_SELECTIONS},
         branch_counts=Counter(),
     ) for mode in labels}
     if native:
@@ -421,6 +431,8 @@ def read_sample(paths, sample: str, angle_accumulator, source='nanoaod'):
                         for population in ANALYSIS_SELECTIONS:
                             values["matching_validation"][population].update(
                                 event["matching_validation"][mode][population])
+                            values["matching_validation_all"][population].update(
+                                event["matching_validation_all"][mode][population])
                     else:
                         values['branch_counts'].update(objects['branch_counts'])
                 angle_accumulator(event)
@@ -428,10 +440,12 @@ def read_sample(paths, sample: str, angle_accumulator, source='nanoaod'):
     gamma = {name: np.asarray(entries) for name, entries in gamma.items()}
     gen_event_counts = {name: np.asarray(entries) for name, entries in gen_event_counts.items()}
     populations = analysis_selections(gamma["category"], gamma["cos_theta"])
+    populations_all = analysis_selections(gamma["category"], gamma["cos_theta"], fiducial=False)
     shared = dict(events=events, source=source, event_keys=event_keys, gen_signatures=gen_signatures,
                   metadata_excluded=metadata_excluded, gamma=gamma, selections=gen_selections(gamma["category"]),
-                  analysis_selections=populations,
+                  analysis_selections=populations, analysis_selections_all=populations_all,
                   energy_selections=energy_selections(gamma["energy"], populations),
+                  energy_selections_all=energy_selections(gamma["energy"], populations_all),
                   gen_event_counts=gen_event_counts,
                   gen_event_index=np.repeat(np.arange(events), gen_event_counts["all_gamma"]))
     for mode, values in results.items():

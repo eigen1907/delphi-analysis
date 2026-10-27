@@ -1,8 +1,9 @@
 # Photon validation
 
-Run `bash scripts/03_sample_validation/02_gamma/plot.sh` from the repository root.
-Defaults: `output/dataset/20261015_jongwon`, `train`, all stages. Use `--input`,
-`--split` and `--stage` to change them. The implementation is in
+Run `bash scripts/02_sample_validation/02_gamma/plot.sh` from the repository root.
+Defaults: `output/dataset/20260828_florian`, ZKK, `train`, all stages.
+Use `--samples Zee Zmumu` to select samples; `--input`, `--split` and `--stage` select the input
+and stages. The implementation is in
 [data.py](../src/sample_validation/gamma/data.py),
 [angular_matching.py](../src/sample_validation/gamma/angular_matching.py) and
 [detector_plots.py](../src/sample_validation/gamma/detector_plots.py).
@@ -13,11 +14,15 @@ Start with stable photons: `GenPart_pdgId == 22` and `GenPart_status == 1`.
 Ancestry separates beam ISR, other ISR, FSR and the remaining `decayed` category.
 Beam ISR has `px == py == 0` and an incoming-electron parent.
 
-| Matching population | Selection |
+| Matching population | Selection before angular acceptance |
 | --- | --- |
-| `gen_gamma` | All photons except beam ISR, within EM acceptance |
-| `gen_isr` | Non-beam ISR within EM acceptance |
-| `gen_no_isr` | FSR or `decayed`, within EM acceptance |
+| `gen_gamma` | All photons except beam ISR |
+| `gen_isr` | Non-beam ISR |
+| `gen_no_isr` | FSR or `decayed` |
+
+Matching validation and results have two views: `all` has no Gen theta cut;
+`fiducial` applies the EM acceptance below. Both exclude Beam ISR, reuse the same
+truth links/angular cones, and keep the same inclusive Reco pool.
 
 The fiducial regions use the **Gen photon polar angle in degrees**. All bounds
 are open; boundaries and gaps are excluded.
@@ -28,8 +33,9 @@ are open; boundaries and gaps are excluded.
 | FEMC | `11 < θ < 36` or `144 < θ < 169` |
 | STIC | `2 < θ < 10` or `170 < θ < 178` |
 
-EM acceptance is their union. **All ranges (0–180°)** combines accepted photons;
-it is not a 4π denominator. Reco candidates receive no preliminary θ cut.
+EM acceptance is their union. **All ranges (0–180°)** combines the selected Gen
+population: unrestricted theta in `all`, accepted photons in `fiducial`.
+Reco candidates receive no preliminary θ cut.
 Gen four-vectors must be finite, with positive energy and nonzero momentum.
 
 ## Reco collections and matching
@@ -87,16 +93,22 @@ denominator. They do not restrict the Reco pool.
 | --- | --- | --- |
 | Default | `0 ≤ E`, no upper bound | None |
 | Low | `0 ≤ E < 1` | `_energy0-1` |
-| Mid | `1 ≤ E < 10` | `_energy1-10` |
-| High | `10 ≤ E` | `_energy10-` |
+| High | `1 ≤ E` | `_energy1-` |
 
-The bands apply to `eff_det_flag`, `eff_det_regional`, `eff_vs_cos_theta` and
-`event_energy_ratio`. Energy sums retain unmatched events as zero; ambiguous
+The bands apply to `eff_det_flag`, `eff_det_regional`, `eff_vs_energy`,
+`eff_vs_cos_theta` and `event_energy_ratio`. Energy efficiency uses 0–50 GeV
+for the inclusive plot, 0–1 GeV with 0.05 GeV bins for `energy0-1`, and the
+existing variable-width 1–50 GeV bins for `energy1-`.
+Energy sums retain unmatched events as zero; ambiguous
 overlapping Reco energies remain NaN. Angular event sums count a Reco only once,
 even if it matches several Gen cones.
 
-`01_sample_distribution` includes beam ISR and photons outside acceptance, so
-its Gen counts differ from matching denominators. Energy plots are:
+`01-01_sample_distribution_all` includes beam ISR and photons outside acceptance.
+`01-02_sample_distribution_fiducial` applies the Gen EM acceptance above, including
+to event multiplicities. Both retain all events, including zero-count events,
+and use the same inclusive Reco collection without a Reco angle or truth-origin cut.
+These stages add no energy cut. Matching keeps Beam ISR excluded in both views.
+Energy plots are:
 
 | File | Axes |
 | --- | --- |
@@ -109,4 +121,4 @@ deduplication. Both use the same color and opposite diagonal hatches; their
 total equals the combined candidate count.
 
 Matching output:
-`output/plots/<campaign>/03_sample_validation/<split>/02_gamma/<stage>/matching_result/<sample>/<source>/<collection>/`.
+`output/plots/<campaign>/02_sample_validation/<split>/02_gamma/<stage>/{matching_validation,matching_result}/{all,fiducial}/<sample>/<source>/<collection>/`.

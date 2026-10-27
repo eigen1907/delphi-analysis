@@ -1,4 +1,4 @@
-"""Fiducial Gen efficiencies and event energy ratios in three energy bands."""
+"""Gen efficiencies and event energy ratios, with and without angular acceptance."""
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.lines import Line2D
@@ -8,13 +8,29 @@ from .data import ANALYSIS_SELECTIONS, ENERGY_LABELS, ENERGY_RANGES, GEN_LABELS
 from .sample_distribution import ENERGY_EDGES
 
 XLABELS = dict(energy=r'$E_\gamma^{\rm gen}$ [GeV]', cos_theta=r'$\cos\theta^{\rm gen}$')
+ENERGY_BINS = {
+    'all': ENERGY_EDGES,
+    'energy0-1': np.linspace(0, 1, 21),
+    'energy1-': ENERGY_EDGES[ENERGY_EDGES >= 1],
+}
 
 
-def selection_note(ax, range_name):
-    text = 'Gen fiducial'
+def selection_views(values):
+    """Both matching views exclude Beam ISR; only fiducial applies Gen acceptance."""
+    for fiducial in (False, True):
+        selected = dict(values, fiducial=fiducial)
+        if not fiducial:
+            for field in ('analysis_selections', 'energy_selections', 'matching_validation'):
+                selected[field] = values[field + '_all']
+        yield selected
+
+
+def selection_note(ax, range_name, fiducial):
+    text = 'Gen fiducial' if fiducial else ''
     if ENERGY_LABELS[range_name]:
-        text += '\n' + ENERGY_LABELS[range_name]
-    ax.text(0.02, 0.89, text, transform=ax.transAxes, va='top', fontsize=20)
+        text = '\n'.join(filter(None, (text, ENERGY_LABELS[range_name])))
+    if text:
+        ax.text(0.02, 0.89, text, transform=ax.transAxes, va='top', fontsize=20)
 
 
 def event_energy_ratio(output, sample, values, stats, range_index):
@@ -76,7 +92,7 @@ def event_energy_ratio(output, sample, values, stats, range_index):
     ax.legend(empty, [f'{100 * fraction:.2f}' for _, _, _, fraction, _ in histograms],
               title='% (>3)', bbox_to_anchor=(anchors[-1], 0.98),
               handlelength=0, handletextpad=0, **legend_style)
-    selection_note(ax, range_name)
+    selection_note(ax, range_name, values['fiducial'])
     ax.set_xlim(0, 3)
     ax.set_xticks(np.arange(0, 3.5, 0.5))
     ax.set_yscale('log')
@@ -88,7 +104,7 @@ def event_energy_ratio(output, sample, values, stats, range_index):
 
 def efficiency(output, sample, values, stats, bins, coordinate, range_name):
     masks = values['energy_selections'][range_name]
-    edges = ENERGY_EDGES if coordinate == 'energy' else bins['cos_theta']
+    edges = ENERGY_BINS[range_name] if coordinate == 'energy' else bins['cos_theta']
     fig, ax = plt.subplots(figsize=FIGURE_SIZE)
     for index, (population, label) in enumerate(zip(ANALYSIS_SELECTIONS, GEN_LABELS, strict=True)):
         selected = masks[population]
@@ -98,16 +114,17 @@ def efficiency(output, sample, values, stats, bins, coordinate, range_name):
     ax.set_ylim(0, 1.35)
     ax.axhline(1, color='0.5', linestyle='--', linewidth=1.5)
     ax.set_yticks(np.linspace(0, 1, 6))
-    selection_note(ax, range_name)
+    selection_note(ax, range_name, values['fiducial'])
     suffix = '' if range_name == 'all' else f'_{range_name}'
     ylabel = 'Angular EM coverage' if values['source'] == 'nanoaod_raw_sdst' else 'Efficiency'
     finish(fig, ax, output / f'eff_vs_{coordinate}{suffix}.png', sample, XLABELS[coordinate], ylabel)
 
 
 def matching_results(study, sample, values, bins, stats, stage):
+    scope = 'fiducial' if values['fiducial'] else 'all'
     output = plot_path(study, '02_gamma', stage, sample, values['source'],
-                       values['collection'], 'matching_result')
-    efficiency(output, sample, values, stats, bins, 'energy', 'all')
+                       values['collection'], f'matching_result/{scope}')
     for range_index, (range_name, _, _) in enumerate(ENERGY_RANGES):
+        efficiency(output, sample, values, stats, bins, 'energy', range_name)
         efficiency(output, sample, values, stats, bins, 'cos_theta', range_name)
         event_energy_ratio(output, sample, values, stats, range_index)

@@ -4,7 +4,7 @@ import numpy as np
 from matplotlib.ticker import MaxNLocator
 
 from common.plot_utils import FIGURE_SIZE, finish, plot_path
-from .data import GEN_SELECTIONS
+from .data import GEN_SELECTIONS, em_acceptance
 
 ENERGY_EDGES = np.array([0, 1, 2, 3, 5, 7, 10, 15, 20, 30, 50])
 
@@ -30,8 +30,12 @@ def bin_centers(ax, bins, logarithmic=False):
     ax.set_xlim(bins[0], bins[-1])
     if logarithmic:
         # Preserve zero-energy candidates in a linear first bin, as in the old log-x plot.
-        ax.set_xscale('symlog', linthresh=bins[1])
-        ax.set_xticks(np.r_[0, ax.get_xticks()[2:]])
+        linear = bins[1]
+        ax.set_xscale('symlog', linthresh=linear)
+        ax.xaxis.get_major_locator().set_params(numticks=9)
+        ticks = ax.get_xticks()
+        shown = ((ticks == 0) | (np.abs(ticks) >= 10 * linear)) & (ticks >= bins[0]) & (ticks <= bins[-1])
+        ax.set_xticks(ticks[shown])
         return np.r_[0, np.sqrt(bins[1:-1] * bins[2:])]
     return (bins[:-1] + bins[1:]) / 2
 
@@ -82,24 +86,34 @@ def reco_spectrum(ax, entries, bins, events, label, is_conversion=None, logarith
     return counts / events
 
 
-def sample_distributions(study, sample, values, bins):
-    """Change only the Gen selection; the inclusive Reco population stays the same."""
+def sample_distributions(study, sample, values, bins, stage):
+    """Fiducial selects Gen photons only; Reco and the event denominator stay inclusive."""
     gamma = values['gamma']
     candidates = values['reco_distributions']
+    fiducial = stage.endswith('_fiducial')
+    accepted = (em_acceptance(gamma['cos_theta']) if fiducial
+                else np.ones(len(gamma['energy']), dtype=bool))
+    event_counts = {
+        name: np.bincount(values['gen_event_index'][accepted & (gamma['category'] == name)],
+                          minlength=values['events'])
+        for name, _ in GEN_COMPONENTS
+    }
     is_conversion = (candidates['is_conversion']
                      if values['source'] == 'nanoaod' and values['collection'] == 'Photon_PhotonConv'
                      else None)
-    energy_log_bins = log_energy_bins(np.r_[gamma['energy'], candidates['energy']])
+    energy_entries = np.r_[gamma['energy'][accepted], candidates['energy']]
+    energy_log_bins = log_energy_bins(energy_entries)
+    energy_bins = bins['energy']
     for gen_name in GEN_SELECTIONS:
-        output = plot_path(study, '02_gamma', '01_sample_distribution', sample, values['source'],
+        output = plot_path(study, '02_gamma', stage, sample, values['source'],
                            values['collection']) / gen_name
         output.mkdir(parents=True, exist_ok=True)
-        gen_selected = values['selections'][gen_name]
+        gen_selected = values['selections'][gen_name] & accepted
         for coordinate in ('cos_theta', 'energy'):
             scales = ((False, False), (True, False), (True, True)) if coordinate == 'energy' else (
                 (False, False), (True, False))
             for log, log_x in scales:
-                edges = energy_log_bins if log_x else bins[coordinate]
+                edges = energy_log_bins if log_x else energy_bins if coordinate == 'energy' else bins[coordinate]
                 gen_entries = gamma[coordinate]
                 reco_entries = candidates[coordinate]
                 if coordinate == 'energy' and not log_x:
@@ -112,7 +126,7 @@ def sample_distributions(study, sample, values, bins):
                              GEN_STACKS[gen_name], edges, values['events'], log_x)
                 reco_height = reco_spectrum(ax, reco_entries, edges, values['events'],
                                             values['reco_label'], is_conversion, log_x)
-                all_gen_entries = gen_entries[values['selections']['gen_gamma']]
+                all_gen_entries = gen_entries[values['selections']['gen_gamma'] & accepted]
                 all_gen_counts = np.histogram(all_gen_entries[np.isfinite(all_gen_entries)], bins=edges)[0]
                 # Use one y range for all four Gen selections.
                 height = max(all_gen_counts.max() / values['events'], reco_height.max(), 1 / values['events'])
@@ -125,14 +139,16 @@ def sample_distributions(study, sample, values, bins):
                     ax.set_xticks([0, 10, 20, 30, 40, 55], ['0', '10', '20', '30', '40', r'$\geq 50$'])
                 suffix = '_loglog' if log_x else '_log' if log else ''
                 xlabel = r'$E_\gamma$ [GeV]' if coordinate == 'energy' else r'$\cos\theta$'
+                if fiducial:
+                    ax.text(0.02, 0.89, 'Gen fiducial', transform=ax.transAxes, va='top')
                 finish(fig, ax, output / f'{coordinate}{suffix}.png', sample, xlabel,
                        r'$N_\gamma$ / bin per event' if values['source'] == 'nanoaod' else 'Objects / bin per event')
-        event_multiplicity(output, sample, values, GEN_STACKS[gen_name])
+        event_multiplicity(output, sample, values, GEN_STACKS[gen_name], event_counts, fiducial)
 
 
-def event_multiplicity(output, sample, values, components):
+def event_multiplicity(output, sample, values, components, event_counts, fiducial):
     """Photon counts per event, including N_gamma = 0; overlapping curves are not stacked."""
-    entries = [(values['gen_event_counts'][name], f'Gen {label}', f'C{GEN_COMPONENTS.index((name, label))}', '-')
+    entries = [(event_counts[name], f'Gen {label}', f'C{GEN_COMPONENTS.index((name, label))}', '-')
                for name, label in components]
     entries.append((values['reco_event_counts'], f"Reco {values['reco_label']}", 'C4', '--'))
     bins = np.arange(-0.5, max(item[0].max() for item in entries) + 1.5)
@@ -155,6 +171,8 @@ def event_multiplicity(output, sample, values, components):
             ax.set_ylim(0.5, height * 100)
         else:
             ax.set_ylim(0, height * 1.8)
+        if fiducial:
+            ax.text(0.02, 0.89, 'Gen fiducial', transform=ax.transAxes, va='top')
         suffix = '_log' if log else ''
         finish(fig, ax, output / f'multiplicity{suffix}.png',
                sample, r'$N_\gamma$' if values['source'] == 'nanoaod' else r'$N$', 'Events')

@@ -40,7 +40,7 @@ def detector_validation(root, dataset, values):
 
 
 def detector_efficiencies(root, dataset, values, stats, stage):
-    """Keep unmatched fiducial Gen photons in the denominator."""
+    """Keep unmatched selected Gen photons in the denominator."""
     theta = np.rad2deg(np.arccos(np.clip(values['gamma']['cos_theta'], -1, 1)))
     regions = em_regions(theta)
     region_masks = [np.ones(len(theta), dtype=bool), *regions.values()]
@@ -53,8 +53,9 @@ def detector_efficiencies(root, dataset, values, stats, stage):
         ticklabels.append(detector + '\n' + '\n'.join(ranges))
     x = np.arange(len(region_masks))
     raw_counts = {}
+    scope = 'fiducial' if values['fiducial'] else 'all'
     output = plot_path(root, '02_gamma', stage, dataset, values['source'],
-                       values['collection'], 'matching_result')
+                       values['collection'], f'matching_result/{scope}')
     for range_name, _, _ in ENERGY_RANGES:
         raw_counts[range_name] = {}
         for tagged in (False, True):
@@ -80,10 +81,11 @@ def detector_efficiencies(root, dataset, values, stats, stage):
             ax.set_ylim(0, 1.35)
             ax.axhline(1, color='0.5', linestyle='--', linewidth=1.5)
             ax.set_yticks(np.linspace(0, 1, 6))
-            note = 'Gen fiducial'
+            note = 'Gen fiducial' if values['fiducial'] else ''
             if ENERGY_LABELS[range_name]:
-                note += '\n' + ENERGY_LABELS[range_name]
-            ax.text(0.02, 0.89, note, transform=ax.transAxes, va='top', fontsize=20)
+                note = '\n'.join(filter(None, (note, ENERGY_LABELS[range_name])))
+            if note:
+                ax.text(0.02, 0.89, note, transform=ax.transAxes, va='top', fontsize=20)
             if tagged and values['collection'] == 'Photon_PhotonConv':
                 ax.text(0.02, 0.70 if ENERGY_LABELS[range_name] else 0.82, 'Conversions: no detector tag',
                         transform=ax.transAxes, va='top', fontsize=18)

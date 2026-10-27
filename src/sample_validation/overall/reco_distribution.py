@@ -352,10 +352,10 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     add_samples_argument(parser)
     parser.add_argument("-i", "--input", type=Path,
-                        default=DATASET_ROOT / "20261015_jongwon",
+                        default=DATASET_ROOT / "20260828_florian",
                         help="input dataset root")
     parser.add_argument("-o", "--output", type=Path, default=None,
-                        help="plot output root (default: output/plots/<campaign>/03_sample_validation/<split>)")
+                        help="plot output root (default: output/plots/<campaign>/02_sample_validation/<split>)")
     add_color_scale_argument(parser)
     parser.add_argument("--split", choices=("train", "val", "test"), default="train")
     args = parser.parse_args()
