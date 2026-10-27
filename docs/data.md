@@ -23,16 +23,33 @@ and actual split sizes.
 | Florian Zmumu | 60,000 | 15,000 | 14,999 |
 
 Florian Zmumu is missing one original event: job 16, run −3016, event 1271.
-Prepare the two Florian groups separately:
+The default preparation handles this without a sample-specific condition:
 
 ```bash
-bash scripts/02_sample_preparation/prepare_dataset.sh \
-    --input data/20260828_florian --output output/dataset/20260828_florian \
-    --samples Zee ZKK Zpipi Ztautau --counts 60000 15000 15000 --seed 1907
-bash scripts/02_sample_preparation/prepare_dataset.sh \
-    --input data/20260828_florian --output output/dataset/20260828_florian \
-    --samples Zmumu --counts 60000 15000 14999 --seed 1907
+bash scripts/01_sample_preparation/prepare_dataset.sh
 ```
+
+It assigns 60,000 training and 15,000 validation events, then up to 15,000
+remaining test events. Explicit `--counts TRAIN VAL TEST` still requires exact sizes.
+Preparation defaults to ZKK PHOTOS-FSR. Use `--samples Zee Zmumu` to select other
+PHOTOS-FSR channels, or list all five to prepare them together.
+Dataset directories retain the FSR suffix.
+
+## Collision data
+
+The converted 94C2 files are under
+`data/20260828_florian/20261026_short94_c2/<file>/`, alongside the Florian MC
+campaign. Each directory contains the original `.al`, `nanoaod.root`,
+`nanoaod_raw_sdst.root` and `conversion.log`.
+
+Download, conversion and event Run Quality commands default to this location.
+Data/MC plots use `scripts/03_data_mc_comparison/plot.sh`; MC-only branch and
+matching validation remains in `scripts/02_sample_validation/`.
+
+The conversion recipe uses the prepared local Docker image `delphi-analysis:local`,
+`.cache/short94_c2/{src,build,validate.py,provenance.txt}` and
+`.cache/sample/condition-data`. These assets are local prerequisites; the recipe
+does not build or download them.
 
 ## Join objects by index
 
