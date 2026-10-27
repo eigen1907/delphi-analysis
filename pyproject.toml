@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "awkward",
+    "delphi-metadata",
     "hist",
     "joblib",
     "matplotlib",
@@ -23,3 +24,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.uv.sources]
+delphi-metadata = { git = "https://gitlab.cern.ch/liko/delphi-metadata.git", subdirectory = "python", rev = "6db7388ecf756137f30f54ad87ade81c68409820" }

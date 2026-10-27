@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = "==3.12.*"
 resolution-markers = [
     "sys_platform == 'win32'",
@@ -146,6 +146,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "awkward" },
+    { name = "delphi-metadata" },
     { name = "hist" },
     { name = "joblib" },
     { name = "matplotlib" },
@@ -160,6 +161,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "awkward" },
+    { name = "delphi-metadata", git = "https://gitlab.cern.ch/liko/delphi-metadata.git?subdirectory=python&rev=6db7388ecf756137f30f54ad87ade81c68409820" },
     { name = "hist" },
     { name = "joblib" },
     { name = "matplotlib" },
@@ -169,6 +171,14 @@ requires-dist = [
     { name = "scipy" },
     { name = "uproot" },
     { name = "xgboost" },
+]
+
+[[package]]
+name = "delphi-metadata"
+version = "0.1.0"
+source = { git = "https://gitlab.cern.ch/liko/delphi-metadata.git?subdirectory=python&rev=6db7388ecf756137f30f54ad87ade81c68409820#6db7388ecf756137f30f54ad87ade81c68409820" }
+dependencies = [
+    { name = "click" },
 ]
 
 [[package]]

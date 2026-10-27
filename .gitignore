@@ -8,6 +8,10 @@
 /plots/*
 !/plots/.gitkeep
 
+# Official dmd database (local input).
+/delphi-metadata.sqlite3
+/delphi-metadata.sqlite3-*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
