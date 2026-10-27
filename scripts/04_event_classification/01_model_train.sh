@@ -6,7 +6,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 CAMPAIGN="${CAMPAIGN:-20261015_jongwon}"
 FEATURE_SET="${FEATURE_SET:-detector_pid}"
 # Both aligned trees provide features; val.root controls early stopping.
-exec uv run python -m event_classification.train \
+exec uv run python -B -m event_classification.train \
     --input "output/dataset/$CAMPAIGN" \
     --output "output/models/${CAMPAIGN}_${FEATURE_SET}_default" \
     --feature-config "config/pid/features/$FEATURE_SET.json" \

@@ -25,7 +25,7 @@ def load_metadata(dataset_dir: Path) -> dict[str, Any]:
     if metadata.get("format_version") not in (5, 6):
         raise ValueError(
             "BDT dataset uses an older feature format; rerun "
-            "scripts/02_sample_preparation/prepare_dataset.sh"
+            "scripts/01_sample_preparation/prepare_dataset.sh"
         )
     return metadata
 

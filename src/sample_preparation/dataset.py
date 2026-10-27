@@ -12,7 +12,7 @@ import numpy as np
 import uproot
 
 from common.paths import DATA_ROOT, DATASET_ROOT
-from common.samples import sample_name
+from common.samples import SAMPLE_NAMES, sample_name
 
 
 SPLITS = ("train", "val", "test")
@@ -64,16 +64,16 @@ def discover_samples(input_root: Path, samples: list[str] | None = None) -> list
     paths = [path for path in sorted(input_root.glob("*photosFSR")) if path.is_dir()]
     if requested:
         paths = [path for path in paths if sample_name(path) in requested or path.name in requested
-                 or f"{sample_name(path)}_photosFSR" in requested]
+                 or "_".join(path.name.split("_")[-2:]) in requested]
     if not paths:
         raise FileNotFoundError(f"No requested photosFSR sample directories in {input_root}")
     return paths
 
 
-def prepare_sample(sample_dir: Path, output_root: Path, counts: tuple[int, int, int],
+def prepare_sample(sample_dir: Path, output_root: Path, counts: tuple[int, int, int] | None,
                    seed: int) -> dict:
     """Read one source job at a time and write the same split to both trees."""
-    sample = f"{sample_name(sample_dir)}_photosFSR"
+    sample = "_".join(sample_dir.name.split("_")[-2:])
     output_dir = output_root / sample
     jobs, audit, excluded = [], {}, []
     has_production = (sample_dir / "production").is_dir()
@@ -88,9 +88,11 @@ def prepare_sample(sample_dir: Path, output_root: Path, counts: tuple[int, int, 
         jobs.append((job, paired))
 
     available = sum(len(paired["analysisLevel"]) for _, paired in jobs)
+    if counts is None:
+        counts = (60000, 15000, min(15000, available - 75000))
     total = sum(counts)
-    if available < total:
-        raise ValueError(f"{sample}: requested {total} events, only {available} valid pairs available")
+    if min(counts) <= 0 or available < total:
+        raise ValueError(f"{sample}: cannot fill splits {counts} from {available} valid pairs")
     if any((output_dir / f"{split}.root").exists() for split in SPLITS):
         raise FileExistsError(f"Dataset already exists under {output_dir}; choose another output directory")
 
@@ -156,16 +158,16 @@ def prepare_sample(sample_dir: Path, output_root: Path, counts: tuple[int, int, 
     }
 
 
-def prepare_dataset(input_root: Path, output_root: Path, *, counts=(60000, 15000, 15000),
+def prepare_dataset(input_root: Path, output_root: Path, *, counts=None,
                     seed: int = 1907, samples: list[str] | None = None) -> dict:
     input_root, output_root = Path(input_root), Path(output_root)
-    if len(counts) != 3 or any(count <= 0 for count in counts):
+    if counts is not None and (len(counts) != 3 or any(count <= 0 for count in counts)):
         raise ValueError("Three positive counts are required: train, validation, test")
     output_root.mkdir(parents=True, exist_ok=True)
     metadata_path = output_root / "metadata.json"
     metadata = {
         "format_version": 6, "campaign": input_root.name, "input_root": str(input_root.resolve()),
-        "trees": TREES, "counts": dict(zip(SPLITS, counts, strict=True)),
+        "trees": TREES, "counts": dict(zip(SPLITS, counts, strict=True)) if counts is not None else None,
         "seed": seed, "split_unit": "event", "samples": {},
     }
     if metadata_path.exists():
@@ -176,19 +178,21 @@ def prepare_dataset(input_root: Path, output_root: Path, *, counts=(60000, 15000
         metadata["samples"] = existing["samples"]
         metadata["counts"] = existing["counts"]
     for sample_dir in discover_samples(input_root, samples):
-        name = f"{sample_name(sample_dir)}_photosFSR"
-        metadata["samples"][name] = prepare_sample(sample_dir, output_root, tuple(counts), seed)
+        name = "_".join(sample_dir.name.split("_")[-2:])
+        metadata["samples"][name] = prepare_sample(sample_dir, output_root,
+                                                 tuple(counts) if counts is not None else None, seed)
         metadata_path.write_text(json.dumps(metadata, indent=2) + "\n")
     return metadata
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("-i", "--input", type=Path, default=DATA_ROOT / "20261015_jongwon")
+    parser.add_argument("-i", "--input", type=Path, default=DATA_ROOT / "20260828_florian")
     parser.add_argument("-o", "--output", type=Path, help="default: output/dataset/<campaign>")
-    parser.add_argument("--counts", nargs=3, type=int, default=(60000, 15000, 15000),
-                        metavar=("TRAIN", "VAL", "TEST"))
-    parser.add_argument("--samples", nargs="+", help="photosFSR sample classes or directory names")
+    parser.add_argument("--counts", nargs=3, type=int, metavar=("TRAIN", "VAL", "TEST"),
+                        help="exact split sizes (default: 60000, 15000, up to 15000 remaining)")
+    parser.add_argument("--samples", nargs="+", choices=SAMPLE_NAMES, default=["ZKK"],
+                        help="PHOTOS-FSR sample classes (default: ZKK)")
     parser.add_argument("--seed", type=int, default=1907)
     args = parser.parse_args()
     prepare_dataset(args.input, args.output or DATASET_ROOT / args.input.name,

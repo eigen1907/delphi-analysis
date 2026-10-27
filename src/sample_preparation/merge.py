@@ -145,10 +145,10 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser()
     add_samples_argument(parser)
     parser.add_argument("-i", "--input", type=Path,
-                        default=DATASET_ROOT / "20261015_jongwon" / "chunks",
+                        default=DATASET_ROOT / "20260828_florian" / "chunks",
                         help="input chunks root")
     parser.add_argument("-o", "--output", type=Path,
-                        default=DATASET_ROOT / "20261015_jongwon" / "merged",
+                        default=DATASET_ROOT / "20260828_florian" / "merged",
                         help="merged dataset output root")
     parser.add_argument(
         "--backend",
