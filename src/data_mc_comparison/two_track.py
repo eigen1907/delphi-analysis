@@ -17,6 +17,7 @@ from common.plot_utils import SAMPLE_LABELS, sample_files, set_style
 from common.samples import SAMPLE_NAMES, sample_name
 from sample_preparation.run_quality import event_keys, QUALITY_MIN, QUALITY_MAX
 from .selections import CHANNELS, DETECTORS, STAGES, select_pairs
+from . import comparison
 
 REGIONS = ("All", "BB", "FF", "BF", "Other")
 COMMON_STAGES = ("input", "tracking_quality", "two_charged", "two_os", "back_to_back")
@@ -93,12 +94,14 @@ def read_pair(path, tracking=None):
                 for key, collection in (("muid", "Muid"), ("elid", "Elid"))}
         hpc_energy = np.asarray(ak.to_numpy(tree["Part_hpcTotalShowerEnergy"].array()[charged][two]),
                                 dtype=float).reshape(-1, 2)[opposite][valid]
+        keys = list(zip(tree["Event_runNumber"].array(library="np")[events].tolist(),
+                        tree["Event_evtNumber"].array(library="np")[events].tolist(), strict=True))
     # Count all charged Parts first: an unusable third track cannot promote a two-track event.
     stats["valid_two_os"] = len(events)
     for key, values in tags.items():
         stats[f"unknown_{key}_legs"] = int((values < 0).sum())
     assert stats["two_os_raw"] == len(events) + stats["invalid_momentum"]
-    return dict(events=events, momentum=momentum, tags=tags, hpc_energy=hpc_energy,
+    return dict(events=events, parts=parts, keys=keys, momentum=momentum, tags=tags, hpc_energy=hpc_energy,
                 native_mass=charged_mass[events], common=common, common_counts=common_counts), stats
 
 
@@ -125,9 +128,31 @@ def fill_histogram(result, key, entries):
         result["flows"][(*key, name)] += int(count)
 
 
+def compare_raw(path, selected_keys, result):
+    """Transfer the final native selection by event key, within one source file."""
+    wanted = {key for keys in selected_keys.values() for key in keys}
+    if not wanted:
+        return
+    with uproot.open(path.parent / "nanoaod_raw_sdst.root") as root:
+        tree = root["Events"]
+        runs = tree["Event_runNumber"].array(library="np")
+        events = tree["Event_eventNumber"].array(library="np")
+        lookup = {}
+        for row, key in enumerate(zip(runs.tolist(), events.tolist(), strict=True)):
+            if key in wanted:
+                assert key not in lookup, f"Duplicate selected Raw event: {path.parent}, {key}"
+                lookup[key] = row
+        assert lookup.keys() == wanted, f"Selected native/Raw events differ: {path.parent}"
+        rows = {channel: np.asarray([lookup[key] for key in keys], dtype=int)
+                for channel, keys in selected_keys.items()}
+        comparison.accumulate(tree, rows, result)
+
+
 def accumulate(files, quality=None):
     result = dict(hist={}, counts=Counter(), flows=Counter(), diagnostics=Counter(),
-                  inputs=[], data=quality is not None)
+                  inputs=[], data=quality is not None,
+                  comparison=dict(hist={}, flows=Counter(), counts=Counter()),
+                  high_level_comparison=dict(hist={}, flows=Counter(), counts=Counter()))
     for index, path in enumerate(files, 1):
         event_flags, tracking = None, None
         if quality is not None:
@@ -146,10 +171,16 @@ def accumulate(files, quality=None):
             result["counts"]["common", "All", stage] += pair["common_counts"][stage]
             for coordinate, entries in values.items():
                 fill_histogram(result, ("common", "All", stage, coordinate), entries)
+        selected_keys = {}
+        native_selections = {}
         for channel in CHANNELS:
             values = observables(pair, channel)
             category, masks = select_pairs(pair["momentum"], values["mass"],
                                             pair["tags"], channel, flags)
+            selected_keys[channel] = [key for key, keep in zip(pair["keys"], masks["mass_window"], strict=True)
+                                      if keep]
+            native_selections[channel] = dict(events=pair["events"][masks["mass_window"]],
+                                              parts=pair["parts"][masks["mass_window"]])
             if channel == "mumu":
                 common_values = dict(p=values["p"], cos_theta=values["cos_theta"], mass=pair["native_mass"])
                 selected = masks["back_to_back"]
@@ -172,6 +203,11 @@ def accumulate(files, quality=None):
                         else:
                             entries = values[coordinate][selected].reshape(-1)
                         fill_histogram(result, (channel, region, stage, coordinate), entries)
+        compare_raw(path, selected_keys, result["comparison"])
+        if any(len(value["events"]) for value in native_selections.values()):
+            with uproot.open(path) as root:
+                comparison.accumulate_native(root["Events"], native_selections,
+                                             result["high_level_comparison"])
         if index % 25 == 0 or index == len(files):
             print(f"  {index}/{len(files)} files; {result['diagnostics']['input_events']:,} events", flush=True)
     for key, histogram in result["hist"].items():
@@ -185,6 +221,9 @@ def accumulate(files, quality=None):
                for stage in ("two_os", "back_to_back"))
     counts = [result["counts"]["common", "All", stage] for stage in COMMON_STAGES]
     assert all(earlier >= later for earlier, later in zip(counts[:-1], counts[1:], strict=True))
+    for channel in CHANNELS:
+        assert result["comparison"]["counts"][channel] == result["counts"][channel, "All", "mass_window"]
+        assert result["high_level_comparison"]["counts"][channel] == result["counts"][channel, "All", "mass_window"]
     return result
 
 
@@ -366,7 +405,9 @@ def write_counts(results, output):
 def plot_results(results, output):
     """Flat numbered files: each distribution is after the named cumulative cut."""
     set_style()
-    common = output / "00_common"
+    selection = output / "01_selection"
+    selection.mkdir(parents=True, exist_ok=True)
+    common = selection / "00_common"
     common.mkdir(exist_ok=True)
     plot_common_cutflow(results, common)
     common_stages = (("01_all_charged_parts", "input"), ("02_tracking_quality", "tracking_quality"),
@@ -380,7 +421,7 @@ def plot_results(results, output):
     for channel, directory in CHANNEL_DIRS.items():
         sample = "Zmumu" if channel == "mumu" else "Zee"
         selected = {name: result for name, result in results.items() if name in ("Data", sample)}
-        folder = output / directory
+        folder = selection / directory
         folder.mkdir(exist_ok=True)
         plot_channel_cutflow(selected, channel, folder)
         stages = ((("01_common", "back_to_back"), ("02_angular_acceptance", "fiducial"),
@@ -408,7 +449,7 @@ def main():
     parser.add_argument("--mc", type=Path, default=DATA_ROOT / "20260828_florian")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
-    output = args.output or PLOT_ROOT / args.mc.name / "03_data_mc_comparison/two_track"
+    output = args.output or PLOT_ROOT / args.mc.name / "03_data_mc_comparison"
     output.mkdir(parents=True, exist_ok=True)
     data_files = []
     for path in sorted(args.data.glob("*/nanoaod.root")):
@@ -427,8 +468,11 @@ def main():
     for name in args.samples:
         print(name, "PHOTOS-FSR", flush=True)
         results[name] = accumulate(mc_files[name])
-    write_counts(results, output)
+    selection = output / "01_selection"
+    selection.mkdir(parents=True, exist_ok=True)
+    write_counts(results, selection)
     plot_results(results, output)
+    comparison.plot(results, output / "02_comparison")
     print(f"Plots and cutflow: {output}")
 
 
