@@ -219,39 +219,26 @@ indices for event and PID links. Exactly-two is then counted before the OS stage
 rejects pairs with invalid charge or non-finite/zero momentum; no third track is
 dropped to promote an event.
 
-Outputs: `output/plots/<MC campaign>/03_data_mc_comparison/two_track/`:
+Outputs: `output/plots/<MC campaign>/03_data_mc_comparison/`:
 
 ```text
-00_common/
-  00_cutflow.png
-  01_all_charged_parts_{p,cos_theta,inv_mass}.png
-  02_tracking_quality_*.png
-  03_two_charged_tracks_*.png
-  04_opposite_sign_*.png
-  05_backtoback_*.png
-  06_selected_*.png
-01_mumu/
-  00_cutflow.png
-  01_common_*.png
-  02_angular_acceptance_*.png
-  03_muon_id_*.png
-  04_detector_quality_*.png
-  05_mass_window_*.png
-  06_selected_*.png
-02_ee/
-  00_cutflow.png
-  01_common_*.png
-  02_angular_acceptance_*.png
-  03_electron_id_*.png
-  04_detector_quality_*.png
-  05_mass_window_*.png
-  06_selected_*.png
-cutflow.csv                    common/channel/region event counts; MC quality is N/A
-inputs.csv                     input snapshot and invalid/unknown counts
-histogram_flows.csv             entries outside display ranges or non-finite
+01_selection/
+  00_common/                   00_cutflow, 01_all_charged_parts, ..., 06_selected
+  01_mumu/                     00_cutflow, 01_common, ..., 05_mass_window, 06_selected
+  02_ee/                       00_cutflow, 01_common, ..., 05_mass_window, 06_selected
+  cutflow.csv                  common/channel/region event counts; MC quality is N/A
+  inputs.csv                   input snapshot and invalid/unknown counts
+  histogram_flows.csv          entries outside display ranges or non-finite
+02_comparison/
+  01_mumu/
+    low_level/                 nanoaod_raw_sdst.root: 11 numbered variable groups
+    high_level/                nanoaod.root: 6 numbered variable groups
+  02_ee/                       the same two levels and variable groups
+  histogram_flows.csv          branch, level, scope, entries, sentinels and flows
+  unavailable_features.csv     undefined external features; definitions left blank
 ```
 
-Every file has one axis and shows the sample **after the named cumulative
+Each selection distribution has one axis and shows the sample **after the named cumulative
 selection**. Read the numbered files in order. The upper left shows only the new
 cut at that stage; the channel baseline is labelled `Common`. Common plots
 include the requested MC samples; channel plots use Data and the matching
@@ -294,6 +281,45 @@ The 0–140 GeV mass and 0–70 GeV momentum ranges are display ranges, not cuts
 Over/underflows are recorded and retained in normalization; non-finite observable
 entries are counted separately. Each MC curve is independently normalized,
 including overflow, and is a shape template rather than a weighted prediction.
+
+Both comparison levels use the same final native event selection:
+
+- `low_level`: **all stored Raw objects in selected events**, joined to Raw by
+  `(run, event)` within each source file. The 57 requested source fields expand
+  to 65 distributions when XYZ vectors are split. See
+  [variables.py](src/data_mc_comparison/variables.py).
+- `high_level`: the **two selected Native Part legs** for particle, track and
+  PID fields; all Native vertices in selected events for vertex fields.
+  Trac/Muid/Elid use unique explicit `*_partIdx` links. Missing or ambiguous
+  links are counted as non-finite entries. Part/Dedx/Haid/Rich/Haidc follow
+  Part order, with collection-length checks. See the 48 fields in
+  [high_level_variables.py](src/data_mc_comparison/high_level_variables.py).
+
+At both levels, event scalars and multiplicities are filled once per selected
+event, including zeros. Low-level object pools and selected high-level legs are
+different populations; their differences alone do not measure a correction.
+`n_extra`, `photon_E_sum`, `max_Muid_tag`, and `n_muid` are left uncomputed until
+their Transformer definitions are established. No substitute definition is used.
+
+Each plot has normalized Data/MC distributions above and their ratio below.
+MC-zero bins have no ratio point. Error bars and MC bands show preliminary
+counting statistics; normalization correlations and same-event object
+correlations are not included. Finite under/overflow stays in normalization;
+non-finite values are counted separately. No negative or zero values are removed.
+The CSV also records unlinked and out-of-range collection indices (row 0 is valid).
+
+`EmShower_nLayers` uses HPC showers only (`EmShower_detector == 9`); FEMC does
+not provide that layer count. Each comparison plot prints the exact branch name
+below the channel label. The CSV notes identify broken baseline Raw MUID/ELID
+and RICH payloads as **Storage diagnostic**, not validated physics inputs, and
+identify link fields as row indices. Track chi-squared tails remain stored-value diagnostics.
+No additional HCAL/RICH/STIC quality selection is introduced. Known Native STIC
+and Rich payload defects are also identified in the CSV notes. These are stored
+branch comparisons before model preprocessing, not a PID efficiency measurement.
+Post-ID lepton controls test conditional response shapes; they cannot establish
+unbiased ID efficiency, hadron PID performance, photon efficiency, or vertex
+performance. A Data/MC discrepancy does not by itself identify missing DELSIM
+calibration, and agreement of incorrectly stored values is not validation.
 
 ## Train and evaluate
 
